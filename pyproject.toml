@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.11,<3.13"
 dependencies = [
+    "autoemulate>=1.2.0",
     "einops>=0.8.1",
     "h5py>=3.15.1",
     "lightning>=2.5.6",
@@ -91,3 +92,6 @@ convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["D"]
+
+[tool.uv.sources]
+autoemulate = { git = "https://github.com/alan-turing-institute/autoemulate.git" }
