@@ -2,18 +2,10 @@ from abc import ABC, abstractmethod
 
 import lightning as L
 import torch
-from torch import nn
+from torch import nn  # noqa: F401
 
+from auto_cast.preprocessor import Preprocessor
 from auto_cast.types import Batch, RolloutOutput, Tensor
-
-
-class Preprocessor(nn.Module):
-    """Base Preprocessor."""
-
-    def forward(self, x: Batch) -> Tensor:
-        """Forward Pass through the Preprocessor."""
-        msg = "To implement."
-        raise NotImplementedError(msg)
 
 
 class Processor(L.LightningModule, ABC):
@@ -21,7 +13,7 @@ class Processor(L.LightningModule, ABC):
 
     teacher_forcing_ratio: float
     stride: int
-    max_rolout_steps: int
+    max_rollout_steps: int
     preprocessor: Preprocessor
 
     def __init__(self):
@@ -53,7 +45,7 @@ class Processor(L.LightningModule, ABC):
         """Rollout over multiple time steps."""
         pred_outs = []
         gt_outs = []
-        for _time_step in range(0, self.max_rolout_steps, self.stride):
+        for _time_step in range(0, self.max_rollout_steps, self.stride):
             x = self.preprocessor(batch)
             pred_outs.append(self(x))
             gt_outs.append(

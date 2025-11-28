@@ -24,7 +24,7 @@ class EncoderDecoder(L.LightningModule):
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
         x = self.preprocessor(batch)
-        output = self.decoder(self.encoder(x))
+        output = self(x)
         loss = self.loss_func(output, batch["output_fields"])
         return loss  # noqa: RET504
 
