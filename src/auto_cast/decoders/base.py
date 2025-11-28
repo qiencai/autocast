@@ -1,10 +1,9 @@
-from torch import nn
+from typing import Any
 
-from auto_cast.types import Tensor
+from torch import nn
 
 
 class Decoder(nn.Module):
     """Base Decoder."""
 
-    # Q: Should decoder handle all these input types
-    def forward(self, x: Tensor) -> Tensor: ...
+    def forward(self, *args: Any, **kwargs: Any) -> Any: ...
