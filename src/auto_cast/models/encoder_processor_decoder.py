@@ -13,7 +13,7 @@ class EncoderProcessorDecoder(L.LightningModule):
     """Encoder-Processor-Decoder Model."""
 
     encoder_decoder: EncoderDecoder
-    processor: Processor
+    processor: Processor | nn.Module
     teacher_forcing_ratio: float
     stride: int
     max_rollout_steps: int
@@ -67,7 +67,7 @@ class EncoderProcessorDecoder(L.LightningModule):
         pred_outs, gt_outs = [], []
         for _ in range(0, self.max_rollout_steps, self.stride):
             x = self.encoder_decoder.encoder(batch)
-            pred_outs.append(self.processor.map(x))
+            pred_outs.append(self.processor(x))
             # TODO: combining teacher forcing logic
             gt_outs.append(batch.output_fields)  # This assumes we have output fields
         return torch.stack(pred_outs), torch.stack(gt_outs)
