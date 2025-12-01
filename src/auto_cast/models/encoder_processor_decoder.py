@@ -1,10 +1,11 @@
-from typing import Any
+from typing import Any, Self
 
 import lightning as L
 import torch
 from torch import nn
 
 from auto_cast.models.encoder_decoder import EncoderDecoder
+from auto_cast.nn.base import Module
 from auto_cast.processors.base import Processor
 from auto_cast.types import Batch, RolloutOutput, Tensor
 
@@ -25,13 +26,17 @@ class EncoderProcessorDecoder(L.LightningModule):
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    @classmethod
     def from_encoder_processor_decoder(
-        self, encoder_decoder: EncoderDecoder, processor: Processor, **kwargs: Any
-    ) -> None:
-        self.encoder_decoder = encoder_decoder
-        self.processor = processor
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+        cls,
+        encoder_decoder: EncoderDecoder,
+        processor: Processor | Module,
+        **kwargs: Any,
+    ) -> Self:
+        instance = cls(**kwargs)
+        instance.encoder_decoder = encoder_decoder
+        instance.processor = processor
+        return instance
 
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         return self.decode(self.processor(self.encode(*args, **kwargs)))
