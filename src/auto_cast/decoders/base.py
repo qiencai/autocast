@@ -1,6 +1,6 @@
 from typing import Any
 
-from torch import Tensor, nn
+from torch import nn
 
 
 class Decoder(nn.Module):
