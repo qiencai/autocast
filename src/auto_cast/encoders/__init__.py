@@ -1,3 +1,4 @@
 from .base import Encoder
+from .dc import DCEncoder
 
-__all__ = ["Encoder"]
+__all__ = ["DCEncoder", "Encoder"]

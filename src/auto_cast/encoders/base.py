@@ -11,11 +11,6 @@ class Encoder(nn.Module, ABC):
 
     encoder_model: nn.Module
 
-    def __init__(self, latent_dim: int, input_channels: int) -> None:
-        super().__init__()
-        self.latent_dim = latent_dim
-        self.input_channels = input_channels
-
     def encode(self, batch: Batch) -> Tensor:
         """Encode the input tensor into the latent space.
 

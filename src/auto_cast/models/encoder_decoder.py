@@ -18,7 +18,7 @@ class EncoderDecoder(L.LightningModule):
     learning_rate: float = 1e-3
 
     def __init__(self):
-        pass
+        super().__init__()
 
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         return self.decoder(self.encoder(*args, **kwargs))

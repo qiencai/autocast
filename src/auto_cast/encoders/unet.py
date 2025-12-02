@@ -28,7 +28,12 @@ class UNetEncoder(Encoder):
         identity_init: bool = False,
         **kwargs,
     ) -> None:
+        super().__init__()
+
         attention_heads = attention_heads or {}
+        self.latent_dim = out_channels
+        self.input_channels = in_channels
+
         self.encoder_model = UNet(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -43,9 +48,6 @@ class UNetEncoder(Encoder):
             identity_init=identity_init,
             **kwargs,
         )
-        self.latent_dim = out_channels
-        self.input_channels = in_channels
-        super().__init__(latent_dim=self.latent_dim, input_channels=self.input_channels)
 
     def encode(self, batch: Batch) -> Tensor:
         # TODO: implement more sophisticated encoding combining fields if needed
