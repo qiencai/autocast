@@ -7,17 +7,20 @@ from auto_cast.decoders.channels_last import ChannelsLast
 from auto_cast.encoders.permute_concat import PermuteConcat
 from auto_cast.models.encoder_decoder import EncoderDecoder
 from auto_cast.models.encoder_processor_decoder import EncoderProcessorDecoder
-from auto_cast.nn.base import Module
+from auto_cast.processors.base import Processor
 from auto_cast.types import Batch, Tensor
 
 
-class TinyProcessor(Module):
+class TinyProcessor(Processor):
     def __init__(self) -> None:
         super().__init__()
         self.conv = nn.Conv3d(in_channels=1, out_channels=1, kernel_size=1)
 
     def forward(self, x: Tensor) -> Tensor:
         return self.conv(x)
+
+    def map(self, x: Tensor) -> Tensor:
+        return self(x)
 
 
 def _toy_batch(
