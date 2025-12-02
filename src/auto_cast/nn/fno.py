@@ -7,7 +7,7 @@ from auto_cast.processors.base import Processor
 from auto_cast.types import Tensor
 
 
-class FNOModule(Processor):
+class FNOProcessor(Processor):
     """Fourier Neural Operator Module.
 
     A discrete processor that uses a Fourier Neural Operator (FNO) to learn
