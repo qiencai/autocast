@@ -3,12 +3,11 @@ from typing import Any
 from neuralop.models import FNO
 from torch import nn  # noqa: F401
 
+from auto_cast.processors.base import Processor
 from auto_cast.types import Tensor
 
-from .base import Module
 
-
-class FNOModule(Module):
+class FNOModule(Processor):
     """Fourier Neural Operator Module.
 
     A discrete processor that uses a Fourier Neural Operator (FNO) to learn
@@ -51,7 +50,7 @@ class FNOModule(Module):
         hidden_channels: int = 64,
         n_layers: int = 4,
         **fno_kwargs: Any,
-    ) -> None:
+    ):
         super().__init__()
 
         self.model = FNO(
@@ -65,3 +64,6 @@ class FNOModule(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return self.model(x)
+
+    def map(self, x: Tensor) -> Tensor:
+        return self(x)

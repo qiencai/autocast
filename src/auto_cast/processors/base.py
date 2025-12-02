@@ -8,7 +8,7 @@ from torch import nn
 from auto_cast.types import EncodedBatch, RolloutOutput, Tensor
 
 
-class Processor(L.LightningModule):
+class Processor(ABC, L.LightningModule):
     """Processor Base Class."""
 
     teacher_forcing_ratio: float
