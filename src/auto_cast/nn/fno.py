@@ -1,7 +1,7 @@
 from typing import Any
 
 from neuralop.models import FNO
-from torch import nn  # noqa: F401
+from torch import nn
 
 from auto_cast.processors.base import Processor
 from auto_cast.types import Tensor
@@ -49,6 +49,7 @@ class FNOProcessor(Processor):
         n_modes: tuple[int, ...],
         hidden_channels: int = 64,
         n_layers: int = 4,
+        loss_func: nn.Module | None = None,
         **fno_kwargs: Any,
     ):
         super().__init__()
@@ -61,6 +62,7 @@ class FNOProcessor(Processor):
             n_layers=n_layers,
             **fno_kwargs,
         )
+        self.loss_func = loss_func or nn.MSELoss()
 
     def forward(self, x: Tensor) -> Tensor:
         return self.model(x)
