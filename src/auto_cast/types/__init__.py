@@ -2,9 +2,18 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import torch
+from jaxtyping import Float
 from torch.utils.data import DataLoader
 
 Tensor = torch.Tensor
+
+TensorBC = Float[Tensor, "batch channel"]
+TensorBTWHC = Float[Tensor, "batch time width height channel"]
+TensorBTWHLC = Float[Tensor, "batch time width height length channel"]
+TensorBCTWH = Float[Tensor, "batch channel time width height"]
+TensorBCTWHL = Float[Tensor, "batch channel time width height length"]
+TensorBCTHW = Float[Tensor, "batch channel time height width"]
+TensorBWHC = Float[Tensor, "batch width height channel"]
 
 Input = Tensor | DataLoader
 RolloutOutput = tuple[Tensor, None] | tuple[Tensor, Tensor]
@@ -18,10 +27,10 @@ RolloutOutput = tuple[Tensor, None] | tuple[Tensor, Tensor]
 class Batch:
     """A batch in input data space."""
 
-    input_fields: Tensor  # (B, T, W, H, C)
-    output_fields: Tensor  # (B, T, W, H, C)
-    constant_scalars: Tensor | None  # (B, C)
-    constant_fields: Tensor | None  # (B, W, H, C)
+    input_fields: TensorBTWHC | TensorBTWHLC
+    output_fields: TensorBTWHC | TensorBTWHLC
+    constant_scalars: TensorBC | None
+    constant_fields: TensorBWHC | None
 
 
 @dataclass
