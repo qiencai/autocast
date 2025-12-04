@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Any
 
 from torch import nn
@@ -20,6 +20,7 @@ class Encoder(nn.Module, ABC):
         """
         return batch
 
+    @abstractmethod
     def encode(self, batch: Batch) -> Tensor:
         """Encode the input tensor into the latent space.
 
@@ -33,8 +34,6 @@ class Encoder(nn.Module, ABC):
         Tensor
             Encoded tensor in the latent space.
         """
-        msg = "The encode method must be implemented by subclasses."
-        raise NotImplementedError(msg)
 
     def forward(self, *args: Any, **kwargs: Any) -> Any: ...
 
