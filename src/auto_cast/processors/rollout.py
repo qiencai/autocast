@@ -41,9 +41,19 @@ class RolloutMixin(ABC, Generic[BatchT]):
 
             current_batch = self._advance_batch(current_batch, next_inputs, self.stride)
 
-        predictions = torch.stack(pred_outs)
+        # Stack along a new axis after batch representing number of rollout windows R
+        # Each window R contains n_steps_output time steps T.
+        # For example with:
+        # - batch size B=16
+        # - rollout windows R=10
+        # - n_steps_output T=2 per window,
+        # - spatial dimensions W=16, H=8
+        # - channels C=2
+        # The output shapes will be:
+        # (B, R, T, W, H, C) = (16, 10, 2, 16, 8, 2)
+        predictions = torch.stack(pred_outs, dim=1)  # (B, R, T, spatial, C)
         if true_outs:
-            return predictions, torch.stack(true_outs)
+            return predictions, torch.stack(true_outs, dim=1)  # (B, R, T, spatial, C)
         return predictions, None
 
     @abstractmethod

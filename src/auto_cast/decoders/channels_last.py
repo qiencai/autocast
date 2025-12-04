@@ -9,4 +9,4 @@ class ChannelsLast(Decoder):
 
     def forward(self, x: Tensor) -> Tensor:
         """Forward pass through the ChannelsLast decoder."""
-        return rearrange(x, "b c t w h -> b t w h c")
+        return rearrange(x, "b c w h -> b 1 w h c")
