@@ -7,7 +7,7 @@ from torch import nn
 from auto_cast.models.encoder_decoder import EncoderDecoder
 from auto_cast.processors.base import Processor
 from auto_cast.processors.rollout import RolloutMixin
-from auto_cast.types import Batch, EncodedBatch, Tensor, TensorBTSPlusC
+from auto_cast.types import Batch, EncodedBatch, Tensor, TensorBMStarL, TensorBTSPlusC
 
 
 class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule):

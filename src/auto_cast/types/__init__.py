@@ -39,6 +39,7 @@ TensorBCTSPlus = Float[Tensor, "batch channel time spatial *spatial"]
 # Spatial only (no time dimension)
 TensorBCSPlus = Float[Tensor, "batch channel spatial *spatial"]
 TensorBWHC = Float[Tensor, "batch width height channel"]
+TensorBCWH = Float[Tensor, "batch channel width height"]
 TensorBWHDC = Float[Tensor, "batch width height depth channel"]
 TensorBSPlusC = Float[Tensor, "batch spatial *spatial channel"]
 

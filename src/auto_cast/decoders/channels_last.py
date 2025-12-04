@@ -1,7 +1,7 @@
 from einops import rearrange
 
 from auto_cast.decoders.base import Decoder
-from auto_cast.types import Tensor
+from auto_cast.types import Tensor, TensorBCWH, TensorBTWHC
 
 
 class ChannelsLast(Decoder):
@@ -33,3 +33,6 @@ class ChannelsLast(Decoder):
         )
         # Rearrange to channels-last: (B, C, T, W, H) -> (B, T, W, H, C)
         return rearrange(x, "b c t w h -> b t w h c")
+
+    def decode(self, z: TensorBCWH) -> TensorBTWHC:
+        return self.forward(z)

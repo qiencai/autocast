@@ -86,8 +86,9 @@ class DCDecoder(Decoder):
         checkpointing: bool = False,
         identity_init: bool = True,
     ) -> None:
-        super().__init__(latent_dim=in_channels, output_channels=out_channels)
-
+        super().__init__()
+        self.latent_dim = in_channels
+        self.output_channels = out_channels
         attention_heads = attention_heads or {}
         assert len(hid_blocks) == len(hid_channels)
 

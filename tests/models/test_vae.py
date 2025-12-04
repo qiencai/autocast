@@ -69,7 +69,9 @@ class _FlatDecoder(Decoder):
     """Minimal decoder that reconstructs flat tensors for tests."""
 
     def __init__(self, latent_dim: int, output_dim: int) -> None:
-        super().__init__(latent_dim=latent_dim, output_channels=output_dim)
+        super().__init__()
+        self.latent_dim = latent_dim
+        self.output_dim = output_dim
         self.net = nn.Sequential(
             nn.Linear(latent_dim, 2 * latent_dim),
             nn.GELU(),
@@ -111,7 +113,9 @@ class _FlatteningDecoder(Decoder):
     """Decoder that maps flat latents back to spatial tensors."""
 
     def __init__(self, latent_dim: int, output_shape: tuple[int, ...]) -> None:
-        super().__init__(latent_dim=latent_dim, output_channels=output_shape[0])
+        super().__init__()
+        self.latent_dim = latent_dim
+        self.output_channels = output_shape[0]
         self.output_shape = output_shape
         out_features = math.prod(output_shape)
         self.net = nn.Sequential(
