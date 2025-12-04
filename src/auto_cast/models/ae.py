@@ -3,7 +3,7 @@ from torch import nn
 from auto_cast.decoders import Decoder
 from auto_cast.encoders import Encoder
 from auto_cast.models.encoder_decoder import EncoderDecoder
-from auto_cast.types import Batch, Tensor, TensorBTSPlusC
+from auto_cast.types import Batch, Tensor, TensorBMultiL, TensorBTSPlusC
 
 
 class AELoss(nn.Module):
@@ -41,12 +41,10 @@ class AE(EncoderDecoder):
         self.decoder = decoder
         self.loss_func = loss_func or AELoss()
 
-    def forward(self, batch: Batch) -> TensorBTSPlusC:
+    def forward(self, batch: Batch) -> TensorBMultiL:
         return self.forward_with_latent(batch)[0]
 
-    def forward_with_latent(
-        self, batch: Batch
-    ) -> tuple[TensorBTSPlusC, TensorBTSPlusC]:
+    def forward_with_latent(self, batch: Batch) -> tuple[TensorBTSPlusC, TensorBMultiL]:
         encoded = self.encode(batch)
         decoded = self.decode(encoded)
         return decoded, encoded

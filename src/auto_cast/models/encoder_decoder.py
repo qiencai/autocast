@@ -1,5 +1,3 @@
-from typing import Any
-
 import lightning as L
 import torch
 from torch import nn
@@ -20,8 +18,8 @@ class EncoderDecoder(L.LightningModule):
     def __init__(self):
         super().__init__()
 
-    def forward(self, *args: Any, **kwargs: Any) -> Any:
-        return self.decoder(self.encoder(*args, **kwargs))
+    def forward(self, batch: Batch) -> TensorBTSPlusC:
+        return self.decoder(self.encoder(batch))
 
     def forward_with_latent(self, batch: Batch) -> tuple[TensorBTSPlusC, TensorBMultiL]:
         encoded = self.encode(batch)

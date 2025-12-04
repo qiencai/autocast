@@ -17,13 +17,14 @@ class VAELoss(nn.Module):
         self.beta = beta
 
     def forward(self, model: EncoderDecoder, batch: Batch) -> Tensor:
+        """Compute VAE loss as reconstruction loss + beta * KL divergence."""
         decoded, encoded = model.forward_with_latent(batch)
 
         return self.beta * self.kl_divergence(encoded) + nn.functional.mse_loss(
             decoded, batch.output_fields
         )
 
-    def kl_divergence(self, encoded: Tensor) -> Tensor:
+    def kl_divergence(self, encoded: TensorBMultiL) -> Tensor:
         """Compute the KL divergence loss.
 
         Parameters

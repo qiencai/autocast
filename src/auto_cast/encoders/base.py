@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any
 
 from torch import nn
 
-from auto_cast.types import Batch, Tensor
+from auto_cast.types import Batch, TensorBMultiL
 
 
 class Encoder(nn.Module, ABC):
@@ -21,7 +20,7 @@ class Encoder(nn.Module, ABC):
         return batch
 
     @abstractmethod
-    def encode(self, batch: Batch) -> Tensor:
+    def encode(self, batch: Batch) -> TensorBMultiL:
         """Encode the input tensor into the latent space.
 
         Parameters
@@ -31,11 +30,9 @@ class Encoder(nn.Module, ABC):
 
         Returns
         -------
-        Tensor
-            Encoded tensor in the latent space.
+        TensorBMultiL
+            Encoded tensor in the latent space with shape (B, *, C_latent).
         """
 
-    def forward(self, *args: Any, **kwargs: Any) -> Any: ...
-
-    def __call__(self, batch: Batch) -> Tensor:
+    def __call__(self, batch: Batch) -> TensorBMultiL:
         return self.encode(batch)
