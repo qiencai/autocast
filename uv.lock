@@ -116,6 +116,7 @@ dependencies = [
     { name = "azula" },
     { name = "einops" },
     { name = "h5py" },
+    { name = "jaxtyping" },
     { name = "lightning" },
     { name = "the-well" },
     { name = "torch" },
@@ -123,6 +124,7 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "beartype" },
     { name = "ipykernel" },
     { name = "pre-commit" },
     { name = "pyright" },
@@ -134,9 +136,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "azula", specifier = ">=0.7.0" },
+    { name = "beartype", marker = "extra == 'dev'", specifier = ">=0.22.8" },
     { name = "einops", specifier = ">=0.8.1" },
     { name = "h5py", specifier = ">=3.15.1" },
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=7.1.0" },
+    { name = "jaxtyping", specifier = ">=0.3.3" },
     { name = "lightning", specifier = ">=2.5.6" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.4.0" },
     { name = "pyright", marker = "extra == 'dev'", specifier = "==1.1.407" },
@@ -183,6 +187,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/8c/58f469717fa48465e4a50c014a0400602d3c437d7c0c468e17ada824da3a/certifi-2025.11.12.tar.gz", hash = "sha256:d8ab5478f2ecd78af242878415affce761ca6bc54a22a27e026d7c25357c3316", size = 160538, upload-time = "2025-11-12T02:54:51.517Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/70/7d/9bc192684cea499815ff478dfcdc13835ddf401365057044fb721ec6bddb/certifi-2025.11.12-py3-none-any.whl", hash = "sha256:97de8790030bbd5c2d96b7ec782fc2f7820ef8dba6db909ccf95449f2d062d4b", size = 159438, upload-time = "2025-11-12T02:54:49.735Z" },
+]
+
+[[package]]
+name = "beartype"
+version = "0.22.8"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/1d/794ae2acaa67c8b216d91d5919da2606c2bb14086849ffde7f5555f3a3a5/beartype-0.22.8.tar.gz", hash = "sha256:b19b21c9359722ee3f7cc433f063b3e13997b27ae8226551ea5062e621f61165", size = 1602262, upload-time = "2025-12-03T05:11:10.766Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/14/2a/fbcbf5a025d3e71ddafad7efd43e34ec4362f4d523c3c471b457148fb211/beartype-0.22.8-py3-none-any.whl", hash = "sha256:b832882d04e41a4097bab9f63e6992bc6de58c414ee84cba9b45b67314f5ab2e", size = 1331895, upload-time = "2025-12-03T05:11:08.373Z" },
 ]
 
 [[package]]
@@ -571,6 +584,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ef/4c/5dd1d8af08107f88c7f741ead7a40854b8ac24ddf9ae850afbcf698aa552/ipython_pygments_lexers-1.1.1.tar.gz", hash = "sha256:09c0138009e56b6854f9535736f4171d855c8c08a563a0dcd8022f78355c7e81", size = 8393, upload-time = "2025-01-17T11:24:34.505Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d9/33/1f075bf72b0b747cb3288d011319aaf64083cf2efef8354174e3ed4540e2/ipython_pygments_lexers-1.1.1-py3-none-any.whl", hash = "sha256:a9462224a505ade19a605f71f8fa63c2048833ce50abc86768a0d81d876dc81c", size = 8074, upload-time = "2025-01-17T11:24:33.271Z" },
+]
+
+[[package]]
+name = "jaxtyping"
+version = "0.3.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wadler-lindig" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e4/1e/827f9e17b26e21c7d4d934fd1a214284ad05663afedd37c21ed105db366b/jaxtyping-0.3.3.tar.gz", hash = "sha256:8003cfd16ba2ad9b47fdda1d982a575299a81ddfc7997ad0e917c87a0897ea86", size = 45484, upload-time = "2025-10-01T13:46:51.933Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/97/88264b1af140f66ba7ca6eb2f3a108be233ee278bb3f1d5c750243e7458a/jaxtyping-0.3.3-py3-none-any.whl", hash = "sha256:a1c2f0f4351a8deda84b0e3b5c5a50894a1cdae2b82d841279fce4393aff4a7c", size = 55926, upload-time = "2025-10-01T13:46:50.621Z" },
 ]
 
 [[package]]
@@ -1596,6 +1621,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/20/28/e6f1a6f655d620846bd9df527390ecc26b3805a0c5989048c210e22c5ca9/virtualenv-20.35.4.tar.gz", hash = "sha256:643d3914d73d3eeb0c552cbb12d7e82adf0e504dbf86a3182f8771a153a1971c", size = 6028799, upload-time = "2025-10-29T06:57:40.511Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/0c/c05523fa3181fdf0c9c52a6ba91a23fbf3246cc095f26f6516f9c60e6771/virtualenv-20.35.4-py3-none-any.whl", hash = "sha256:c21c9cede36c9753eeade68ba7d523529f228a403463376cf821eaae2b650f1b", size = 6005095, upload-time = "2025-10-29T06:57:37.598Z" },
+]
+
+[[package]]
+name = "wadler-lindig"
+version = "0.1.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/67/cbae4bf7683a64755c2c1778c418fea96d00e34395bb91743f08bd951571/wadler_lindig-0.1.7.tar.gz", hash = "sha256:81d14d3fe77d441acf3ebd7f4aefac20c74128bf460e84b512806dccf7b2cd55", size = 15842, upload-time = "2025-06-18T07:00:42.843Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/96/04e7b441807b26b794da5b11e59ed7f83b2cf8af202bd7eba8ad2fa6046e/wadler_lindig-0.1.7-py3-none-any.whl", hash = "sha256:e3ec83835570fd0a9509f969162aeb9c65618f998b1f42918cfc8d45122fe953", size = 20516, upload-time = "2025-06-18T07:00:41.684Z" },
 ]
 
 [[package]]
