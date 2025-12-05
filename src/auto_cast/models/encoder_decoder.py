@@ -14,7 +14,7 @@ class EncoderDecoder(L.LightningModule):
 
     encoder: Encoder
     decoder: Decoder
-    loss_func: nn.Module
+    loss_func: nn.Module | None = None
     learning_rate: float = 1e-3
 
     def __init__(self):
@@ -22,7 +22,11 @@ class EncoderDecoder(L.LightningModule):
 
     @classmethod
     def from_encoder_decoder(
-        cls, encoder: Encoder, decoder: Decoder, loss_func: nn.Module, **kwargs: Any
+        cls,
+        encoder: Encoder,
+        decoder: Decoder,
+        loss_func: nn.Module | None = None,
+        **kwargs: Any,
     ) -> Self:
         instance = cls(**kwargs)
         instance.encoder = encoder
@@ -52,6 +56,9 @@ class EncoderDecoder(L.LightningModule):
 
     def validation_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
         output = self(batch)
+        if self.loss_func is None:
+            msg = "Loss function not defined for EncoderDecoder model."
+            raise ValueError(msg)
         loss = self.loss_func(output, batch.output_fields)
         self.log(
             "val_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]

@@ -167,6 +167,7 @@ class VAE(EncoderDecoder):
         return torch.cat([mean, log_var], dim=concat_dim)
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
+        assert self.loss_func is not None
         loss = self.loss_func(self, batch)
         self.log(
             "train_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]

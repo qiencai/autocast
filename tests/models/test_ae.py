@@ -353,6 +353,7 @@ def test_ae_wrapper_loss_and_backward():
     batch = _make_batch((2, 64, 64, 3))
     model.train()
 
+    assert model.loss_func is not None
     loss = model.loss_func(model, batch)
     assert loss.item() >= 0
     loss.backward()

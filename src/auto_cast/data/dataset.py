@@ -8,16 +8,16 @@ from the_well.data.normalization import ZScoreNormalization
 from torch.utils.data import Dataset
 
 from auto_cast.data.metadata import Metadata
-from auto_cast.types import Batch
+from auto_cast.types import Sample
 
 
 class BatchMixin:
     """A mixin class to provide Batch conversion functionality."""
 
     @staticmethod
-    def to_batch(data: dict) -> Batch:
-        """Convert a dictionary of tensors to a Batch object."""
-        return Batch(
+    def to_sample(data: dict) -> Sample:
+        """Convert a dictionary of tensors to a Sample object."""
+        return Sample(
             input_fields=data["input_fields"],
             output_fields=data["output_fields"],
             constant_scalars=data.get("constant_scalars"),
@@ -98,8 +98,9 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
             n_steps_input = 1
             n_steps_output = 0
         if full_trajectory_mode:
-            n_steps_input = self.data.shape[1]
-            # TODO: make more robust and flexible for different trajectory lengths
+            # In full trajectory mode, we want:
+            # - input: first n_steps_input timesteps
+            # - output: all remaining timesteps for rollout comparison
             n_steps_output = self.data.shape[1] - n_steps_input
 
         self.full_trajectory_mode = full_trajectory_mode
@@ -236,7 +237,7 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         if len(self.all_constant_fields) > 0:
             item["constant_fields"] = self.all_constant_fields[idx]
 
-        return self.to_batch(item)
+        return self.to_sample(item)
 
 
 class ReactionDiffusionDataset(SpatioTemporalDataset):
@@ -389,10 +390,10 @@ class TheWell(SpatioTemporalDataset):
         )
         self.well_metadata = self.well_dataset.metadata
 
-    def __getitem__(self, index) -> Batch:  # noqa: D105
+    def __getitem__(self, index) -> Sample:  # noqa: D105
         data = self.well_dataset.__getitem__(index)
         if self.autoencoder_mode:
             # Replace output_fields with input_fields for autoencoder training
             data["input_fields"] = data["input_fields"]
             data["output_fields"] = data["input_fields"]
-        return self.to_batch(data)
+        return self.to_sample(data)

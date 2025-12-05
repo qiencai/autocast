@@ -179,6 +179,7 @@ def test_vae_spatial_latents_2d():
     assert not encoded.isnan().any(), "Encoded contains NaN values"
 
     # Test loss computation
+    assert vae.loss_func is not None
     loss = vae.loss_func(vae, batch)
     assert loss.item() >= 0, "Loss should be non-negative"
     assert not loss.isnan(), "Loss is NaN"
@@ -407,6 +408,7 @@ def test_vae_gradient_flow():
     x = batch.input_fields
 
     # Forward pass with loss
+    assert vae.loss_func is not None
     loss = vae.loss_func(vae, batch)
     loss.backward()
 

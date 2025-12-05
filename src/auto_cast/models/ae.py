@@ -50,6 +50,7 @@ class AE(EncoderDecoder):
         return decoded, encoded
 
     def _compute_loss(self, batch: Batch) -> Tensor:
+        assert self.loss_func is not None
         return self.loss_func(self, batch)
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002

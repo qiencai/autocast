@@ -18,6 +18,9 @@ Tensor = torch.Tensor
 # - Star (*): indicates zero or more dimensions
 # - Plus (+): indicates one or more dimensions
 
+# Vector of scalars
+TensorC = Float[Tensor, "channel"]
+
 # Only batch and channel
 TensorBC = Float[Tensor, "batch channel"]
 
@@ -43,11 +46,25 @@ TensorBCWH = Float[Tensor, "batch channel width height"]
 TensorBWHDC = Float[Tensor, "batch width height depth channel"]
 TensorBSPlusC = Float[Tensor, "batch spatial *spatial channel"]
 
+# Items without batch dimension
+TensorTSPlusC = Float[Tensor, "time spatial *spatial channel"]
+TensorSPlusC = Float[Tensor, "spatial *spatial channel"]
+
 # Generic input type
 Input = Tensor | DataLoader
 
 # Rollout output type
 RolloutOutput = tuple[Tensor, None] | tuple[Tensor, Tensor]
+
+
+@dataclass
+class Sample:
+    """A batch in input data space."""
+
+    input_fields: TensorTSPlusC
+    output_fields: TensorTSPlusC
+    constant_scalars: TensorC | None
+    constant_fields: TensorSPlusC | None
 
 
 @dataclass
@@ -69,7 +86,7 @@ class EncodedBatch:
     encoded_info: dict[str, Tensor]
 
 
-def collate_batches(samples: Sequence[Batch]) -> Batch:
+def collate_batches(samples: Sequence[Sample]) -> Batch:
     """Stack a sequence of `Batch` instances along the batch dimension."""
     if len(samples) == 0:
         msg = "collate_batches expects at least one sample"
