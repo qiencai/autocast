@@ -1,38 +1,45 @@
-"""Train an encoder-processor-decoder stack with optional autoencoder warm-start."""
+"""Train an encoder-processor-decoder with optional autoencoder warm-start."""
 
 from __future__ import annotations
 
 import argparse
 import logging
+from argparse import BooleanOptionalAction
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import lightning as L
 import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import nn
 
-from auto_cast.decoders import Decoder
-from auto_cast.decoders.channels_last import ChannelsLast
-from auto_cast.encoders import Encoder
-from auto_cast.encoders.permute_concat import PermuteConcat
 from auto_cast.models.ae import AE, AELoss
 from auto_cast.models.encoder_decoder import EncoderDecoder
 from auto_cast.models.encoder_processor_decoder import EncoderProcessorDecoder
-from auto_cast.nn.fno import FNOProcessor
 from auto_cast.train.autoencoder import build_datamodule
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class TrainingParams:
+    """Resolved training knobs that may come from config or CLI overrides."""
+
+    n_steps_input: int
+    n_steps_output: int
+    autoencoder_checkpoint: Path | None
+    freeze_autoencoder: bool
 
 
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments for the processor training utility."""
     parser = argparse.ArgumentParser(
         description=(
-            "Train the FNO-based processor either from scratch or by reusing a "
-            "pretrained autoencoder (encoder+decoder) checkpoint."
+            "Train an encoder-processor-decoder model with Hydra-configured "
+            "encoder, decoder, and processor components."
         )
     )
     repo_root = Path(__file__).resolve().parents[3]
@@ -44,8 +51,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--config-name",
-        default="config",
-        help="Hydra config name to compose (defaults to 'config').",
+        default="processor",
+        help="Hydra config name to compose (defaults to 'processor').",
     )
     parser.add_argument(
         "--override",
@@ -58,61 +65,25 @@ def parse_args() -> argparse.Namespace:
         "--autoencoder-checkpoint",
         type=Path,
         default=None,
-        help=(
-            "Path to a Lightning checkpoint containing the pretrained autoencoder. "
-            "If omitted, the encoder and decoder are trained jointly with the "
-            "processor."
-        ),
+        help="Overrides training.autoencoder_checkpoint from the config when set.",
     )
     parser.add_argument(
         "--freeze-autoencoder",
-        action="store_true",
-        help="Freeze encoder/decoder weights after loading a checkpoint.",
+        action=BooleanOptionalAction,
+        default=None,
+        help="Toggle freezing of encoder/decoder parameters when loading a checkpoint.",
     )
     parser.add_argument(
         "--n-steps-input",
         type=int,
-        default=4,
-        help="Number of input time steps for the datamodule (default: 4).",
+        default=None,
+        help="Override training.n_steps_input (number of input time steps).",
     )
     parser.add_argument(
         "--n-steps-output",
         type=int,
-        default=1,
-        help="Number of output time steps for training targets (default: 1).",
-    )
-    parser.add_argument(
-        "--with-constants",
-        action="store_true",
-        help="Include constant fields/scalars when encoding (PermuteConcat).",
-    )
-    parser.add_argument(
-        "--processor-n-modes",
-        type=int,
-        nargs=2,
-        default=(16, 16),
-        metavar=("NX", "NY"),
-        help="Number of Fourier modes per spatial dimension for the FNO processor.",
-    )
-    parser.add_argument(
-        "--processor-hidden-channels",
-        type=int,
-        default=64,
-        help="Hidden channel width for the FNO processor (default: 64).",
-    )
-    parser.add_argument(
-        "--processor-n-layers",
-        type=int,
-        default=4,
-        help="Number of layers in the FNO processor (default: 4).",
-    )
-    parser.add_argument(
-        "--learning-rate",
-        type=float,
-        default=1e-3,
-        help=(
-            "Learning rate for the encoder-processor-decoder optimizer (default: 1e-3)."
-        ),
+        default=None,
+        help="Override training.n_steps_output (number of target time steps).",
     )
     parser.add_argument(
         "--work-dir",
@@ -126,8 +97,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-checkpoint",
         type=Path,
-        default=Path("encoder_processor_decoder.ckpt"),
-        help="Filename to store the trained checkpoint (relative to --work-dir).",
+        default=None,
+        help=(
+            "Optional explicit checkpoint filename; falls back to "
+            "output.checkpoint_name from the config when omitted."
+        ),
     )
     parser.add_argument(
         "--skip-test",
@@ -156,19 +130,18 @@ def _ensure_output_path(path: Path, work_dir: Path) -> Path:
 
 def _update_data_cfg(cfg: DictConfig, n_steps_input: int, n_steps_output: int) -> None:
     data_cfg = cfg.data
-    data_cfg.datamodule.n_steps_input = n_steps_input
-    data_cfg.datamodule.n_steps_output = n_steps_output
-    data_cfg.datamodule.autoencoder_mode = False
+    with open_dict(data_cfg.datamodule):
+        data_cfg.datamodule.n_steps_input = n_steps_input
+        data_cfg.datamodule.n_steps_output = n_steps_output
+        data_cfg.datamodule.autoencoder_mode = False
 
 
 def compose_training_config(args: argparse.Namespace) -> DictConfig:
-    """Compose the Hydra config and force datamodule settings from CLI flags."""
+    """Compose the Hydra config prior to applying CLI-specific overrides."""
     config_dir = args.config_dir.resolve()
     overrides: Sequence[str] = args.overrides or []
     with initialize_config_dir(version_base=None, config_dir=str(config_dir)):
-        cfg = compose(config_name=args.config_name, overrides=list(overrides))
-    _update_data_cfg(cfg, args.n_steps_input, args.n_steps_output)
-    return cfg
+        return compose(config_name=args.config_name, overrides=list(overrides))
 
 
 def prepare_datamodule(cfg: DictConfig):
@@ -190,15 +163,79 @@ def prepare_datamodule(cfg: DictConfig):
     )
 
 
-def build_autoencoder_modules(
+def _maybe_set(cfg_node: DictConfig | None, key: str, value: int) -> None:
+    if cfg_node is None or key not in cfg_node:
+        return
+    current = cfg_node.get(key)
+    if current not in (None, "auto"):
+        return
+    with open_dict(cfg_node):
+        cfg_node[key] = value
+
+
+def _configure_module_dimensions(
+    cfg: DictConfig,
     channel_count: int,
-    time_steps: int,
-    with_constants: bool,
+    n_steps_input: int,
+    n_steps_output: int,
+) -> None:
+    _maybe_set(cfg.decoder, "output_channels", channel_count)
+    _maybe_set(cfg.decoder, "time_steps", n_steps_output)
+    _maybe_set(cfg.processor, "in_channels", channel_count * n_steps_input)
+    _maybe_set(cfg.processor, "out_channels", channel_count * n_steps_output)
+
+
+def resolve_training_params(
+    cfg: DictConfig, args: argparse.Namespace
+) -> TrainingParams:
+    """Resolve training hyperparameters using the config plus CLI overrides."""
+    training_cfg = cfg.get("training")
+    n_steps_input_cfg = (
+        training_cfg.get("n_steps_input", 1) if training_cfg is not None else 1
+    )
+    n_steps_output_cfg = (
+        training_cfg.get("n_steps_output", 1) if training_cfg is not None else 1
+    )
+    ckpt_cfg = (
+        training_cfg.get("autoencoder_checkpoint") if training_cfg is not None else None
+    )
+    freeze_cfg = (
+        training_cfg.get("freeze_autoencoder", False)
+        if training_cfg is not None
+        else False
+    )
+
+    n_steps_input = args.n_steps_input or n_steps_input_cfg
+    n_steps_output = args.n_steps_output or n_steps_output_cfg
+
+    checkpoint = args.autoencoder_checkpoint
+    if checkpoint is None and ckpt_cfg is not None:
+        checkpoint = Path(ckpt_cfg)
+
+    freeze_autoencoder = (
+        args.freeze_autoencoder if args.freeze_autoencoder is not None else freeze_cfg
+    )
+
+    if n_steps_output < 1:
+        msg = "n_steps_output must be >= 1 for processor training."
+        raise ValueError(msg)
+
+    return TrainingParams(
+        n_steps_input=n_steps_input,
+        n_steps_output=n_steps_output,
+        autoencoder_checkpoint=checkpoint,
+        freeze_autoencoder=freeze_autoencoder,
+    )
+
+
+def build_autoencoder_modules(
+    encoder_cfg: DictConfig,
+    decoder_cfg: DictConfig,
     checkpoint: Path | None,
-) -> tuple[Encoder, Decoder]:
-    """Create encoder/decoder modules and optionally load checkpoint weights."""
-    encoder = PermuteConcat(with_constants=with_constants)
-    decoder = ChannelsLast(output_channels=channel_count, time_steps=time_steps)
+):
+    """Instantiate encoder/decoder modules and optionally load AE weights."""
+    encoder = instantiate(encoder_cfg)
+    decoder = instantiate(decoder_cfg)
     if checkpoint is None:
         log.info(
             "No autoencoder checkpoint supplied; training encoder/decoder jointly."
@@ -220,22 +257,6 @@ def build_autoencoder_modules(
     return autoencoder.encoder, autoencoder.decoder
 
 
-def build_processor(
-    channel_count: int,
-    n_steps_input: int,
-    n_steps_output: int,
-    args: argparse.Namespace,
-) -> FNOProcessor:
-    """Instantiate the FNO processor with CLI-controlled hyperparameters."""
-    return FNOProcessor(
-        in_channels=channel_count * n_steps_input,
-        out_channels=channel_count * n_steps_output,
-        n_modes=tuple(args.processor_n_modes),
-        hidden_channels=args.processor_hidden_channels,
-        n_layers=args.processor_n_layers,
-    )
-
-
 def instantiate_trainer(cfg: DictConfig, work_dir: Path):
     """Instantiate the Lightning trainer with a concrete root directory."""
     return instantiate(
@@ -249,14 +270,17 @@ def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO)
 
-    if args.n_steps_output < 1:
-        msg = "n_steps_output must be >= 1 for processor training."
-        raise ValueError(msg)
-
     work_dir = args.work_dir.resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = compose_training_config(args)
+    training_params = resolve_training_params(cfg, args)
+    _update_data_cfg(
+        cfg,
+        training_params.n_steps_input,
+        training_params.n_steps_output,
+    )
+
     L.seed_everything(cfg.get("seed", 42), workers=True)
 
     (
@@ -269,49 +293,55 @@ def main() -> None:
     ) = prepare_datamodule(cfg)
 
     log.info("Detected input shape %s and output shape %s", input_shape, output_shape)
-    if inferred_n_steps_input != args.n_steps_input:
+    if inferred_n_steps_input != training_params.n_steps_input:
         log.warning(
-            "Datamodule produced %s input steps but --n-steps-input=%s; "
+            "Datamodule produced %s input steps but training calls for %s; "
             "proceeding with inferred value.",
             inferred_n_steps_input,
-            args.n_steps_input,
+            training_params.n_steps_input,
         )
-    if inferred_n_steps_output != args.n_steps_output:
+    if inferred_n_steps_output != training_params.n_steps_output:
         log.warning(
-            "Datamodule produced %s output steps but --n-steps-output=%s; "
+            "Datamodule produced %s output steps but training calls for %s; "
             "proceeding with inferred value.",
             inferred_n_steps_output,
-            args.n_steps_output,
+            training_params.n_steps_output,
         )
 
-    encoder, decoder = build_autoencoder_modules(
+    _configure_module_dimensions(
+        cfg,
         channel_count=channel_count,
-        time_steps=inferred_n_steps_output,
-        with_constants=args.with_constants,
-        checkpoint=args.autoencoder_checkpoint,
+        n_steps_input=inferred_n_steps_input,
+        n_steps_output=inferred_n_steps_output,
+    )
+
+    encoder, decoder = build_autoencoder_modules(
+        cfg.encoder,
+        cfg.decoder,
+        training_params.autoencoder_checkpoint,
     )
     encoder_decoder = EncoderDecoder.from_encoder_decoder(
         encoder=encoder,
         decoder=decoder,
     )
 
-    if args.freeze_autoencoder and args.autoencoder_checkpoint is not None:
+    if training_params.freeze_autoencoder and training_params.autoencoder_checkpoint:
         log.info("Freezing encoder and decoder parameters.")
         _freeze_module(encoder_decoder.encoder)
         _freeze_module(encoder_decoder.decoder)
 
-    processor = build_processor(
-        channel_count=channel_count,
-        n_steps_input=inferred_n_steps_input,
-        n_steps_output=inferred_n_steps_output,
-        args=args,
-    )
+    processor = instantiate(cfg.processor)
+
+    epd_cfg = cfg.get("encoder_processor_decoder")
+    learning_rate = epd_cfg.get("learning_rate", 1e-3) if epd_cfg is not None else 1e-3
+    loss_cfg = epd_cfg.get("loss_func") if epd_cfg is not None else None
+    loss_func = instantiate(loss_cfg) if loss_cfg is not None else nn.MSELoss()
 
     model = EncoderProcessorDecoder.from_encoder_processor_decoder(
         encoder_decoder=encoder_decoder,
         processor=processor,
-        learning_rate=args.learning_rate,
-        loss_func=nn.MSELoss(),
+        learning_rate=learning_rate,
+        loss_func=loss_func,
     )
 
     trainer = instantiate_trainer(cfg, work_dir)
@@ -323,9 +353,23 @@ def main() -> None:
         log.info("Running evaluation on the test split.")
         trainer.test(model=model, dataloaders=datamodule.test_dataloader())
 
-    checkpoint_path = _ensure_output_path(args.output_checkpoint, work_dir)
+    output_cfg = cfg.get("output") or {}
+    checkpoint_name = output_cfg.get(
+        "checkpoint_name",
+        "encoder_processor_decoder.ckpt",
+    )
+    checkpoint_target = args.output_checkpoint or Path(checkpoint_name)
+    checkpoint_path = _ensure_output_path(checkpoint_target, work_dir)
     trainer.save_checkpoint(checkpoint_path)
-    log.info("Saved encoder-processor-decoder checkpoint to %s", checkpoint_path)
+    log.info(
+        "Saved encoder-processor-decoder checkpoint to %s",
+        checkpoint_path,
+    )
+
+    if output_cfg.get("save_config", False):
+        resolved_cfg_path = work_dir / "resolved_processor_config.yaml"
+        OmegaConf.save(cfg, resolved_cfg_path)
+        log.info("Wrote resolved config to %s", resolved_cfg_path)
 
 
 if __name__ == "__main__":
