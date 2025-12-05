@@ -22,7 +22,7 @@ class Decoder(nn.Module, ABC):
 
         Parameters
         ----------
-        z: TensorBMultiL
+        z: TensorBMStarL
             Latent tensor to be decoded.
 
         Returns

@@ -30,7 +30,7 @@ class Encoder(nn.Module, ABC):
 
         Returns
         -------
-        TensorBMultiL
+        TensorBMStarL
             Encoded tensor in the latent space with shape (B, *, C_latent).
         """
 
