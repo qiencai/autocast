@@ -62,8 +62,8 @@ class DiffusionProcessor(Processor):
         # the model is asked to denoise using t=0, which is a point it has never been trained on.
         self.inference_t = 1e-5
         t = torch.full((x.size(0),), self.inference_t, device=x.device)
-        B, _, C, H, W = x.shape
-        x_t = torch.randn(B, self.n_steps_output, C, H, W, device=x.device)
+        B, _, H, W, C = x.shape
+        x_t = torch.randn(B, self.n_steps_output, H, W, C, device=x.device)
         return self._denoise(x_t, t, cond=x)
     
     def forward(self, x: Tensor) -> Tensor:
