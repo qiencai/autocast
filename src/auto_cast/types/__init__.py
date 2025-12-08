@@ -9,46 +9,47 @@ from torch.utils.data import DataLoader
 Tensor = torch.Tensor
 
 # Type hints for various tensor shapes:
-# - B: batch dimension
-# - T: time dimension
-# - S: spatial dimension (could be multiple spatial dims)
-# - C: channel dimension
-# - L: latent dimension
-# - M: indicates multiple combined dimensions (e.g. spatiotemporal)
-# - Star (*): indicates zero or more dimensions
-# - Plus (+): indicates one or more dimensions
+# - B: exactly one batch dim
+# - T: exactly one time dim
+# - S: one or more spatial dims
+# - C: exactly one channel dim
+# - L: one or more latent dims
+# - N: zero or more arbirtrary dims (e.g. NDArray that can be 0 or more dims)
+# - W: exactly one width dim
+# - H: exactly one height dim
+# - D: exactly one depth dim
 
-# Vector of scalars
-TensorC = Float[Tensor, "channel"]
+TensorC = Float[Tensor, "channel"]  # Vector of scalars
+TensorBC = Float[Tensor, "batch channel"]  # Only batch and channel
+TensorBNC = Float[Tensor, "batch *optional_dims channel"]
+TensorBTNC = Float[Tensor, "batch time *optional_dims channel"]
+TensorBSC = Float[Tensor, "batch spatial *spatial channel"]
+TensorBLC = Float[Tensor, "batch latent *latent channel"]
+TensorBCL = Float[Tensor, "batch channel latent *latent"]
 
-# Only batch and channel
-TensorBC = Float[Tensor, "batch channel"]
+TensorBTSC = Float[Tensor, "batch time spatial *spatial channel"]  # Channels last
+TensorBCTS = Float[Tensor, "batch channel time spatial *spatial"]  # Channels first
+TensorBCS = Float[Tensor, "batch channel spatial *spatial"]  # No time dimension
+TensorBSSC = Float[Tensor, "batch spatial *spatial channel"]  # No time dimension
 
-# Combined optional spatiotemporal
-TensorBMStarC = Float[Tensor, "batch *spatiotemporal channel"]
-TensorBMStarL = Float[Tensor, "batch *spatiotemporal latent"]
+TensorTSC = Float[Tensor, "time spatial *spatial channel"]  # No batch dimension
+TensorSC = Float[Tensor, "spatial *spatial channel"]  # No batch dimension
 
-# Separated spatiotemporal
-TensorBTSStarC = Float[Tensor, "batch time *spatial channel"]
-TensorBTSPlusC = Float[Tensor, "batch time spatial *spatial channel"]
-TensorBTWHC = Float[Tensor, "batch time width height channel"]
-TensorBTWHDC = Float[Tensor, "batch time width height depth channel"]
-TensorBTCHW = Float[Tensor, "batch time channel height width"]
-TensorBCTWH = Float[Tensor, "batch channel time width height"]
-TensorBCTWHD = Float[Tensor, "batch channel time width height depth"]
-TensorBCTHW = Float[Tensor, "batch channel time height width"]
-TensorBCTSPlus = Float[Tensor, "batch channel time spatial *spatial"]
+TensorBCWH = Float[Tensor, "batch channel width height"]  # Specific spatial dims
+TensorBTCHW = Float[Tensor, "batch time channel height width"]  # Specific spatial dims
 
-# Spatial only (no time dimension)
-TensorBCSPlus = Float[Tensor, "batch channel spatial *spatial"]
-TensorBWHC = Float[Tensor, "batch width height channel"]
-TensorBCWH = Float[Tensor, "batch channel width height"]
-TensorBWHDC = Float[Tensor, "batch width height depth channel"]
-TensorBSPlusC = Float[Tensor, "batch spatial *spatial channel"]
 
-# Items without batch dimension
-TensorTSPlusC = Float[Tensor, "time spatial *spatial channel"]
-TensorSPlusC = Float[Tensor, "spatial *spatial channel"]
+# # Currently not used, but kept for reference
+# TensorBTWHC = Float[Tensor, "batch time width height channel"]
+# TensorBTWHDC = Float[Tensor, "batch time width height depth channel"]
+# TensorBCTWH = Float[Tensor, "batch channel time width height"]
+# TensorBCTWHD = Float[Tensor, "batch channel time width height depth"]
+# TensorBCTHW = Float[Tensor, "batch channel time height width"]
+
+# # Spatial only (no time dimension)
+# TensorBWHC = Float[Tensor, "batch width height channel"]
+# TensorBWHDC = Float[Tensor, "batch width height depth channel"]
+
 
 # Generic input type
 Input = Tensor | DataLoader
@@ -61,28 +62,28 @@ RolloutOutput = tuple[Tensor, None] | tuple[Tensor, Tensor]
 class Sample:
     """A batch in input data space."""
 
-    input_fields: TensorTSPlusC
-    output_fields: TensorTSPlusC
+    input_fields: TensorTSC
+    output_fields: TensorTSC
     constant_scalars: TensorC | None
-    constant_fields: TensorSPlusC | None
+    constant_fields: TensorSC | None
 
 
 @dataclass
 class Batch:
     """A batch in input data space."""
 
-    input_fields: TensorBTSPlusC
-    output_fields: TensorBTSPlusC
+    input_fields: TensorBTSC
+    output_fields: TensorBTSC
     constant_scalars: TensorBC | None
-    constant_fields: TensorBSPlusC | None
+    constant_fields: TensorBSC | None
 
 
 @dataclass
 class EncodedBatch:
     """A batch after being processed by an Encoder."""
 
-    encoded_inputs: TensorBTSPlusC
-    encoded_output_fields: TensorBTSPlusC
+    encoded_inputs: TensorBTSC
+    encoded_output_fields: TensorBTSC
     encoded_info: dict[str, Tensor]
 
 
