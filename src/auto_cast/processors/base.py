@@ -12,6 +12,8 @@ from auto_cast.types import EncodedBatch, Tensor
 class Processor(RolloutMixin[EncodedBatch], ABC, L.LightningModule):
     """Processor Base Class."""
 
+    learning_rate: float
+
     def __init__(
         self,
         *,
@@ -28,8 +30,6 @@ class Processor(RolloutMixin[EncodedBatch], ABC, L.LightningModule):
         self.loss_func = loss_func or nn.MSELoss()
         for key, value in kwargs.items():
             setattr(self, key, value)
-
-    learning_rate: float
 
     def forward(self, *args, **kwargs: Any) -> Any:
         """Forward pass through the Processor."""
