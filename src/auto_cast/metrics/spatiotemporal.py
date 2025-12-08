@@ -2,7 +2,8 @@ import numpy as np
 import torch
 
 from auto_cast.metrics.base import Metric
-from auto_cast.types import TensorBTSPlusC, TensorBTC
+from auto_cast.types import TensorBTC, TensorBTSPlusC
+
 
 class MSE(Metric):
     @staticmethod
@@ -10,7 +11,6 @@ class MSE(Metric):
         y_pred: TensorBTSPlusC,
         y_true: TensorBTSPlusC,
         n_spatial_dims: int,
-        eps: float = 1e-7,
     ) -> TensorBTC:
         """
         Mean Squared Error
@@ -21,19 +21,20 @@ class MSE(Metric):
             n_spatial_dims: int
                 Number of spatial dimensions.
 
-        Returns:
+        Returns
+        -------
             Mean squared error between y_pred and y_true.
         """
         spatial_dims = tuple(range(-n_spatial_dims - 1, -1))
         return torch.mean((y_pred - y_true) ** 2, dim=spatial_dims)
-    
+
+
 class MAE(Metric):
     @staticmethod
     def score(
         y_pred: TensorBTSPlusC,
         y_true: TensorBTSPlusC,
         n_spatial_dims: int,
-        eps: float = 1e-7,
     ) -> TensorBTC:
         """
         Mean Absolute Error
@@ -44,12 +45,13 @@ class MAE(Metric):
             n_spatial_dims: int
                 Number of spatial dimensions.
 
-        Returns:
+        Returns
+        -------
             Mean absolute error between y_pred and y_true.
         """
         spatial_dims = tuple(range(-n_spatial_dims - 1, -1))
         return torch.mean((y_pred - y_true).abs(), dim=spatial_dims)
-    
+
 
 class NMAE(Metric):
     @staticmethod
@@ -68,13 +70,15 @@ class NMAE(Metric):
             n_spatial_dims: int
                 Number of spatial dimensions.
 
-        Returns:
+        Returns
+        -------
             Normalized mean absolute error between y_pred and y_true.
         """
         spatial_dims = tuple(range(-n_spatial_dims - 1, -1))
         norm = torch.mean(torch.abs(y_true), dim=spatial_dims)
         return torch.mean((y_pred - y_true).abs(), dim=spatial_dims) / (norm + eps)
-    
+
+
 class NMSE(Metric):
     @staticmethod
     def score(
@@ -96,7 +100,8 @@ class NMSE(Metric):
             norm_mode:
                 Mode for computing the normalization factor. Can be 'norm' or 'std'. Default is 'norm'.
 
-        Returns:
+        Returns
+        -------
             Normalized mean squared error between y_pred and y_true.
         """
         spatial_dims = tuple(range(-n_spatial_dims - 1, -1))
@@ -107,14 +112,14 @@ class NMSE(Metric):
         else:
             raise ValueError(f"Invalid norm_mode: {norm_mode}")
         return MSE.score(y_pred, y_true, n_spatial_dims) / (norm + eps)
-    
+
+
 class RMSE(Metric):
     @staticmethod
     def score(
         y_pred: TensorBTSPlusC,
         y_true: TensorBTSPlusC,
         n_spatial_dims: int,
-        eps: float = 1e-7,
     ) -> TensorBTC:
         """
         Root Mean Squared Error
@@ -125,11 +130,13 @@ class RMSE(Metric):
             n_spatial_dims: int
                 Number of spatial dimensions.
 
-        Returns:
+        Returns
+        -------
             Root mean squared error between y_pred and y_true.
         """
         return torch.sqrt(MSE.score(y_pred, y_true, n_spatial_dims))
-    
+
+
 class NRMSE(Metric):
     @staticmethod
     def score(
@@ -150,11 +157,14 @@ class NRMSE(Metric):
             eps: Small value to avoid division by zero. Default is 1e-7.
             norm_mode : Mode for computing the normalization factor. Can be 'norm' or 'std'. Default is 'norm'.
 
-        Returns:
+        Returns
+        -------
             Normalized root mean squared error between y_pred and y_true.
 
         """
-        return torch.sqrt(NMSE.score(y_pred, y_true, n_spatial_dims, eps=eps, norm_mode=norm_mode))
+        return torch.sqrt(
+            NMSE.score(y_pred, y_true, n_spatial_dims, eps=eps, norm_mode=norm_mode)
+        )
 
 
 class VMSE(Metric):
@@ -163,7 +173,6 @@ class VMSE(Metric):
         y_pred: TensorBTSPlusC,
         y_true: TensorBTSPlusC,
         n_spatial_dims: int,
-        eps: float = 1e-7,
     ) -> TensorBTC:
         """
         Variance Scaled Mean Squared Error
@@ -174,7 +183,8 @@ class VMSE(Metric):
             n_spatial_dims: int
                 Number of spatial dimensions.
 
-        Returns:
+        Returns
+        -------
             Variance mean squared error between y_pred and y_true.
         """
         return NMSE.score(y_pred, y_true, n_spatial_dims, norm_mode="std")
@@ -186,7 +196,6 @@ class VRMSE(Metric):
         y_pred: TensorBTSPlusC,
         y_true: TensorBTSPlusC,
         n_spatial_dims: int,
-        eps: float = 1e-7,
     ) -> TensorBTC:
         """
         Root Variance Scaled Mean Squared Error
@@ -197,7 +206,8 @@ class VRMSE(Metric):
             n_spatial_dims: int
                 Number of spatial dimensions.
 
-        Returns:
+        Returns
+        -------
             Root variance mean squared error between y_pred and y_true.
         """
         return NRMSE.score(y_pred, y_true, n_spatial_dims, norm_mode="std")
@@ -209,7 +219,6 @@ class LInfinity(Metric):
         y_pred: TensorBTSPlusC,
         y_true: TensorBTSPlusC,
         n_spatial_dims: int,
-        eps: float = 1e-7,
     ) -> TensorBTC:
         """
         L-Infinity Norm
@@ -219,10 +228,12 @@ class LInfinity(Metric):
             y: Target tensor.
             meta: Metadata for the dataset.
 
-        Returns:
+        Returns
+        -------
             L-Infinity norm between y_pred and y_true.
         """
         spatial_dims = tuple(range(-n_spatial_dims - 1, -1))
         return torch.max(
-            torch.abs(y_pred - y_true).flatten(start_dim=spatial_dims[0], end_dim=-2), dim=-2
+            torch.abs(y_pred - y_true).flatten(start_dim=spatial_dims[0], end_dim=-2),
+            dim=-2,
         ).values

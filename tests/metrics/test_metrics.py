@@ -1,14 +1,23 @@
-import torch
 import pytest
+import torch
 
-from auto_cast.metrics.spatiotemporal import MSE, MAE, NMAE, NMSE, NRMSE, RMSE, VRMSE, VMSE
+from auto_cast.metrics.spatiotemporal import (
+    MAE,
+    MSE,
+    NMAE,
+    NMSE,
+    NRMSE,
+    RMSE,
+    VMSE,
+    VRMSE,
+)
 from auto_cast.types import TensorBTSPlusC
+
 
 @pytest.mark.parametrize(
     "metric",
     (MSE(), MAE(), NMAE(), NMSE(), NRMSE(), RMSE(), VRMSE(), VMSE()),
 )
-
 def test_spatiotemporal_metrics(metric):
     y_pred: TensorBTSPlusC = torch.ones((2, 3, 4, 5))
     y_true: TensorBTSPlusC = torch.ones((2, 3, 4, 5))
