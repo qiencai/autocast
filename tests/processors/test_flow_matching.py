@@ -5,6 +5,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, Dataset
 
+from auto_cast.models.processor import ProcessorModel
 from auto_cast.nn.unet import TemporalUNetBackbone
 from auto_cast.processors.flow_matching import FlowMatchingProcessor
 from auto_cast.types import EncodedBatch
@@ -104,7 +105,7 @@ def test_flow_matching_processor(
     )
     encoded_batch = next(iter(encoded_loader))
 
-    model = FlowMatchingProcessor(
+    processor = FlowMatchingProcessor(
         flow_matching_model=TemporalUNetBackbone(
             in_channels=n_steps_output * n_channels_out,
             out_channels=n_steps_output * n_channels_out,
@@ -119,7 +120,7 @@ def test_flow_matching_processor(
         n_channels_out=n_channels_out,
         flow_ode_steps=1,
     )
-
+    model = ProcessorModel(processor)
     output = model.map(encoded_batch.encoded_inputs)
     assert output.shape == encoded_batch.encoded_output_fields.shape
 

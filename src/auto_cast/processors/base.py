@@ -34,13 +34,13 @@ class Processor(ABC, nn.Module, Generic[BatchT]):
 
     @abstractmethod
     def map(self, x: Tensor) -> Tensor:
-        '''
-        Maps input states to output states.
+        """
+        Map input states to output states.
 
         Args:
             x (Tensor): Input tensor of shape (B, T_in, ...)
-        Returns:
+
+        Returns
+        -------
             y (Tensor): Output tensor of shape (B, T_out, ...)
-        '''
-
-
+        """
