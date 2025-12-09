@@ -57,6 +57,8 @@ class FNOProcessor(Processor[EncodedBatch]):
         n_layers: int = 4,
         loss_func: nn.Module | None = None,
         learning_rate: float = 1e-3,
+        stride: int = 1,
+        max_rollout_steps: int = 10,
         **fno_kwargs: Any,
     ):
         super().__init__()
@@ -71,6 +73,8 @@ class FNOProcessor(Processor[EncodedBatch]):
         )
         self.loss_func = loss_func or nn.MSELoss()
         self.learning_rate = learning_rate
+        self.stride = stride
+        self.max_rollout_steps = max_rollout_steps
         self._reset_positional_embedding_cache()
 
     def forward(self, x: Tensor) -> Tensor:

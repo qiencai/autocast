@@ -9,6 +9,8 @@ from auto_cast.types import BatchT, Tensor
 class Processor(ABC, nn.Module, Generic[BatchT]):
     """Processor Base Class."""
 
+    learning_rate: float
+
     def __init__(
         self,
         *,
