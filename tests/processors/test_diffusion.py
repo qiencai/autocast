@@ -6,6 +6,7 @@ import torch
 from azula.noise import VPSchedule
 from torch.utils.data import DataLoader, Dataset
 
+from auto_cast.models.processor import ProcessorModel
 from auto_cast.nn.unet import TemporalUNetBackbone
 from auto_cast.processors.diffusion import DiffusionProcessor
 from auto_cast.types import EncodedBatch
@@ -116,7 +117,7 @@ def test_diffusion_processor(
     )
     encoded_batch = next(iter(encoded_loader))
 
-    model = DiffusionProcessor(
+    processor = DiffusionProcessor(
         backbone=TemporalUNetBackbone(
             in_channels=n_channels_out * n_steps_output,
             out_channels=n_channels_out * n_steps_output,
@@ -128,11 +129,13 @@ def test_diffusion_processor(
             periodic=False,
         ),
         schedule=VPSchedule(),
+    )
+    model = ProcessorModel(
+        processor=processor,
         n_steps_output=n_steps_output,
         n_channels_out=n_channels_out,
         sampler_steps=5,
     )
-
     output = model.map(encoded_batch.encoded_inputs)
     assert output.shape == encoded_batch.encoded_output_fields.shape
 

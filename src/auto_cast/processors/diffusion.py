@@ -94,7 +94,7 @@ class DiffusionProcessor(Processor):
         posterior = self.denoiser(x, t, cond=cond)
         return posterior.mean
 
-    def training_step(self, batch: EncodedBatch, batch_idx: int) -> Tensor:  # noqa: ARG002
+    def loss(self, batch: EncodedBatch) -> Tensor:
         """Training step with diffusion loss.
 
         Sample random time steps and compute loss between denoised output and the
@@ -120,33 +120,8 @@ class DiffusionProcessor(Processor):
         w_t = (alpha_t / sigma_t) ** 2 + 1
         w_t = torch.clip(w_t, max=1e4)
         loss = (w_t * (x_denoised - x_0).square()).mean()
-        self.log(
-            "train_loss",
-            loss,
-            prog_bar=True,
-            batch_size=batch.encoded_inputs.shape[
-                0
-            ],  #  proper averaging across batches
-        )
-        return loss
 
-    @torch.no_grad()
-    def validation_step(self, batch: EncodedBatch, batch_idx: int) -> Tensor:  # noqa: ARG002
-        # TODO: placeholder for now - same as training step but this should be updated
-        # to compute the metrics on the rollout
-        x_cond = batch.encoded_inputs
-        x_0 = batch.encoded_output_fields  # Clean data : (B, T,C, H, W)
-        t = torch.rand(x_0.size(0), device=x_0.device)  # (B,)
-        loss = self.denoiser.loss(x_0, t=t, cond=x_cond)
-        self.log(
-            "validation_loss",
-            loss,
-            prog_bar=True,
-            batch_size=batch.encoded_inputs.shape[
-                0
-            ],  #  proper averaging across batches
-        )
-        return loss
+        return loss  # noqa: RET504
 
     def _get_sampler(
         self,
