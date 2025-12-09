@@ -12,8 +12,6 @@ from auto_cast.types import (
     Batch,
     TensorBNC,
     TensorBSC,
-    TensorBTCHW,
-    TensorBTNC,
     TensorBTSC,
 )
 
@@ -52,7 +50,7 @@ class _FlatEncoder(Encoder):
             nn.Linear(2 * input_dim, latent_dim),
         )
 
-    def encode(self, batch: Batch) -> TensorBTNC:
+    def encode(self, batch: Batch) -> TensorBNC:
         x = batch.input_fields  # (B, T, ..., C)
         # Process each time step
         outputs = []
@@ -61,7 +59,7 @@ class _FlatEncoder(Encoder):
             outputs.append(self.net(x_t))
         return torch.stack(outputs, dim=1)
 
-    def forward(self, batch: Batch) -> TensorBTNC:
+    def forward(self, batch: Batch) -> TensorBNC:
         return self.encode(batch)
 
 
@@ -78,7 +76,7 @@ class _FlatDecoder(Decoder):
             nn.Linear(2 * latent_dim, output_dim),
         )
 
-    def decode(self, z: TensorBTNC) -> TensorBTNC:
+    def decode(self, z: TensorBNC) -> TensorBNC:
         outputs = []
         for idx in range(z.shape[1]):
             z_t: TensorBNC = z[:, idx, ...]  # (B, C)
@@ -100,7 +98,7 @@ class _FlatteningEncoder(Encoder):
             nn.Linear(2 * in_features, latent_dim),
         )
 
-    def encode(self, batch: Batch) -> TensorBTNC:
+    def encode(self, batch: Batch) -> TensorBNC:
         x: TensorBTSC = batch.input_fields  # (B, T, spatial..., C)
         outputs = []
         for idx in range(x.shape[1]):
@@ -124,7 +122,7 @@ class _FlatteningDecoder(Decoder):
             nn.Linear(2 * latent_dim, out_features),
         )
 
-    def decode(self, z: TensorBTNC) -> TensorBTCHW:
+    def decode(self, z: TensorBNC) -> TensorBTSC:
         outputs = []
         for idx in range(z.shape[1]):
             z_t: TensorBNC = z[:, idx, ...]  # (B, latent_dim)
