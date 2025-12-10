@@ -9,6 +9,13 @@ uv sync --extra dev
 
 ## Quickstart
 
+Train an encoder-decoder stack and evaluate the resulting checkpoint:
+
+```bash
+# Train
+uv run python -m auto_cast.train.autoencoder --config-path=configs/
+```
+
 Train an encoder-processor-decoder stack and evaluate the resulting checkpoint:
 
 ```bash
