@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Any, Protocol, runtime_checkable
 
 from neuralop.models import FNO
@@ -25,7 +26,7 @@ class FNOProcessor(Processor[EncodedBatch]):
         Number of input channels.
     out_channels: int
         Number of output channels.
-    n_modes: tuple[int, ...]
+    n_modes: Sequence[int]
         Number of Fourier modes to keep in each spatial dimension.
     hidden_channels: int, optional
         Width of the FNO (number of channels in hidden layers). Default is 64.
@@ -52,7 +53,7 @@ class FNOProcessor(Processor[EncodedBatch]):
         self,
         in_channels: int,
         out_channels: int,
-        n_modes: tuple[int, ...],
+        n_modes: Sequence[int],
         hidden_channels: int = 64,
         n_layers: int = 4,
         loss_func: nn.Module | None = None,
@@ -63,8 +64,10 @@ class FNOProcessor(Processor[EncodedBatch]):
     ):
         super().__init__()
 
+        n_modes_tuple = tuple(n_modes)
+
         self.model = FNO(
-            n_modes=n_modes,
+            n_modes=n_modes_tuple,
             in_channels=in_channels,
             out_channels=out_channels,
             hidden_channels=hidden_channels,

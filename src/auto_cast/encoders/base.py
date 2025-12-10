@@ -59,7 +59,7 @@ class Encoder(nn.Module, ABC):
 
         # Assign output fields to inputs to be encoded identically in this default impl
         # Create a new batch with output fields as input fields to prevent mutation
-        output_batch = replace(batch, input_fields=batch.output_fields)
+        output_batch = replace(batch, input_fields=batch.output_fields.clone())
 
         encoded_outputs = self.encode(output_batch)
 
