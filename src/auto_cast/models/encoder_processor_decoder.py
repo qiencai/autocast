@@ -55,7 +55,10 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule):
         return self.processor.map(x.encoded_inputs)
 
     def forward(self, batch: Batch) -> TensorBTSC:
-        return self.decode(self.processor(self.encode(batch)))
+        encoded = self.encoder_decoder.encoder.encode(batch)
+        mapped = self.processor.map(encoded)
+        decoded = self.encoder_decoder.decoder.decode(mapped)
+        return decoded  # noqa: RET504
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
         y_pred = self(batch)
