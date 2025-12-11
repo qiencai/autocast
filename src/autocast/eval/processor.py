@@ -249,7 +249,6 @@ def _evaluate_metrics(
     dataloader,
     metrics: dict[str, nn.Module],
     device: torch.device,
-    n_spatial_dims: int,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     totals = dict.fromkeys(metrics, 0.0)
