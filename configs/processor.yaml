@@ -2,7 +2,7 @@ defaults:
   - data: reaction_diffusion
   - encoder: permute_concat
   - decoder: channels_last
-  - processor: fno
+  - processor: flow_matching
   - trainer: default
   - logging: wandb
   - _self_

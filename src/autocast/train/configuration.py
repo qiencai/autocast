@@ -74,8 +74,16 @@ def configure_module_dimensions(
     """Populate missing dimension hints for encoder/decoder/processor modules."""
     _maybe_set(cfg.decoder, "output_channels", channel_count)
     _maybe_set(cfg.decoder, "time_steps", n_steps_output)
-    _maybe_set(cfg.processor, "in_channels", channel_count * n_steps_input)
-    _maybe_set(cfg.processor, "out_channels", channel_count * n_steps_output)
+    processor_cfg = cfg.get("processor")
+    _maybe_set(processor_cfg, "in_channels", channel_count * n_steps_input)
+    _maybe_set(processor_cfg, "out_channels", channel_count * n_steps_output)
+    _maybe_set(processor_cfg, "n_steps_output", n_steps_output)
+    _maybe_set(processor_cfg, "n_channels_out", channel_count)
+
+    backbone_cfg = processor_cfg.get("backbone") if processor_cfg else None
+    _maybe_set(backbone_cfg, "in_channels", channel_count * n_steps_output)
+    _maybe_set(backbone_cfg, "out_channels", channel_count * n_steps_output)
+    _maybe_set(backbone_cfg, "cond_channels", channel_count * n_steps_input)
 
 
 def normalize_processor_cfg(cfg: DictConfig) -> None:
