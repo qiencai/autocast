@@ -13,6 +13,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
+from autocast.logging import create_wandb_logger, maybe_watch_model
 from autocast.models.ae import AE, AELoss
 from autocast.models.encoder_decoder import EncoderDecoder
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
@@ -150,11 +151,17 @@ def build_autoencoder_modules(
     return autoencoder.encoder, autoencoder.decoder
 
 
-def instantiate_trainer(cfg: DictConfig, work_dir: Path):
+def instantiate_trainer(
+    cfg: DictConfig,
+    work_dir: Path,
+    *,
+    logger=None,
+):
     """Instantiate the Lightning trainer with a concrete root directory."""
     return instantiate(
         cfg.trainer,
         default_root_dir=str(work_dir),
+        logger=logger,
     )
 
 
@@ -167,6 +174,14 @@ def main() -> None:
     work_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = compose_training_config(args)
+    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
+    wandb_logger, watch_cfg = create_wandb_logger(
+        cfg.get("logging"),
+        experiment_name=cfg.get("experiment_name", "processor"),
+        job_type="train-processor",
+        work_dir=work_dir,
+        config={"hydra": resolved_cfg} if resolved_cfg is not None else None,
+    )
     training_params = resolve_training_params(cfg, args)
     update_data_cfg(
         cfg,
@@ -235,7 +250,8 @@ def main() -> None:
         loss_func=loss_func,
     )
 
-    trainer = instantiate_trainer(cfg, work_dir)
+    maybe_watch_model(wandb_logger, model, watch_cfg)
+    trainer = instantiate_trainer(cfg, work_dir, logger=wandb_logger)
 
     log.info("Starting training.")
     trainer.fit(model=model, datamodule=datamodule)

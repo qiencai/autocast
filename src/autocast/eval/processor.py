@@ -13,9 +13,10 @@ from pathlib import Path
 import lightning as L
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
+from autocast.logging import create_wandb_logger, log_metrics
 from autocast.metrics.spatiotemporal import (
     MAE,
     MSE,
@@ -470,6 +471,21 @@ def main() -> None:
     csv_path = _resolve_csv_path(args)
     video_dir = _resolve_video_dir(args)
     cfg = compose_training_config(args)
+    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
+    wandb_logger, _ = create_wandb_logger(
+        cfg.get("logging"),
+        experiment_name=cfg.get("experiment_name", "processor"),
+        job_type="evaluate-processor",
+        work_dir=work_dir,
+        config={
+            "hydra": resolved_cfg,
+            "evaluation": {
+                "checkpoint": str(args.checkpoint),
+                "metrics": args.metrics or ("mse", "rmse"),
+                "batch_indices": args.batch_indices,
+            },
+        },
+    )
     training_params = resolve_training_params(cfg, args)
     update_data_cfg(cfg, training_params.n_steps_input, training_params.n_steps_output)
 
@@ -502,6 +518,15 @@ def main() -> None:
     test_loader = datamodule.test_dataloader()
     rows = _evaluate_metrics(model, test_loader, metrics, device, n_spatial_dims)
     _write_csv(rows, csv_path, list(metrics.keys()))
+
+    aggregate_row = next((row for row in rows if row.get("batch_index") == "all"), None)
+    if aggregate_row is not None:
+        payload = {
+            f"test/{name}": float(aggregate_row[name])  # type: ignore[arg-type]
+            for name in metrics
+            if name in aggregate_row
+        }
+        log_metrics(wandb_logger, payload)
 
     if args.batch_indices:
         rollout_loader = datamodule.rollout_test_dataloader()

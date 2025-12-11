@@ -4,6 +4,7 @@ defaults:
   - decoder: channels_last
   - processor: fno
   - trainer: default
+  - logging: wandb
   - _self_
 
 seed: 42
