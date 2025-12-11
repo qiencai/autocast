@@ -2,6 +2,7 @@ defaults:
   - data: reaction_diffusion
   - model: ae
   - trainer: default
+  - logging: wandb
   - _self_
 
 seed: 42
