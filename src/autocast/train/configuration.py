@@ -18,6 +18,7 @@ class TrainingParams:
 
     n_steps_input: int
     n_steps_output: int
+    stride: int
     autoencoder_checkpoint: Path | None
     freeze_autoencoder: bool
 
@@ -135,6 +136,7 @@ def resolve_training_params(cfg: DictConfig, args) -> TrainingParams:
         if training_cfg is not None
         else False
     )
+    stride_cfg = training_cfg.get("stride") if training_cfg is not None else None
 
     n_steps_input = args.n_steps_input or n_steps_input_cfg
     n_steps_output = args.n_steps_output or n_steps_output_cfg
@@ -147,6 +149,18 @@ def resolve_training_params(cfg: DictConfig, args) -> TrainingParams:
         args.freeze_autoencoder if args.freeze_autoencoder is not None else freeze_cfg
     )
 
+    if stride_cfg in (None, "auto"):
+        stride_cfg = n_steps_output
+    stride_override = getattr(args, "stride", None)
+    stride = stride_override or stride_cfg or n_steps_output
+    if stride < 1:
+        msg = "stride must be >= 1."
+        raise ValueError(msg)
+
+    if training_cfg is not None:
+        with open_dict(training_cfg):
+            training_cfg["stride"] = stride
+
     if n_steps_output < 1:
         msg = "n_steps_output must be >= 1 for processor training."
         raise ValueError(msg)
@@ -154,6 +168,7 @@ def resolve_training_params(cfg: DictConfig, args) -> TrainingParams:
     return TrainingParams(
         n_steps_input=n_steps_input,
         n_steps_output=n_steps_output,
+        stride=stride,
         autoencoder_checkpoint=checkpoint,
         freeze_autoencoder=freeze_autoencoder,
     )

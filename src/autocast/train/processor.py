@@ -87,6 +87,12 @@ def parse_args() -> argparse.Namespace:
         help="Override training.n_steps_output (number of target time steps).",
     )
     parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        help="Override training stride (rollout interval between predictions).",
+    )
+    parser.add_argument(
         "--work-dir",
         type=Path,
         default=Path.cwd(),
@@ -254,8 +260,7 @@ def main() -> None:  # noqa: PLR0915
     max_rollout_steps = epd_cfg.get("max_rollout_steps", 10)
     loss_cfg = epd_cfg.get("loss_func")
     loss_func = instantiate(loss_cfg) if loss_cfg is not None else nn.MSELoss()
-    training_cfg = cfg.get("training") or {}
-    stride = training_cfg.get("stride", 1)
+    stride = training_params.stride
 
     model = EncoderProcessorDecoder(
         encoder_decoder=encoder_decoder,

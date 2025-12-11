@@ -108,6 +108,12 @@ def parse_args() -> argparse.Namespace:
         help="Override training.n_steps_output (number of target time steps).",
     )
     parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        help="Override training stride used for rollouts (defaults to n_steps_output).",
+    )
+    parser.add_argument(
         "--checkpoint",
         type=Path,
         required=True,
