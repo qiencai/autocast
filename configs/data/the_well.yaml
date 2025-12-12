@@ -7,8 +7,9 @@ _target_: autocast.data.datamodule.TheWellDataModule
 # Example override: `python script.py data=the_well data.well_dataset_name=turbulent_radiative_layer_2D`
 well_dataset_name: turbulent_radiative_layer_2D
 
-# Path to The Well datasets
-well_base_path: ./datasets/
+# Path to The Well datasets. Read from `AUTOCAST_DATASETS` environment variable
+# Example: export AUTOCAST_DATASETS=/path/to/autocast/datasets
+well_base_path: ${oc.env:AUTOCAST_DATASETS,./datasets}
 
 # Temporal configuration
 n_steps_input: 1
