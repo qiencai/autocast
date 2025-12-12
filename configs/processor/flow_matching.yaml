@@ -1,5 +1,5 @@
 _target_: autocast.processors.flow_matching.FlowMatchingProcessor
-stride: ${training.train_stride}
+stride: ${training.stride}
 teacher_forcing_ratio: 0.0
 max_rollout_steps: ${training.n_steps_output}
 learning_rate: 0.0001

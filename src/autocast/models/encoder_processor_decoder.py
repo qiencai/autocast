@@ -26,7 +26,7 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule):
         processor: Processor,
         learning_rate: float = 1e-3,
         stride: int = 1,
-        eval_stride: int | None = None,
+        rollout_stride: int | None = None,
         teacher_forcing_ratio: float = 0.5,
         max_rollout_steps: int = 10,
         train_processor_only: bool = False,
@@ -40,7 +40,7 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule):
         self.processor = processor
         self.learning_rate = learning_rate
         self.stride = stride
-        self.eval_stride = eval_stride if eval_stride is not None else stride
+        self.rollout_stride = rollout_stride if rollout_stride is not None else stride
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.max_rollout_steps = max_rollout_steps
         self.train_processor_only = train_processor_only
