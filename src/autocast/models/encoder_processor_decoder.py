@@ -131,44 +131,36 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule):
         return loss
 
     def test_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
-        # Temporarily set processor stride to eval_stride for testing
-        original_stride = self.processor.stride
-        self.processor.stride = self.eval_stride
-
-        try:
-            y_pred = self(batch)
-            y_true = batch.output_fields
-            if self.train_processor_only:
-                with torch.no_grad():
-                    encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)
-                loss = self.processor.loss(encoded_batch)
-                self.log(
-                    "test_loss",
-                    loss,
-                    prog_bar=True,
-                    batch_size=batch.input_fields.shape[0],
-                )
-                return loss
-            if self.loss_func is None:
-                msg = "loss_func must be provided testing full EPD model."
-                raise ValueError(msg)
-            loss = self.loss_func(y_pred, y_true)
+        y_pred = self(batch)
+        y_true = batch.output_fields
+        if self.train_processor_only:
+            with torch.no_grad():
+                encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)
+            loss = self.processor.loss(encoded_batch)
             self.log(
-                "test_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
+                "test_loss",
+                loss,
+                prog_bar=True,
+                batch_size=batch.input_fields.shape[0],
             )
-            if self.test_metrics is not None:
-                self.test_metrics.update(y_pred, y_true)
-                self.log_dict(
-                    self.test_metrics,
-                    prog_bar=False,
-                    on_step=False,
-                    on_epoch=True,
-                    batch_size=batch.input_fields.shape[0],
-                )
             return loss
-        finally:
-            # Restore original stride
-            self.processor.stride = original_stride
+        if self.loss_func is None:
+            msg = "loss_func must be provided testing full EPD model."
+            raise ValueError(msg)
+        loss = self.loss_func(y_pred, y_true)
+        self.log(
+            "test_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
+        )
+        if self.test_metrics is not None:
+            self.test_metrics.update(y_pred, y_true)
+            self.log_dict(
+                self.test_metrics,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch.input_fields.shape[0],
+            )
+        return loss
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
