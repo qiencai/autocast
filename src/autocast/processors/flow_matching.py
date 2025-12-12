@@ -15,8 +15,7 @@ class FlowMatchingProcessor(Processor):
     def __init__(
         self,
         *,
-        flow_matching_model: nn.Module | None = None,
-        backbone: nn.Module | None = None,
+        backbone: nn.Module,
         schedule: Any | None = None,
         denoiser_type: str | None = None,
         stride: int = 1,
@@ -37,7 +36,7 @@ class FlowMatchingProcessor(Processor):
             loss_func=loss_func or nn.MSELoss(),
             **kwargs,
         )
-        self.flow_matching_model = flow_matching_model or backbone
+        self.flow_matching_model = backbone
         self.schedule = schedule  # accepted for API compatibility
         self.denoiser_type = denoiser_type
         self.learning_rate = learning_rate
@@ -60,7 +59,6 @@ class FlowMatchingProcessor(Processor):
         -------
             Time derivative of output states with the same shape as `z`.
         """
-        assert self.flow_matching_model is not None  # for type checkers
         return self.flow_matching_model(z, t, x)
 
     def forward(self, x: Tensor) -> Tensor:
