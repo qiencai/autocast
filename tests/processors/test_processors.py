@@ -54,14 +54,22 @@ def test_processor_rollout_handles_encoded_batches():
         stride=stride,
         max_rollout_steps=max_rollout_steps,
     )
-    preds, gts = processor.rollout(encoded_batch, stride=stride, return_windows=True)
+    preds, gts = processor.rollout(
+        encoded_batch,
+        stride=stride,
+        max_rollout_steps=max_rollout_steps,
+        return_windows=True,
+    )
 
     assert preds.shape == (10, max_rollout_steps, n_steps_output, 4, 4, 1)
     assert gts is not None
     assert gts.shape == preds.shape
 
     preds, gts = processor.rollout(
-        encoded_batch, stride=n_steps_output, return_windows=False
+        encoded_batch,
+        stride=n_steps_output,
+        max_rollout_steps=max_rollout_steps,
+        return_windows=False,
     )
 
     assert preds.shape == (10, max_rollout_steps * n_steps_output, 4, 4, 1)
