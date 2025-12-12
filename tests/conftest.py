@@ -11,8 +11,9 @@ from autocast.types import Batch, EncodedBatch
 
 
 @pytest.fixture
-def REPO_ROOT() -> str:
+def REPO_ROOT() -> Path:
     return Path(__file__).parent.parent
+
 
 def _make_batch(
     batch_size: int = 1,
@@ -184,6 +185,7 @@ def encoded_dummy_loader(make_toy_batch: Callable[..., Batch]) -> DataLoader:
         num_workers=0,
     )
 
+
 if __name__ == "__main__":
     print(Path(__file__).parent.parent)
-    print('banana')
+    print("banana")

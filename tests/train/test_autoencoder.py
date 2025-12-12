@@ -1,6 +1,4 @@
-
 import argparse
-import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -34,7 +32,6 @@ def autoencoder_cli_args(REPO_ROOT: Path, workdir: Path) -> argparse.Namespace:
 def test_train_autoencoder(
     autoencoder_cli_args: argparse.Namespace,
 ) -> None:
-
     # Config prep for training
     cfg = compose_training_config(autoencoder_cli_args)
     resolved_work_dir = _resolve_work_dir(autoencoder_cli_args, cfg)
@@ -45,13 +42,13 @@ def test_train_autoencoder(
     mock_wandb_logger = MagicMock()
     mock_watch_cfg = MagicMock()
 
-    with patch(
-        "autocast.train.autoencoder.create_wandb_logger",
-        return_value=(mock_wandb_logger, mock_watch_cfg),
-    ) as mock_create_logger, patch(
-        "autocast.train.autoencoder.maybe_watch_model"
+    with (
+        patch(
+            "autocast.train.autoencoder.create_wandb_logger",
+            return_value=(mock_wandb_logger, mock_watch_cfg),
+        ) as mock_create_logger,
+        patch("autocast.train.autoencoder.maybe_watch_model"),
     ):
-
         checkpoint_path = train_autoencoder(cfg, work_dir=resolved_work_dir)
 
         # Verify wandb logger was created with correct parameters
@@ -80,11 +77,6 @@ def test_train_autoencoder(
 
         # Check there are 4 reconstruction images saved
         reconstruction_images = list(reconstructions_dir.glob("*.png"))
-        assert (
-            len(reconstruction_images) == 4
-        ), f"Expected 4 reconstruction images, found {len(reconstruction_images)}"
-
-
-
-
-
+        assert len(reconstruction_images) == 4, (
+            f"Expected 4 reconstruction images, found {len(reconstruction_images)}"
+        )
