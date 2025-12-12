@@ -51,8 +51,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--config-name",
-        default="processor",
-        help="Hydra config name to compose (defaults to 'processor').",
+        default="encoder_processor_decoder",
+        help="Hydra config name to compose (defaults to 'encoder_processor_decoder').",
     )
     parser.add_argument(
         "overrides",
