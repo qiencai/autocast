@@ -49,11 +49,4 @@ uv run train_autoencoder \
     --config-path=configs/ \
 	--work-dir=${WORKING_DIR}
 	
-# Evaluate
-uv run evaluate_autoencoder \
-	--config-path=configs/ \
-	--work-dir=${WORKING_DIR} \
-	--checkpoint=${WORKING_DIR}/autoencoder.ckpt \
-	--batch-index=0 --batch-index=3 \
-	--video-dir=${WORKING_DIR}/videos
 
