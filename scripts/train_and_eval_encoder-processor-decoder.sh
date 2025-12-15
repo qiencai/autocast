@@ -35,6 +35,12 @@ JOB_NAME="encoder_processor_decoder_run"
 # It follows the structure outputs/JOB_NAME/TIMESTAMP
 WORKING_DIR="outputs/${JOB_NAME}/${TIMESTAMP}"
 
+# Write the slurm output and error files to the working directory
+mkdir -p "${WORKING_DIR}"
+
+exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
+     2> "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.err"
+
 # ---------------- Code to train and evaluate the model ----------------
 
 # Train
