@@ -4,6 +4,7 @@ from typing import Any
 import lightning as L
 import torch
 from torch import nn
+from torchmetrics import Metric
 
 from autocast.metrics.utils import MetricsMixin
 from autocast.processors.base import Processor
@@ -23,6 +24,8 @@ class ProcessorModel(RolloutMixin[EncodedBatch], ABC, L.LightningModule, Metrics
         stride: int = 1,
         loss_func: nn.Module | None = None,
         learning_rate: float | None = None,
+        val_metrics: list[Metric] | None = None,
+        test_metrics: list[Metric] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -35,6 +38,8 @@ class ProcessorModel(RolloutMixin[EncodedBatch], ABC, L.LightningModule, Metrics
             if learning_rate is not None
             else getattr(processor, "learning_rate", 1e-3)
         )
+        self.val_metrics = self._build_metrics(val_metrics, "val_")
+        self.test_metrics = self._build_metrics(test_metrics, "test_")
         for key, value in kwargs.items():
             setattr(self, key, value)
 
@@ -57,6 +62,35 @@ class ProcessorModel(RolloutMixin[EncodedBatch], ABC, L.LightningModule, Metrics
         self.log(
             "val_loss", loss, prog_bar=True, batch_size=batch.encoded_inputs.shape[0]
         )
+        y_pred = self._predict(batch)
+        y_true = batch.encoded_output_fields
+        if self.val_metrics is not None:
+            self.val_metrics.update(y_pred, y_true)
+            self.log_dict(
+                self.val_metrics,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch.encoded_inputs.shape[0],
+            )
+        return loss
+
+    def test_step(self, batch: EncodedBatch, batch_idx: int) -> Tensor:  # noqa: ARG002
+        loss = self.processor.loss(batch)
+        self.log(
+            "test_loss", loss, prog_bar=True, batch_size=batch.encoded_inputs.shape[0]
+        )
+        y_pred = self._predict(batch)
+        y_true = batch.encoded_output_fields
+        if self.test_metrics is not None:
+            self.test_metrics.update(y_pred, y_true)
+            self.log_dict(
+                self.test_metrics,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch.encoded_inputs.shape[0],
+            )
         return loss
 
     def configure_optimizers(self):
