@@ -6,6 +6,8 @@
 #SBATCH --gpus 1
 #SBATCH --tasks-per-node 36
 #SBATCH --job-name train_and_eval_autoencoder
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 
 set -e
 
