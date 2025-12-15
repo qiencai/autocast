@@ -13,6 +13,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
+from autocast.logging import create_wandb_logger, maybe_watch_model
 from autocast.models.ae import AE, AELoss
 from autocast.models.encoder_decoder import EncoderDecoder
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
@@ -50,15 +51,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--config-name",
-        default="processor",
-        help="Hydra config name to compose (defaults to 'processor').",
+        default="encoder_processor_decoder",
+        help="Hydra config name to compose (defaults to 'encoder_processor_decoder').",
     )
     parser.add_argument(
-        "--override",
-        dest="overrides",
-        action="append",
-        default=[],
-        help="Optional Hydra override, e.g. --override trainer.max_epochs=5",
+        "overrides",
+        nargs="*",
+        help=(
+            "Hydra config overrides (e.g. trainer.max_epochs=5 "
+            "logging.wandb.enabled=true)"
+        ),
     )
     parser.add_argument(
         "--autoencoder-checkpoint",
@@ -83,6 +85,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Override training.n_steps_output (number of target time steps).",
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        help="Override training stride (rollout interval between predictions).",
     )
     parser.add_argument(
         "--work-dir",
@@ -150,15 +158,21 @@ def build_autoencoder_modules(
     return autoencoder.encoder, autoencoder.decoder
 
 
-def instantiate_trainer(cfg: DictConfig, work_dir: Path):
+def instantiate_trainer(
+    cfg: DictConfig,
+    work_dir: Path,
+    *,
+    logger=None,
+):
     """Instantiate the Lightning trainer with a concrete root directory."""
     return instantiate(
         cfg.trainer,
         default_root_dir=str(work_dir),
+        logger=logger,
     )
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0915
     """CLI entrypoint for training the processor."""
     args = parse_args()
     logging.basicConfig(level=logging.INFO)
@@ -167,6 +181,15 @@ def main() -> None:
     work_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = compose_training_config(args)
+    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
+    model_cfg = cfg.get("model") or cfg
+    wandb_logger, watch_cfg = create_wandb_logger(
+        cfg.get("logging"),
+        experiment_name=cfg.get("experiment_name", "encoder_processor_decoder"),
+        job_type="train-encoder-processor-decoder",
+        work_dir=work_dir,
+        config={"hydra": resolved_cfg} if resolved_cfg is not None else None,
+    )
     training_params = resolve_training_params(cfg, args)
     update_data_cfg(
         cfg,
@@ -210,8 +233,8 @@ def main() -> None:
     normalize_processor_cfg(cfg)
 
     encoder, decoder = build_autoencoder_modules(
-        cfg.encoder,
-        cfg.decoder,
+        model_cfg.encoder,
+        model_cfg.decoder,
         training_params.autoencoder_checkpoint,
     )
     encoder_decoder = EncoderDecoder(encoder=encoder, decoder=decoder)
@@ -221,21 +244,30 @@ def main() -> None:
         _freeze_module(encoder_decoder.encoder)
         _freeze_module(encoder_decoder.decoder)
 
-    processor = instantiate(cfg.processor)
+    processor = instantiate(model_cfg.processor)
 
-    epd_cfg = cfg.get("encoder_processor_decoder")
-    learning_rate = epd_cfg.get("learning_rate", 1e-3) if epd_cfg is not None else 1e-3
-    loss_cfg = epd_cfg.get("loss_func") if epd_cfg is not None else None
+    epd_cfg = model_cfg
+    learning_rate = epd_cfg.get("learning_rate", 1e-3)
+    train_processor_only = epd_cfg.get("train_processor_only", False)
+    teacher_forcing_ratio = epd_cfg.get("teacher_forcing_ratio", 0.5)
+    max_rollout_steps = epd_cfg.get("max_rollout_steps", 10)
+    loss_cfg = epd_cfg.get("loss_func")
     loss_func = instantiate(loss_cfg) if loss_cfg is not None else nn.MSELoss()
+    stride = training_params.stride
 
     model = EncoderProcessorDecoder(
         encoder_decoder=encoder_decoder,
         processor=processor,
         learning_rate=learning_rate,
+        train_processor_only=train_processor_only,
+        stride=stride,
+        teacher_forcing_ratio=teacher_forcing_ratio,
+        max_rollout_steps=max_rollout_steps,
         loss_func=loss_func,
     )
 
-    trainer = instantiate_trainer(cfg, work_dir)
+    maybe_watch_model(wandb_logger, model, watch_cfg)
+    trainer = instantiate_trainer(cfg, work_dir, logger=wandb_logger)
 
     log.info("Starting training.")
     trainer.fit(model=model, datamodule=datamodule)

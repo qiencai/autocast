@@ -17,6 +17,7 @@ from omegaconf.base import SCMode
 
 from autocast.data.datamodule import SpatioTemporalDataModule
 from autocast.data.dataset import SpatioTemporalDataset
+from autocast.logging import create_wandb_logger, maybe_watch_model
 from autocast.models.ae import AE
 from autocast.types import Batch
 
@@ -44,15 +45,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--config-name",
-        default="config",
+        default="autoencoder",
         help="Hydra config name to compose (defaults to 'config').",
     )
     parser.add_argument(
-        "--override",
-        dest="overrides",
-        action="append",
-        default=[],
-        help="Optional Hydra override, e.g. --override trainer.max_epochs=5",
+        "overrides",
+        nargs="*",
+        help=(
+            "Hydra config overrides (e.g. trainer.max_epochs=5 "
+            "logging.wandb.enabled=true)"
+        ),
     )
     parser.add_argument(
         "--work-dir",
@@ -122,6 +124,11 @@ def _generate_split(simulator: Any, split_cfg: DictConfig) -> dict[str, Any]:
 
 def build_datamodule(cfg: DictConfig) -> SpatioTemporalDataModule:
     """Instantiate the `SpatioTemporalDataModule` described by `cfg`."""
+    # If the config explicitly names a datamodule class via Hydra `_target_`,
+    # instantiate and return directly
+    if cfg.get("_target_") is not None:
+        log.info("Instantiating datamodule from target: %s", cfg.get("_target_"))
+        return instantiate(cfg)
     data_path = cfg.get("data_path")
     data = None
     if cfg.get("use_simulator"):
@@ -244,9 +251,18 @@ def train_autoencoder(cfg: DictConfig, work_dir: Path) -> Path:
     """Train the autoencoder defined in `cfg` and return the checkpoint path."""
     log.info("Starting autoencoder experiment: %s", cfg.experiment_name)
     L.seed_everything(cfg.seed, workers=True)
+    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
+    wandb_logger, watch_cfg = create_wandb_logger(
+        cfg.get("logging"),
+        experiment_name=cfg.get("experiment_name", "autoencoder"),
+        job_type="train-autoencoder",
+        work_dir=work_dir,
+        config={"hydra": resolved_cfg} if resolved_cfg is not None else None,
+    )
     datamodule = build_datamodule(cfg.data)
     model = build_model(cfg.model)
-    trainer = instantiate(cfg.trainer)
+    maybe_watch_model(wandb_logger, model, watch_cfg)
+    trainer = instantiate(cfg.trainer, logger=wandb_logger)
     trainer.fit(model=model, datamodule=datamodule)
 
     checkpoint_name = cfg.output.get("checkpoint_name", "autoencoder.ckpt")

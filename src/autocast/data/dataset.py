@@ -180,6 +180,8 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         self.constant_scalars = (
             torch.Tensor(f["constant_scalars"][:]).to(self.dtype)  # type: ignore  # noqa: PGH003
             if "constant_scalars" in f
+            and f["constant_scalars"] is not None
+            and f["constant_scalars"] != {}
             else None
         )  # [N, C]
 
@@ -188,7 +190,9 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
             torch.Tensor(f["constant_fields"][:]).to(  # type: ignore # noqa: PGH003
                 self.dtype
             )  # [N, W, H, C]
-            if "constant_fields" in f and f["constant_fields"] != {}
+            if "constant_fields" in f
+            and f["constant_fields"] is not None
+            and f["constant_fields"] != {}
             else None
         )
 
@@ -351,17 +355,16 @@ class TheWell(SpatioTemporalDataset):
         min_std: float = 1e-4,
         storage_options: None | dict = None,
     ):
-        super().__init__(
-            data_path=None,
-            n_steps_input=n_steps_input,
-            n_steps_output=n_steps_output,
-            full_trajectory_mode=full_trajectory_mode,
-            autoencoder_mode=autoencoder_mode,
-            use_normalization=use_normalization,
-        )
+        # Not calling super().__init__() - TheWell uses WellDataset, not self.data
+        Dataset.__init__(self)
         exclude_filters = exclude_filters or []
         include_filters = include_filters or []
         self.autoencoder_mode = autoencoder_mode
+        self.n_steps_input = n_steps_input
+        self.n_steps_output = n_steps_output
+        self.full_trajectory_mode = full_trajectory_mode
+        self.use_normalization = use_normalization
+
         self.well_dataset = WellDataset(
             path=path,
             normalization_path=normalization_path,
@@ -390,10 +393,12 @@ class TheWell(SpatioTemporalDataset):
         )
         self.well_metadata = self.well_dataset.metadata
 
+    def __len__(self) -> int:  # noqa: D105
+        return len(self.well_dataset)
+
     def __getitem__(self, index) -> Sample:  # noqa: D105
         data = self.well_dataset.__getitem__(index)
         if self.autoencoder_mode:
             # Replace output_fields with input_fields for autoencoder training
-            data["input_fields"] = data["input_fields"]
             data["output_fields"] = data["input_fields"]
         return self.to_sample(data)

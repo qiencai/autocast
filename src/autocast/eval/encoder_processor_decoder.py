@@ -13,9 +13,10 @@ from pathlib import Path
 import lightning as L
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
+from autocast.logging import create_wandb_logger, log_metrics
 from autocast.metrics.spatiotemporal import (
     MAE,
     MSE,
@@ -71,15 +72,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--config-name",
-        default="processor",
-        help="Hydra config name to compose (defaults to 'processor').",
+        default="encoder_processor_decoder",
+        help="Hydra config name to compose (defaults to 'encoder_processor_decoder').",
     )
     parser.add_argument(
-        "--override",
-        dest="overrides",
-        action="append",
-        default=[],
-        help="Optional Hydra override, e.g. --override trainer.max_epochs=5",
+        "overrides",
+        nargs="*",
+        help=(
+            "Hydra config overrides (e.g. trainer.max_epochs=5"
+            "logging.wandb.enabled=true)"
+        ),
     )
     parser.add_argument(
         "--autoencoder-checkpoint",
@@ -104,6 +106,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Override training.n_steps_output (number of target time steps).",
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        help="Override training stride used for rollouts (defaults to n_steps_output).",
     )
     parser.add_argument(
         "--checkpoint",
@@ -248,7 +256,6 @@ def _evaluate_metrics(
     dataloader,
     metrics: dict[str, nn.Module],
     device: torch.device,
-    n_spatial_dims: int,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     totals = dict.fromkeys(metrics, 0.0)
@@ -269,7 +276,7 @@ def _evaluate_metrics(
                 "num_samples": batch_size,
             }
             for name, metric in metrics.items():
-                value = metric(preds, trues, n_spatial_dims)
+                value = metric(preds, trues)
                 scalar = float(value.mean().item())
                 row[name] = scalar
                 totals[name] += scalar * batch_size
@@ -330,17 +337,19 @@ def _load_state_dict(checkpoint_path: Path) -> OrderedDict[str, torch.Tensor]:
     return state_dict
 
 
-def _load_model(cfg: DictConfig, checkpoint_path: Path) -> EncoderProcessorDecoder:
-    encoder = instantiate(cfg.encoder)
-    decoder = instantiate(cfg.decoder)
+def _load_model(
+    cfg: DictConfig,
+    checkpoint_path: Path,
+) -> EncoderProcessorDecoder:
+    model_cfg = cfg.get("model") or cfg
+    encoder = instantiate(model_cfg.encoder)
+    decoder = instantiate(model_cfg.decoder)
     encoder_decoder = EncoderDecoder(encoder=encoder, decoder=decoder)
-    processor = instantiate(cfg.processor)
-    epd_cfg = cfg.get("encoder_processor_decoder") or {}
+    processor = instantiate(model_cfg.processor)
+    epd_cfg = model_cfg
     learning_rate = epd_cfg.get("learning_rate", 1e-3)
-    training_cfg = cfg.get("training")
-    stride = 1
-    if isinstance(training_cfg, DictConfig):
-        stride = training_cfg.get("stride", 1)
+    training_cfg = cfg.get("training") or {}
+    stride = training_cfg.get("stride", 1)
     teacher_forcing_ratio = epd_cfg.get("teacher_forcing_ratio", 0.5)
     max_rollout_steps = epd_cfg.get("max_rollout_steps", 10)
     loss_cfg = epd_cfg.get("loss_func")
@@ -374,29 +383,6 @@ def _load_model(cfg: DictConfig, checkpoint_path: Path) -> EncoderProcessorDecod
     return model
 
 
-def _ensure_rollout_stride(batch: Batch, stride: int) -> Batch:
-    current_steps = batch.input_fields.shape[1]
-    if current_steps >= stride:
-        return batch
-    deficit = stride - current_steps
-    if batch.output_fields.shape[1] < deficit:
-        msg = (
-            "Rollout requested stride longer than available ground-truth window: "
-            f"needed {stride}, have {current_steps} inputs and "
-            f"{batch.output_fields.shape[1]} outputs."
-        )
-        raise ValueError(msg)
-    padding = batch.output_fields[:, :deficit, ...]
-    new_inputs = torch.cat([batch.input_fields, padding], dim=1)
-    new_outputs = batch.output_fields[:, deficit:, ...]
-    return Batch(
-        input_fields=new_inputs,
-        output_fields=new_outputs,
-        constant_scalars=batch.constant_scalars,
-        constant_fields=batch.constant_fields,
-    )
-
-
 def _render_rollouts(
     model: EncoderProcessorDecoder,
     dataloader,
@@ -406,6 +392,7 @@ def _render_rollouts(
     fmt: str,
     fps: int,
     device: torch.device,
+    stride: int,
     free_running_only: bool,
 ) -> list[Path]:
     if not batch_indices:
@@ -419,14 +406,10 @@ def _render_rollouts(
         for batch_idx, batch in enumerate(dataloader):
             if batch_idx not in targets:
                 continue
-            try:
-                stride_ready_batch = _ensure_rollout_stride(batch, model.stride)
-            except ValueError as exc:
-                log.warning("Skipping batch %s: %s", batch_idx, exc)
-                continue
-            batch_on_device = _batch_to_device(stride_ready_batch, device)
+            batch_on_device = _batch_to_device(batch, device)
             preds, trues = model.rollout(
                 batch_on_device,
+                stride=stride,
                 free_running_only=free_running_only,
             )
             if trues is None:
@@ -450,6 +433,7 @@ def _render_rollouts(
                 batch_idx=sample_index,
                 fps=fps,
                 save_path=str(filename),
+                colorbar_mode="column",
             )
             saved_paths.append(filename)
             rendered_batches.add(batch_idx)
@@ -470,6 +454,21 @@ def main() -> None:
     csv_path = _resolve_csv_path(args)
     video_dir = _resolve_video_dir(args)
     cfg = compose_training_config(args)
+    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
+    wandb_logger, _ = create_wandb_logger(
+        cfg.get("logging"),
+        experiment_name=cfg.get("experiment_name", "encoder_processor_decoder"),
+        job_type="evaluate-encoder-processor-decoder",
+        work_dir=work_dir,
+        config={
+            "hydra": resolved_cfg,
+            "evaluation": {
+                "checkpoint": str(args.checkpoint),
+                "metrics": args.metrics or ("mse", "rmse"),
+                "batch_indices": args.batch_indices,
+            },
+        },
+    )
     training_params = resolve_training_params(cfg, args)
     update_data_cfg(cfg, training_params.n_steps_input, training_params.n_steps_output)
 
@@ -480,8 +479,8 @@ def main() -> None:
         channel_count,
         inferred_n_steps_input,
         inferred_n_steps_output,
-        _input_shape,
-        output_shape,
+        _,
+        _,
     ) = prepare_datamodule(cfg)
 
     configure_module_dimensions(
@@ -492,16 +491,27 @@ def main() -> None:
     )
     normalize_processor_cfg(cfg)
 
-    n_spatial_dims = _infer_spatial_dims(args, output_shape)
     metrics = _build_metrics(args.metrics or ("mse", "rmse"))
 
-    model = _load_model(cfg, args.checkpoint)
+    model = _load_model(
+        cfg,
+        args.checkpoint,
+    )
     device = _resolve_device(args.device)
     model.to(device)
 
     test_loader = datamodule.test_dataloader()
-    rows = _evaluate_metrics(model, test_loader, metrics, device, n_spatial_dims)
+    rows = _evaluate_metrics(model, test_loader, metrics, device)
     _write_csv(rows, csv_path, list(metrics.keys()))
+
+    aggregate_row = next((row for row in rows if row.get("batch_index") == "all"), None)
+    if aggregate_row is not None:
+        payload = {
+            f"test/{name}": float(aggregate_row[name])  # type: ignore[arg-type]
+            for name in metrics
+            if name in aggregate_row
+        }
+        log_metrics(wandb_logger, payload)
 
     if args.batch_indices:
         rollout_loader = datamodule.rollout_test_dataloader()
@@ -514,7 +524,8 @@ def main() -> None:
             args.video_format,
             args.fps,
             device,
-            args.free_running_only,
+            stride=inferred_n_steps_output,
+            free_running_only=args.free_running_only,
         )
 
 

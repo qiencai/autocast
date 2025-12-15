@@ -1,5 +1,7 @@
 """Temporal UNet backbone with flexible temporal processing methods."""
 
+from collections.abc import Sequence
+
 from azula.nn.unet import UNet
 from torch import nn
 
@@ -22,8 +24,8 @@ class TemporalUNetBackbone(TemporalBackboneBase):
         n_steps_output: int = 4,
         n_steps_input: int = 1,
         mod_features: int = 256,
-        hid_channels: tuple = (32, 64, 128),
-        hid_blocks: tuple = (2, 2, 2),
+        hid_channels: Sequence[int] = (32, 64, 128),
+        hid_blocks: Sequence[int] = (2, 2, 2),
         spatial: int = 2,
         periodic: bool = False,
         temporal_method: str = "attention",
