@@ -5,7 +5,7 @@
 #SBATCH --nodes 1
 #SBATCH --gpus 1
 #SBATCH --tasks-per-node 36
-#SBATCH --job-name train_and_eval_autoencoder
+#SBATCH --job-name train_and_eval_encoder-processor-decoder
 
 set -e
 
@@ -27,7 +27,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Now define a job name. This will be used to create a unique working directory for outputs.
 # Change this as needed
-JOB_NAME="autoencoder_run"
+JOB_NAME="encoder_processor_decoder_run"
 
 # Finally, this builds the working directory path. 
 # It follows the structure outputs/JOB_NAME/TIMESTAMP
@@ -36,15 +36,15 @@ WORKING_DIR="outputs/${JOB_NAME}/${TIMESTAMP}"
 # ---------------- Code to train and evaluate the model ----------------
 
 # Train
-uv run train_autoencoder \
+uv run train_encoder_processor_decoder \
     --config-path=configs/ \
 	--work-dir=${WORKING_DIR}
 	
 # Evaluate
-uv run evaluate_autoencoder \
+uv run evaluate_encoder_processor_decoder \
 	--config-path=configs/ \
 	--work-dir=${WORKING_DIR} \
-	--checkpoint=${WORKING_DIR}/autoencoder.ckpt \
+	--checkpoint=${WORKING_DIR}/encoder_processor_decoder.ckpt \
 	--batch-index=0 --batch-index=3 \
 	--video-dir=${WORKING_DIR}/videos
 
