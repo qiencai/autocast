@@ -1,6 +1,8 @@
 defaults:
-  - /encoder: identity
-  - /decoder: identity
+  # - /encoder: identity
+  # - /decoder: identity
+  - /encoder: dc
+  - /decoder: dc
   - /processor: flow_matching
   - _self_
 
