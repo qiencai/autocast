@@ -1,3 +1,5 @@
+
+#!/bin/bash
 #SBATCH --account=vjgo8416-ai-phy-sys
 #SBATCH --qos turing
 #SBATCH --time 3:00:00
