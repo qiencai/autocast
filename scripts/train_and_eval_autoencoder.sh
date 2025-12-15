@@ -17,8 +17,7 @@ module load Python/3.11.3-GCCcore-12.3.0
 module load FFmpeg/6.0-GCCcore-12.3.0
 
 # Activate virtual environment
-cd autocast # Change to the directory where your code is located
-source venv/bin/activate
+source .venv/bin/activate
 
 # Pip install to get current version of code 
 uv sync --extra dev
