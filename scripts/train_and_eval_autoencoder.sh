@@ -25,15 +25,20 @@ uv sync --extra dev
 
 # Run Autocast Code 
 
+# First define a timestamp
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+JOB_NAME="encoder_processor_decoder_run"
+WORKING_DIR="outputs/${JOB_NAME}/${TIMESTAMP}"
+
 # Train
 uv run train_encoder_processor_decoder \
     --config-path=configs/ \
-	--work-dir=outputs/encoder_processor_decoder_run
+	--work-dir=${WORKING_DIR}
 	
 # Evaluate
 uv run evaluate_encoder_processor_decoder \
 	--config-path=configs/ \
-	--work-dir=outputs/processor_eval \
-	--checkpoint=outputs/encoder_processor_decoder_run/encoder_processor_decoder.ckpt \
+	--work-dir=${WORKING_DIR} \
+	--checkpoint=${WORKING_DIR}/encoder_processor_decoder.ckpt \
 	--batch-index=0 --batch-index=3 \
-	--video-dir=outputs/encoder_processor_decoder_run/videos
+	--video-dir=${WORKING_DIR}/videos
