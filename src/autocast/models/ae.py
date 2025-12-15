@@ -43,10 +43,17 @@ class AE(EncoderDecoder):
     decoder: Decoder
 
     def __init__(
-        self, encoder: Encoder, decoder: Decoder, loss_func: AELoss | None = None
+        self,
+        encoder: Encoder,
+        decoder: Decoder,
+        loss_func: AELoss | None = None,
+        learning_rate: float = 1e-3,
     ):
         super().__init__(
-            encoder=encoder, decoder=decoder, loss_func=loss_func or AELoss()
+            encoder=encoder,
+            decoder=decoder,
+            loss_func=loss_func or AELoss(),
+            learning_rate=learning_rate,
         )
 
     def forward(self, batch: Batch) -> TensorBNC:
