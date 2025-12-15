@@ -221,20 +221,23 @@ def _save_reconstructions(
         for idx, batch in enumerate(loader):
             batch_on_device = _batch_to_device(batch, device)
             outputs, latents = model.forward_with_latent(batch_on_device)
-            inputs = batch_on_device.input_fields
+            inputs = batch_on_device.input_fields  # B, T, W, H, C
 
+            x = inputs[0, 0, ..., 0].clone().cpu()
+            y = outputs[0, 0, ..., 0].clone().cpu()
+            z = latents[0, 0, ..., 0].clone().cpu()
             fig, axs = plt.subplots(1, 4, figsize=(12, 4))
             for ax in axs:
                 ax.axis("off")
 
-            axs[0].imshow(_heatmap_slice(inputs[0]), cmap=cmap)
+            axs[0].imshow(_heatmap_slice(x), cmap=cmap)
             axs[0].set_title("Input")
-            axs[1].imshow(_heatmap_slice(outputs[0]), cmap=cmap)
+            axs[1].imshow(_heatmap_slice(y), cmap=cmap)
             axs[1].set_title("Reconstruction")
-            difference = outputs[0].detach() - inputs[0]
+            difference = y - x
             axs[2].imshow(_heatmap_slice(difference), cmap=cmap)
             axs[2].set_title("Difference")
-            axs[3].imshow(_heatmap_slice(latents[0]), cmap=cmap)
+            axs[3].imshow(_heatmap_slice(z), cmap=cmap)
             axs[3].set_title("Latent")
 
             fig_path = output_dir / f"batch_{idx:02d}.png"
