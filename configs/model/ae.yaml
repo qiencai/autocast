@@ -1,17 +1,10 @@
 defaults:
-  - /encoder: dc
-  - /decoder: dc
+  # Updated parameters for increased compression for AE for reaction diffusion data
+  - /encoder: dc_deep
+  - /decoder: dc_deep
   - _self_
 
 learning_rate: 0.0005
-
-# Updated parameters for increased compression for AE for reaction diffusion data
-encoder.in_channels: 2
-decoder.out_channels: 2
-encoder.hid_channels: [32, 64, 128]
-encoder.hid_blocks: [2, 2, 2]
-decoder.hid_channels: [128, 64, 32]
-decoder.hid_blocks: [2, 2, 2]
 
 loss:
   _target_: autocast.models.ae.AELoss
