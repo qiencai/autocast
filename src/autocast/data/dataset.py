@@ -94,14 +94,14 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         self.normalization_path = normalization_path
         self.normalization_stats = normalization_stats
         self.autoencoder_mode = autoencoder_mode
-        # this is the same attribute name that The WellDataset uses
-        self.norm: ZScoreNormalization | None = None
 
         if data_path is not None:
             self.read_data(data_path)
         # TODO: consider ensuring only one passed and not overridden
         if data is not None:
             self.parse_data(data)
+
+        self.set_up_normalization()
 
         if autoencoder_mode and full_trajectory_mode:
             msg = "autoencoder_mode and full_trajectory_mode cannot both be True."
