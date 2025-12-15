@@ -31,6 +31,7 @@ from autocast.metrics.spatiotemporal import (
 from autocast.models.encoder_decoder import EncoderDecoder
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
 from autocast.train.configuration import (
+    align_processor_channels_with_encoder,
     compose_training_config,
     configure_module_dimensions,
     normalize_processor_cfg,
@@ -481,6 +482,7 @@ def main() -> None:
         inferred_n_steps_output,
         _,
         _,
+        example_batch,
     ) = prepare_datamodule(cfg)
 
     configure_module_dimensions(
@@ -490,6 +492,16 @@ def main() -> None:
         n_steps_output=inferred_n_steps_output,
     )
     normalize_processor_cfg(cfg)
+    model_cfg = cfg.get("model") or cfg
+    encoder_probe = instantiate(model_cfg.encoder)
+    align_processor_channels_with_encoder(
+        cfg,
+        encoder=encoder_probe,
+        channel_count=channel_count,
+        n_steps_input=inferred_n_steps_input,
+        n_steps_output=inferred_n_steps_output,
+        example_batch=example_batch,
+    )
 
     metrics = _build_metrics(args.metrics or ("mse", "rmse"))
 
