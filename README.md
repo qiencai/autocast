@@ -58,3 +58,7 @@ fully driven by the Hydra config under `configs/logging/wandb.yaml`.
 
 When `enabled` remains `false` (the default), the logger is skipped entirely, so the stack can
 be used without a W&B account.
+
+## Running on HPC 
+
+In the [Scripts](/scripts/) folders, slurm scripts can be found for running training and evaluation on the baskerville HPC. 
