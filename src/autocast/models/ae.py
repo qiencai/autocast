@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from typing import Sequence
 
 from torch import nn
 from torchmetrics import Metric

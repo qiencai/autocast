@@ -1,5 +1,6 @@
 from abc import ABC
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import lightning as L
 import torch
