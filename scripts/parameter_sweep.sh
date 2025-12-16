@@ -10,8 +10,9 @@
 #SBATCH --job-name train_and_eval_encoder-processor-decoder
 #SBATCH --output=logs/train_and_eval_encoder-processor-decoder_%j.out
 #SBATCH --error=logs/train_and_eval_encoder-processor-decoder_%j.err
-#SBATCH --array=0-9
+#SBATCH --array=0-9. # Adjust this range based on the number of parameter combinations!
 
+# ---------------- Setup environment ----------------
 set -e
 
 module purge
@@ -26,6 +27,8 @@ uv sync --extra dev
 # Activate virtual environment - This assumes you have already created a virtual environment in the project directory
 # If you haven't, replace with `uv venv`
 source .venv/bin/activate
+
+# ---------------- Setup working directory for this job ----------------
 
 # Now define a job name. This will be used to create a unique working directory for outputs.
 # Change this as needed
@@ -45,36 +48,41 @@ mkdir -p "${WORKING_DIR}"
 exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
      2> "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.err"
 
-# ---------------- Code to train and evaluate the model ----------------
+# ---------------- Define Parameter Grid ----------------
 
-# Set up Slurm array parameters for hyperparameter sweep
-# Sweep through 3 different values of max_epochs and batch_size
 MAX_EPOCHS=(3 5 10)
 BATCH_SIZES=(4 8 16)
 
-# Calculate the index for max_epochs and batch_size based on SLURM_ARRAY_TASK_ID
-NUM_EPOCHS_VALUES=${#MAX_EPOCHS[@]}
-EPOCH_INDEX=$((SLURM_ARRAY_TASK_ID % NUM_EPOCHS_VALUES))
-BATCH_INDEX=$((SLURM_ARRAY_TASK_ID / NUM_EPOCHS_VALUES))
+N_MAX_EPOCHS=${#MAX_EPOCHS[@]}
+N_BATCH_SIZES=${#BATCH_SIZES[@]}
+
+TASK_ID=${SLURM_ARRAY_TASK_ID}
+
+# Calculate indices for max epochs and batch size based on task ID
+EPOCH_INDEX=$((SLURM_ARRAY_TASK_ID % N_MAX_EPOCHS))
+BATCH_INDEX=$((SLURM_ARRAY_TASK_ID / N_MAX_EPOCHS % N_BATCH_SIZES))
+
+# Get the parameters for this task
 MAX_EPOCH=${MAX_EPOCHS[$EPOCH_INDEX]}
 BATCH_SIZE=${BATCH_SIZES[$BATCH_INDEX]}
 echo "Task ID: ${SLURM_ARRAY_TASK_ID}, Max Epochs: ${MAX_EPOCH}, Batch Size: ${BATCH_SIZE}"
 
-# Create the lookup directory and file (shared across all tasks)
+# ---------------- Write Parameter Lookup ----------------
 LOOKUP_DIR="outputs/${JOB_NAME}/Job-${JOB_ID}"
 LOOKUP_FILE="${LOOKUP_DIR}/parameter_lookup.csv"
 
 # Create header for lookup file (only first task creates header)
 if [ "${SLURM_ARRAY_TASK_ID}" -eq 0 ]; then
-    echo "TaskID,MaxEpochs" > "${LOOKUP_FILE}"
+    echo "TaskID,MaxEpochs,BatchSize" > "${LOOKUP_FILE}"
 fi
 
 # Wait a moment to ensure header is written
 sleep 1
 
 # Append this task's parameters to the lookup file
-echo "${SLURM_ARRAY_TASK_ID},${MAX_EPOCH}" >> "${LOOKUP_FILE}"
+echo "${SLURM_ARRAY_TASK_ID},${MAX_EPOCH},${BATCH_SIZE}" >> "${LOOKUP_FILE}"
 
+# ---------------- Train and Evaluate Model ----------------
 # Train
 uv run python -m autocast.train.encoder_processor_decoder \
     --config-path=configs/ \
