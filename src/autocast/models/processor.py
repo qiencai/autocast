@@ -24,6 +24,7 @@ class ProcessorModel(RolloutMixin[EncodedBatch], ABC, L.LightningModule, Metrics
         stride: int = 1,
         loss_func: nn.Module | None = None,
         learning_rate: float | None = None,
+        train_metrics: list[Metric] | None = None,
         val_metrics: list[Metric] | None = None,
         test_metrics: list[Metric] | None = None,
         **kwargs: Any,
@@ -38,6 +39,7 @@ class ProcessorModel(RolloutMixin[EncodedBatch], ABC, L.LightningModule, Metrics
             if learning_rate is not None
             else getattr(processor, "learning_rate", 1e-3)
         )
+        self.train_metrics = self._build_metrics(train_metrics, "train_")
         self.val_metrics = self._build_metrics(val_metrics, "val_")
         self.test_metrics = self._build_metrics(test_metrics, "test_")
         for key, value in kwargs.items():
@@ -55,6 +57,17 @@ class ProcessorModel(RolloutMixin[EncodedBatch], ABC, L.LightningModule, Metrics
         self.log(
             "train_loss", loss, prog_bar=True, batch_size=batch.encoded_inputs.shape[0]
         )
+        if self.train_metrics is not None:
+            y_pred = self._predict(batch)
+            y_true = batch.encoded_output_fields
+            self.train_metrics.update(y_pred, y_true)
+            self.log_dict(
+                self.train_metrics,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch.encoded_inputs.shape[0],
+            )
         return loss
 
     def validation_step(
@@ -66,9 +79,9 @@ class ProcessorModel(RolloutMixin[EncodedBatch], ABC, L.LightningModule, Metrics
         self.log(
             "val_loss", loss, prog_bar=True, batch_size=batch.encoded_inputs.shape[0]
         )
-        y_pred = self._predict(batch)
-        y_true = batch.encoded_output_fields
         if self.val_metrics is not None:
+            y_pred = self._predict(batch)
+            y_true = batch.encoded_output_fields
             self.val_metrics.update(y_pred, y_true)
             self.log_dict(
                 self.val_metrics,
@@ -84,9 +97,9 @@ class ProcessorModel(RolloutMixin[EncodedBatch], ABC, L.LightningModule, Metrics
         self.log(
             "test_loss", loss, prog_bar=True, batch_size=batch.encoded_inputs.shape[0]
         )
-        y_pred = self._predict(batch)
-        y_true = batch.encoded_output_fields
         if self.test_metrics is not None:
+            y_pred = self._predict(batch)
+            y_true = batch.encoded_output_fields
             self.test_metrics.update(y_pred, y_true)
             self.log_dict(
                 self.test_metrics,

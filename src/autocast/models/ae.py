@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 
 from torch import nn
+from torchmetrics import Metric
 
 from autocast.decoders import Decoder
 from autocast.encoders import Encoder
@@ -47,6 +48,7 @@ class AE(EncoderDecoder):
         encoder: Encoder,
         decoder: Decoder,
         loss_func: AELoss | None = None,
+        train_metrics: list[Metric] | None = None,
         val_metrics: list[Metric] | None = None,
         test_metrics: list[Metric] | None = None,
     ):
@@ -54,6 +56,7 @@ class AE(EncoderDecoder):
             encoder=encoder,
             decoder=decoder,
             loss_func=loss_func or AELoss(),
+            train_metrics=train_metrics,
             val_metrics=val_metrics,
             test_metrics=test_metrics,
         )
@@ -75,6 +78,17 @@ class AE(EncoderDecoder):
         self.log(
             "train_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
+        if self.train_metrics is not None:
+            y_pred = self(batch)
+            y_true = batch.output_fields
+            self.train_metrics.update(y_pred, y_true)
+            self.log_dict(
+                self.train_metrics,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch.input_fields.shape[0],
+            )
         return loss
 
     def validation_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002

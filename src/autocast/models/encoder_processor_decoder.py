@@ -31,6 +31,7 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         max_rollout_steps: int = 10,
         train_processor_only: bool = False,
         loss_func: nn.Module | None = None,
+        train_metrics: list[Metric] | None = None,
         val_metrics: list[Metric] | None = None,
         test_metrics: list[Metric] | None = None,
         **kwargs: Any,
@@ -48,6 +49,7 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
             self.encoder_decoder.freeze()
         self.loss_func = loss_func
 
+        self.train_metrics = self._build_metrics(train_metrics, "train_")
         self.val_metrics = self._build_metrics(val_metrics, "val_")
         self.test_metrics = self._build_metrics(test_metrics, "test_")
 
@@ -95,6 +97,15 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         self.log(
             "train_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
+        if self.train_metrics is not None:
+            self.train_metrics.update(y_pred, y_true)
+            self.log_dict(
+                self.train_metrics,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch.input_fields.shape[0],
+            )
         return loss
 
     def validation_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
