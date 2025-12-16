@@ -3,6 +3,7 @@
 # Issue explaining this at https://github.com/alan-turing-institute/autocast/issues/108
 data_path: ${oc.env:AUTOCAST_DATASETS,./datasets}/advection_diffusion_singlechannel
 use_simulator: false
+n_channels: 1
 split:
   n_train: 4
   n_valid: 2
