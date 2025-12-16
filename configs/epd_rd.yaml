@@ -1,12 +1,12 @@
 defaults:
-  - data: advection_diffusion_multichannel
+  - data: reaction_diffusion
   - model: encoder_processor_decoder
   - trainer: default
   - logging: wandb
   - _self_
 
 seed: 42
-experiment_name: epd_adm
+experiment_name: epd_ad
 output:
   checkpoint_name: encoder_processor_decoder.ckpt
   save_config: true
@@ -21,7 +21,6 @@ training:
 
 eval:
   max_rollout_steps: 20
-
 
 hydra:
   run:

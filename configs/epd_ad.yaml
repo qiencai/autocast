@@ -1,6 +1,6 @@
 defaults:
   - data: advection_diffusion_singlechannel
-  - model: epd_ad
+  - model: encoder_processor_decoder
   - trainer: default
   - logging: wandb
   - _self_
