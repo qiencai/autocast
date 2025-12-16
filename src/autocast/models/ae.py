@@ -43,10 +43,19 @@ class AE(EncoderDecoder):
     decoder: Decoder
 
     def __init__(
-        self, encoder: Encoder, decoder: Decoder, loss_func: AELoss | None = None
+        self,
+        encoder: Encoder,
+        decoder: Decoder,
+        loss_func: AELoss | None = None,
+        val_metrics: list[Metric] | None = None,
+        test_metrics: list[Metric] | None = None,
     ):
         super().__init__(
-            encoder=encoder, decoder=decoder, loss_func=loss_func or AELoss()
+            encoder=encoder,
+            decoder=decoder,
+            loss_func=loss_func or AELoss(),
+            val_metrics=val_metrics,
+            test_metrics=test_metrics,
         )
 
     def forward(self, batch: Batch) -> TensorBNC:
@@ -73,7 +82,29 @@ class AE(EncoderDecoder):
         self.log(
             "val_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
+        if self.val_metrics is not None:
+            y_pred = self(batch)
+            y_true = batch.output_fields
+            self.val_metrics.update(y_pred, y_true)
+            self.log_dict(
+                self.val_metrics,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch.input_fields.shape[0],
+            )
         return loss
 
     def test_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
+        if self.test_metrics is not None:
+            y_pred = self(batch)
+            y_true = batch.output_fields
+            self.test_metrics.update(y_pred, y_true)
+            self.log_dict(
+                self.test_metrics,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch.input_fields.shape[0],
+            )
         return self._compute_loss(batch)
