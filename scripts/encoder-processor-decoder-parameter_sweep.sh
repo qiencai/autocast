@@ -60,7 +60,7 @@ TASK_ID=${SLURM_ARRAY_TASK_ID}
 
 # Calculate indices for max epochs and batch size based on task ID
 EPOCH_INDEX=$((SLURM_ARRAY_TASK_ID % N_MAX_EPOCHS))
-BATCH_INDEX=$((SLURM_ARRAY_TASK_ID / N_MAX_EPOCHS % N_BATCH_SIZES))
+BATCH_INDEX=$((SLURM_ARRAY_TASK_ID / N_MAX_EPOCHS))
 
 # Get the parameters for this task
 MAX_EPOCH=${MAX_EPOCHS[$EPOCH_INDEX]}
