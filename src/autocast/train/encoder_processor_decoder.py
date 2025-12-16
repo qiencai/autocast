@@ -14,7 +14,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
 from autocast.logging import create_wandb_logger, maybe_watch_model
-from autocast.models.ae import AE, AELoss
+from autocast.models.autoencoder import AE, AELoss
 from autocast.models.encoder_decoder import EncoderDecoder
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
 from autocast.train.configuration import (

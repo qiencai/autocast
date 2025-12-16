@@ -18,7 +18,7 @@ from omegaconf.base import SCMode
 from autocast.data.datamodule import SpatioTemporalDataModule
 from autocast.data.dataset import SpatioTemporalDataset
 from autocast.logging import create_wandb_logger, maybe_watch_model
-from autocast.models.ae import AE
+from autocast.models.autoencoder import AE
 from autocast.types import Batch
 
 log = logging.getLogger(__name__)
