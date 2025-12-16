@@ -10,7 +10,7 @@
 #SBATCH --job-name train_and_eval_encoder-processor-decoder
 #SBATCH --output=logs/train_and_eval_encoder-processor-decoder_%j.out
 #SBATCH --error=logs/train_and_eval_encoder-processor-decoder_%j.err
-#SBATCH --array=0-2
+#SBATCH --array=0-9
 
 set -e
 
@@ -31,12 +31,13 @@ source .venv/bin/activate
 # Change this as needed
 JOB_NAME="encoder_processor_decoder_sweep"
 
-# Get the timestamp for this job
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+# Get the timestamp for this job array (same for all tasks in the array)
+# Using SLURM_ARRAY_JOB_ID ensures all tasks in the array share the same identifier
+JOB_ID="${SLURM_ARRAY_JOB_ID}"
 
 # Finally, this builds the working directory path. 
 # It follows the structure outputs/JOB_NAME/TIMESTAMP
-WORKING_DIR="outputs/${JOB_NAME}/${TIMESTAMP}/${SLURM_ARRAY_TASK_ID}"
+WORKING_DIR="outputs/${JOB_NAME}/Job-${JOB_ID}/Task-${SLURM_ARRAY_TASK_ID}"
 
 # Write the slurm output and error files to the working directory
 mkdir -p "${WORKING_DIR}"
@@ -47,15 +48,39 @@ exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
 # ---------------- Code to train and evaluate the model ----------------
 
 # Set up Slurm array parameters for hyperparameter sweep
-# Example: Sweep over max epochs
-MAX_EPOCHS=(2 4 6)
-MAX_EPOCH=${MAX_EPOCHS[$SLURM_ARRAY_TASK_ID]}
+# Sweep through 3 different values of max_epochs and batch_size
+MAX_EPOCHS=(3 5 10)
+BATCH_SIZES=(4 8 16)
+
+# Calculate the index for max_epochs and batch_size based on SLURM_ARRAY_TASK_ID
+NUM_EPOCHS_VALUES=${#MAX_EPOCHS[@]}
+EPOCH_INDEX=$((SLURM_ARRAY_TASK_ID % NUM_EPOCHS_VALUES))
+BATCH_INDEX=$((SLURM_ARRAY_TASK_ID / NUM_EPOCHS_VALUES))
+MAX_EPOCH=${MAX_EPOCHS[$EPOCH_INDEX]}
+BATCH_SIZE=${BATCH_SIZES[$BATCH_INDEX]}
+echo "Task ID: ${SLURM_ARRAY_TASK_ID}, Max Epochs: ${MAX_EPOCH}, Batch Size: ${BATCH_SIZE}"
+
+# Create the lookup directory and file (shared across all tasks)
+LOOKUP_DIR="outputs/${JOB_NAME}/Job-${JOB_ID}"
+LOOKUP_FILE="${LOOKUP_DIR}/parameter_lookup.csv"
+
+# Create header for lookup file (only first task creates header)
+if [ "${SLURM_ARRAY_TASK_ID}" -eq 0 ]; then
+    echo "TaskID,MaxEpochs" > "${LOOKUP_FILE}"
+fi
+
+# Wait a moment to ensure header is written
+sleep 1
+
+# Append this task's parameters to the lookup file
+echo "${SLURM_ARRAY_TASK_ID},${MAX_EPOCH}" >> "${LOOKUP_FILE}"
 
 # Train
 uv run python -m autocast.train.encoder_processor_decoder \
     --config-path=configs/ \
 	--work-dir=${WORKING_DIR} \
-	trainer.max_epochs=${MAX_EPOCH}
+	trainer.max_epochs=${MAX_EPOCH} \
+	data.datamodule.batch_size=${BATCH_SIZE}
 
 	
 # Evaluate
