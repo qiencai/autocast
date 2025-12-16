@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from torchmetrics import Metric, MetricCollection
 
-from autocast.metrics import ALL_METRICS, MSE
+from autocast.metrics import ALL_METRICS, VRMSE
 
 
 class MetricsMixin:
@@ -16,7 +16,7 @@ class MetricsMixin:
         prefix: str,
     ) -> MetricCollection | None:
         # If no metrics provided, default to a single MSE
-        metrics_list = [MSE()] if metrics is None else metrics
+        metrics_list = [VRMSE()] if metrics is None else metrics
 
         metric_dict: dict[str, Metric | MetricCollection] = {}
 
