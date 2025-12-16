@@ -96,8 +96,9 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         self.log(
             "train_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
-        if y_pred is None and self.train_metrics is not None:
-            y_pred = self(batch)
+        if self.train_metrics is not None:
+            if y_pred is None:
+                y_pred = self(batch)
             y_true = batch.output_fields
             self._update_and_log_metrics(
                 self, self.train_metrics, y_pred, y_true, batch.input_fields.shape[0]
@@ -109,8 +110,9 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         self.log(
             "val_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
-        if y_pred is None and self.val_metrics is not None:
-            y_pred = self(batch)
+        if self.val_metrics is not None:
+            if y_pred is None:
+                y_pred = self(batch)
             y_true = batch.output_fields
             self._update_and_log_metrics(
                 self, self.val_metrics, y_pred, y_true, batch.input_fields.shape[0]
@@ -122,8 +124,9 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         self.log(
             "test_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
-        if y_pred is None and self.test_metrics is not None:
-            y_pred = self(batch)
+        if self.test_metrics is not None:
+            if y_pred is None:
+                y_pred = self(batch)
             y_true = batch.output_fields
             self._update_and_log_metrics(
                 self, self.test_metrics, y_pred, y_true, batch.input_fields.shape[0]
