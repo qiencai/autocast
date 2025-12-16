@@ -56,15 +56,9 @@ class EncoderDecoder(L.LightningModule, MetricsMixin):
         self.log(
             "train_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
-        if self.train_metrics is not None:
-            self.train_metrics.update(y_pred, y_true)
-            self.log_dict(
-                self.train_metrics,
-                prog_bar=False,
-                on_step=False,
-                on_epoch=True,
-                batch_size=batch.input_fields.shape[0],
-            )
+        self._update_and_log_metrics(
+            self, self.train_metrics, y_pred, y_true, batch.input_fields.shape[0]
+        )
         return loss
 
     def validation_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
@@ -77,15 +71,9 @@ class EncoderDecoder(L.LightningModule, MetricsMixin):
         self.log(
             "val_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
-        if self.val_metrics is not None:
-            self.val_metrics.update(y_pred, y_true)
-            self.log_dict(
-                self.val_metrics,
-                prog_bar=False,
-                on_step=False,
-                on_epoch=True,
-                batch_size=batch.input_fields.shape[0],
-            )
+        self._update_and_log_metrics(
+            self, self.val_metrics, y_pred, y_true, batch.input_fields.shape[0]
+        )
         return loss
 
     def test_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
@@ -98,15 +86,9 @@ class EncoderDecoder(L.LightningModule, MetricsMixin):
         self.log(
             "test_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
-        if self.test_metrics is not None:
-            self.test_metrics.update(y_pred, y_true)
-            self.log_dict(
-                self.test_metrics,
-                prog_bar=False,
-                on_step=False,
-                on_epoch=True,
-                batch_size=batch.input_fields.shape[0],
-            )
+        self._update_and_log_metrics(
+            self, self.test_metrics, y_pred, y_true, batch.input_fields.shape[0]
+        )
         return loss
 
     def predict_step(self, batch: Batch, batch_idx: int) -> TensorBTSC:  # noqa: ARG002

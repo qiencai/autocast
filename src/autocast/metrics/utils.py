@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import lightning as L
 from torchmetrics import Metric, MetricCollection
 
 from autocast.metrics import ALL_METRICS, VRMSE
+from autocast.types import Tensor
 
 
 class MetricsMixin:
@@ -41,3 +43,36 @@ class MetricsMixin:
             return None
 
         return MetricCollection(metric_dict).clone(prefix=prefix)
+
+    @staticmethod
+    def _update_and_log_metrics(
+        model: L.LightningModule,
+        metrics: MetricCollection | None,
+        y_pred: Tensor,
+        y_true: Tensor,
+        batch_size: int,
+    ) -> None:
+        """Update metrics and log them.
+
+        Parameters
+        ----------
+        model: L.LightningModule
+            The Lightning module to log metrics to.
+        metric_collection : MetricCollection | None
+            The metric collection to update and log. If None, this method does nothing.
+        y_pred : Tensor
+            Model predictions.
+        y_true : Tensor
+            Ground truth targets.
+        batch_size : int
+            Batch size.
+        """
+        if metrics is not None:
+            metrics.update(y_pred, y_true)
+            model.log_dict(  # type: ignore[attr-defined]
+                metrics,
+                prog_bar=False,
+                on_step=False,
+                on_epoch=True,
+                batch_size=batch_size,
+            )

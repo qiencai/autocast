@@ -81,13 +81,8 @@ class AE(EncoderDecoder):
         if self.train_metrics is not None:
             y_pred = self(batch)
             y_true = batch.output_fields
-            self.train_metrics.update(y_pred, y_true)
-            self.log_dict(
-                self.train_metrics,
-                prog_bar=False,
-                on_step=False,
-                on_epoch=True,
-                batch_size=batch.input_fields.shape[0],
+            self._update_and_log_metrics(
+                self, self.train_metrics, y_pred, y_true, batch.input_fields.shape[0]
             )
         return loss
 
@@ -99,13 +94,8 @@ class AE(EncoderDecoder):
         if self.val_metrics is not None:
             y_pred = self(batch)
             y_true = batch.output_fields
-            self.val_metrics.update(y_pred, y_true)
-            self.log_dict(
-                self.val_metrics,
-                prog_bar=False,
-                on_step=False,
-                on_epoch=True,
-                batch_size=batch.input_fields.shape[0],
+            self._update_and_log_metrics(
+                self, self.val_metrics, y_pred, y_true, batch.input_fields.shape[0]
             )
         return loss
 
@@ -113,12 +103,7 @@ class AE(EncoderDecoder):
         if self.test_metrics is not None:
             y_pred = self(batch)
             y_true = batch.output_fields
-            self.test_metrics.update(y_pred, y_true)
-            self.log_dict(
-                self.test_metrics,
-                prog_bar=False,
-                on_step=False,
-                on_epoch=True,
-                batch_size=batch.input_fields.shape[0],
+            self._update_and_log_metrics(
+                self, self.test_metrics, y_pred, y_true, batch.input_fields.shape[0]
             )
         return self._compute_loss(batch)
