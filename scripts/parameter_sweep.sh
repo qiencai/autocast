@@ -10,7 +10,7 @@
 #SBATCH --job-name train_and_eval_encoder-processor-decoder
 #SBATCH --output=logs/train_and_eval_encoder-processor-decoder_%j.out
 #SBATCH --error=logs/train_and_eval_encoder-processor-decoder_%j.err
-#SBATCH --array=0-9. # Adjust this range based on the number of parameter combinations!
+#SBATCH --array=0-9
 
 # ---------------- Setup environment ----------------
 set -e
