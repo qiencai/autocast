@@ -32,16 +32,14 @@ class TemporalAttention(nn.Module):
             # Ensure divisible by attention_heads
             hidden_dim = max(
                 channels,
-                attention_heads * ((channels + attention_heads - 1) // attention_heads)
+                attention_heads * ((channels + attention_heads - 1) // attention_heads),
             )
 
         self.hidden_dim = hidden_dim
 
         # Project input to hidden dimension
         self.proj_in = (
-            nn.Linear(channels, hidden_dim)
-            if channels != hidden_dim
-            else nn.Identity()
+            nn.Linear(channels, hidden_dim) if channels != hidden_dim else nn.Identity()
         )
 
         # Use GroupNorm for spatial dimensions
@@ -49,16 +47,12 @@ class TemporalAttention(nn.Module):
 
         # Multi-head attention over temporal dimension
         self.attn = nn.MultiheadAttention(
-            embed_dim=hidden_dim,
-            num_heads=attention_heads,
-            batch_first=True
+            embed_dim=hidden_dim, num_heads=attention_heads, batch_first=True
         )
 
         # Project back to original dimension
         self.proj_out = (
-            nn.Linear(hidden_dim, channels)
-            if channels != hidden_dim
-            else nn.Identity()
+            nn.Linear(hidden_dim, channels) if channels != hidden_dim else nn.Identity()
         )
 
     def forward(self, x: TensorBTSC) -> TensorBTSC:
@@ -127,7 +121,7 @@ class TemporalConvNet(nn.Module):
 
         layers = []
         for i in range(num_layers):
-            dilation = dilation_base ** i
+            dilation = dilation_base**i
             padding = (kernel_size - 1) * dilation  # Causal padding
 
             layers.append(

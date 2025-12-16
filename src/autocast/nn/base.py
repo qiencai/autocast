@@ -164,7 +164,6 @@ class TemporalBackboneBase(nn.Module, ABC):
             The backbone module (e.g., UNet or ViT)
         """
 
-
     @property
     @abstractmethod
     def backbone(self) -> nn.Module:
@@ -173,7 +172,6 @@ class TemporalBackboneBase(nn.Module, ABC):
         Subclasses should define this as a property that returns
         their backbone (e.g., self.unet or self.vit).
         """
-
 
     def forward(self, x_t: TensorBTSC, t: Tensor, cond: TensorBTSC) -> TensorBTSC:
         """Forward pass of the temporal backbone.
