@@ -10,7 +10,7 @@
 #SBATCH --job-name train_and_eval_encoder-processor-decoder
 #SBATCH --output=logs/train_and_eval_encoder-processor-decoder_%j.out
 #SBATCH --error=logs/train_and_eval_encoder-processor-decoder_%j.err
-#SBATCH --array=0-4
+#SBATCH --array=0-2
 
 set -e
 
@@ -31,9 +31,12 @@ source .venv/bin/activate
 # Change this as needed
 JOB_NAME="encoder_processor_decoder_sweep"
 
+# Get the timestamp for this job
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+
 # Finally, this builds the working directory path. 
 # It follows the structure outputs/JOB_NAME/TIMESTAMP
-WORKING_DIR="outputs/${JOB_NAME}/${SLURM_ARRAY_TASK_ID}"
+WORKING_DIR="outputs/${JOB_NAME}/${TIMESTAMP}/${SLURM_ARRAY_TASK_ID}"
 
 # Write the slurm output and error files to the working directory
 mkdir -p "${WORKING_DIR}"
@@ -43,11 +46,16 @@ exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
 
 # ---------------- Code to train and evaluate the model ----------------
 
+# Set up Slurm array parameters for hyperparameter sweep
+# Example: Sweep over max epochs
+MAX_EPOCHS=(2 4 6)
+MAX_EPOCH=${MAX_EPOCHS[$SLURM_ARRAY_TASK_ID]}
+
 # Train
 uv run python -m autocast.train.encoder_processor_decoder \
     --config-path=configs/ \
 	--work-dir=${WORKING_DIR} \
-	trainer.max_epochs=2,3,4,5 \
+	trainer.max_epochs=${MAX_EPOCH}
 
 	
 # Evaluate
