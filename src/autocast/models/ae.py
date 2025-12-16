@@ -101,10 +101,14 @@ class AE(EncoderDecoder):
         return loss
 
     def test_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
+        loss = self._compute_loss(batch)
+        self.log(
+            "test_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
+        )
         if self.test_metrics is not None:
             y_pred = self(batch)
             y_true = batch.output_fields
             self._update_and_log_metrics(
                 self, self.test_metrics, y_pred, y_true, batch.input_fields.shape[0]
             )
-        return self._compute_loss(batch)
+        return loss
