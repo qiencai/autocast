@@ -121,19 +121,19 @@ class TemporalBackboneBase(nn.Module, ABC):
                 attention_heads=num_attention_heads,
                 hidden_dim=attention_hidden_dim,
             )
-        elif temporal_method == "tcn":
+        if temporal_method == "tcn":
             return TemporalConvNet(
                 channels=channels,
                 kernel_size=tcn_kernel_size,
                 num_layers=tcn_num_layers,
             )
-        elif temporal_method == "none":
+        if temporal_method == "none":
             return nn.Identity()
-        else:
-            raise ValueError(
-                f"Unknown temporal_method: {temporal_method}. "
-                f"Choose from: attention, tcn, none"
-            )
+
+        raise ValueError(
+            f"Unknown temporal_method: {temporal_method}. "
+            f"Choose from: attention, tcn, none"
+        )
 
     def apply_temporal_processing(
         self, x_t: TensorBTSC, cond: TensorBTSC
