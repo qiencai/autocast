@@ -8,7 +8,7 @@ export DATAPATH=$3
 
 uv run evaluate_encoder_processor_decoder \
 	--config-path=configs/ \
-	--config-name=epd_${LABEL} \
+	--config-name=encoder_processor_decoder \
 	--work-dir=outputs/${LABEL}/${OUTPATH}/eval \
 	--checkpoint=outputs/${LABEL}/${OUTPATH}/encoder_processor_decoder.ckpt \
 	--batch-index=0 \
