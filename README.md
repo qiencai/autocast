@@ -69,6 +69,8 @@ be used without a W&B account.
 
 In the [Scripts](/scripts/) folders, slurm scripts can be found for running training and evaluation on the baskerville HPC. 
 
+### Single Job 
+
 To run, simply navigate to the top level of this repository, and run: 
 
 `sbatch scripts/train_and_eval_encoder-processor-decoder.sh` or 
@@ -77,3 +79,25 @@ To run, simply navigate to the top level of this repository, and run:
 This will train and evaluate the model using the settings in the corresponding config (found in the configs folder). Outputs from both train and eval will be written out to an outputs folder with the following naming convention: 
 
 `outputs/{job_name}/{$date +%Y%m%d_%H%M%S}`. 
+
+### Multiple Jobs
+
+`scripts/encoder-processor-decoder-parameter_sweep.sh` is an example parameter sweep. 
+
+It uses slurm arrays and hydra override functionality to sweep through combinations of parameters. The resulting output structure looks like this: 
+
+- outputs	
+	- {job_name}
+		- Job-{job_id} # Unique for each sweep run 
+			- parameter_lookup.csv # csv file mapping task id to parameter values. 
+			- Task-0 # 0 is the slurm array task id. It is unique for each set of parameters
+			- Task-1
+			- etc. 
+
+A checklist of things to change in the example script:
+
+- `--array=0-8` : This is the number of parallel jobs to run. This should be equal to the number of parameter combinations you want to run. 
+- `JOB_NAME="encoder_processor_decoder_sweep"` : Name of the Job. This is the top level directory. 
+- The whole Define Parameter Grid section. 
+- The columns to be writte to the parameter csv file 
+- The flags in the python script to overright the hydra config. e.g. `trainer.max_epochs=${MAX_EPOCH}`
