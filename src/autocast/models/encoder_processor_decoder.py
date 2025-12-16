@@ -75,25 +75,18 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         return decoded  # noqa: RET504
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
+        y_pred = self(batch)
+        y_true = batch.output_fields
         if self.train_processor_only:
             with torch.no_grad():
                 encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)
             loss = self.processor.loss(encoded_batch)
-            self.log(
-                "train_loss",
-                loss,
-                prog_bar=True,
-                batch_size=batch.input_fields.shape[0],
-            )
-            return loss
-        if self.loss_func is None:
-            msg = "loss_func must be provided when training full EPD model."
-            raise ValueError(msg)
-
-        # Otherwise, train full EPD model
-        y_pred = self(batch)
-        y_true = batch.output_fields
-        loss = self.loss_func(y_pred, y_true)
+        else:
+            if self.loss_func is None:
+                msg = "loss_func must be provided when training full EPD model."
+                raise ValueError(msg)
+            # Otherwise, train full EPD model
+            loss = self.loss_func(y_pred, y_true)
         self.log(
             "train_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
@@ -103,24 +96,17 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         return loss
 
     def validation_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
+        y_pred = self(batch)
+        y_true = batch.output_fields
         if self.train_processor_only:
             with torch.no_grad():
                 encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)
             loss = self.processor.loss(encoded_batch)
-            self.log(
-                "val_loss",
-                loss,
-                prog_bar=True,
-                batch_size=batch.input_fields.shape[0],
-            )
-            return loss
-
-        if self.loss_func is None:
-            msg = "loss_func must be provided validating full EPD model."
-            raise ValueError(msg)
-        y_pred = self(batch)
-        y_true = batch.output_fields
-        loss = self.loss_func(y_pred, y_true)
+        else:
+            if self.loss_func is None:
+                msg = "loss_func must be provided validating full EPD model."
+                raise ValueError(msg)
+            loss = self.loss_func(y_pred, y_true)
         self.log(
             "val_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
@@ -136,17 +122,11 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
             with torch.no_grad():
                 encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)
             loss = self.processor.loss(encoded_batch)
-            self.log(
-                "test_loss",
-                loss,
-                prog_bar=True,
-                batch_size=batch.input_fields.shape[0],
-            )
-            return loss
-        if self.loss_func is None:
-            msg = "loss_func must be provided testing full EPD model."
-            raise ValueError(msg)
-        loss = self.loss_func(y_pred, y_true)
+        else:
+            if self.loss_func is None:
+                msg = "loss_func must be provided testing full EPD model."
+                raise ValueError(msg)
+            loss = self.loss_func(y_pred, y_true)
         self.log(
             "test_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
