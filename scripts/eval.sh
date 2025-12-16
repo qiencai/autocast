@@ -16,5 +16,6 @@ uv run evaluate_encoder_processor_decoder \
 	--batch-index=2 \
 	--batch-index=3 \
 	--video-dir=outputs/${LABEL}/${OUTPATH}/eval/videos \
+	data=$DATAPATH \
 	data.data_path=$AUTOCAST_DATASETS/${DATAPATH} \
 	data.use_simulator=false
