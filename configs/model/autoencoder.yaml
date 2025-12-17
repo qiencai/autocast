@@ -7,7 +7,7 @@ defaults:
 learning_rate: 0.0005
 
 loss:
-  _target_: autocast.models.ae.AELoss
+  _target_: autocast.models.autoencoder.AELoss
   losses:
     - _target_: torch.nn.MSELoss
   weights: [1.0]
