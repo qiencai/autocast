@@ -207,8 +207,12 @@ def configure_module_dimensions(
 ) -> None:
     """Populate missing dimension hints for encoder/decoder/processor modules."""
     model_cfg = _model_cfg(cfg)
+    encoder_cfg = model_cfg.get("encoder")
+    _maybe_set(encoder_cfg, "in_channels", channel_count)
+    _maybe_set(encoder_cfg, "time_steps", n_steps_input)
     decoder_cfg = model_cfg.get("decoder")
-    _maybe_set(decoder_cfg, "output_channels", channel_count)
+    _maybe_set(decoder_cfg, "out_channels", channel_count)
+    _maybe_set(decoder_cfg, "output_channels", channel_count)  # alias
     _maybe_set(decoder_cfg, "time_steps", n_steps_output)
     processor_cfg = model_cfg.get("processor")
     _maybe_set(processor_cfg, "in_channels", channel_count * n_steps_input)
