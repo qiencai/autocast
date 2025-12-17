@@ -62,7 +62,7 @@ uv run train_encoder_processor_decoder \
     decoder@model.decoder=dc_f32c64_small \
     processor@model.processor=flow_matching_rb \
     logging.wandb.enabled=true \
-    trainer.max_epochs=1 \
+    trainer.max_epochs=5 \
     trainer.gradient_clip_val=1.0 \
     data=the_well \
     data.well_dataset_name=rayleigh_benard \
