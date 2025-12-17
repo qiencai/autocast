@@ -90,7 +90,7 @@ Or alternatively with the included bash script:
 uv run evaluate_encoder_processor_decoder \
 	--config-path=configs/ \
 	--work-dir=outputs/rd/00/eval \
-	--checkpoint=outputs/rd/epd_00/encoder_processor_decoder.ckpt \
+	--checkpoint=outputs/rd/00/encoder_processor_decoder.ckpt \
 	--batch-index=0 \
 	--batch-index=1 \
 	--batch-index=2 \
