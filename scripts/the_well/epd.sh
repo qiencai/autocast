@@ -7,9 +7,9 @@
 #SBATCH --cpus-per-task=36
 #SBATCH --gpus=1
 #SBATCH --mem=0
-#SBATCH --job-name train_and_eval_autoencoder
-#SBATCH --output=outputs/logs/train_and_eval_autoencoder_%j.out
-#SBATCH --error=outputs/logs/train_and_eval_autoencoder_%j.err
+#SBATCH --job-name train_and_eval_encoder_processor_decoder
+#SBATCH --output=outputs/logs/train_and_eval_encoder_processor_decoder_%j.out
+#SBATCH --error=outputs/logs/train_and_eval_encoder_processor_decoder_%j.err
 
 set -e
 
@@ -18,7 +18,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Now define a job name. This will be used to create a unique working directory for outputs.
 # Change this as needed
-JOB_NAME="autoencoder_run"
+JOB_NAME="encoder_processor_decoder_run"
 
 # This builds the working directory path. 
 # It follows the structure outputs/JOB_NAME/TIMESTAMP
@@ -65,12 +65,14 @@ uv run train_encoder_processor_decoder \
     data=the_well \
     data.well_dataset_name=rayleigh_benard \
     data.batch_size=8 \
-    optimizer=adamw
+    optimizer=adamw \
+    training.autoencoder_checkpoint="outputs/autoencoder_run/20251217_121300/autocast/0nttzj9a/checkpoints/step-step=7900.ckpt"
 	
 # Evaluate
 uv run evaluate_encoder_processor_decoder \
 	--config-path=configs/ \
 	--work-dir=${WORKING_DIR} \
 	--checkpoint=${WORKING_DIR}/encoder_processor_decoder.ckpt \
-	--batch-index=0 --batch-index=3 \
+	--batch-index=0 \
+    --batch-index=1 \
 	--video-dir=${WORKING_DIR}/videos
