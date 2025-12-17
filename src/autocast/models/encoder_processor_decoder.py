@@ -78,8 +78,7 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
 
     def loss(self, batch: Batch) -> tuple[Tensor, Tensor | None]:
         if self.train_processor_only:
-            with torch.no_grad():
-                encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)
+            encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)
             loss = self.processor.loss(encoded_batch)
             y_pred = None
         else:
@@ -97,8 +96,9 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         self.log(
             "train_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
-        if y_pred is None and self.train_metrics is not None:
-            y_pred = self(batch)
+        if self.train_metrics is not None:
+            if y_pred is None:
+                y_pred = self(batch)
             y_true = batch.output_fields
             self._update_and_log_metrics(
                 self, self.train_metrics, y_pred, y_true, batch.input_fields.shape[0]
@@ -110,8 +110,9 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         self.log(
             "val_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
-        if y_pred is None and self.val_metrics is not None:
-            y_pred = self(batch)
+        if self.val_metrics is not None:
+            if y_pred is None:
+                y_pred = self(batch)
             y_true = batch.output_fields
             self._update_and_log_metrics(
                 self, self.val_metrics, y_pred, y_true, batch.input_fields.shape[0]
@@ -123,8 +124,9 @@ class EncoderProcessorDecoder(RolloutMixin[Batch], L.LightningModule, MetricsMix
         self.log(
             "test_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
-        if y_pred is None and self.test_metrics is not None:
-            y_pred = self(batch)
+        if self.test_metrics is not None:
+            if y_pred is None:
+                y_pred = self(batch)
             y_true = batch.output_fields
             self._update_and_log_metrics(
                 self, self.test_metrics, y_pred, y_true, batch.input_fields.shape[0]
@@ -226,7 +228,6 @@ class EPDTrainProcessor(EncoderProcessorDecoder):
 
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
         encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)
-        # TODO: ensure no grads propagate through encoder_decoder
         loss = self.processor.loss(encoded_batch)
         self.log(
             "train_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
