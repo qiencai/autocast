@@ -177,4 +177,3 @@ class TemporalConvNet(nn.Module):
 
         # Reshape back
         return rearrange(x_flat, "(b w h) c t -> b t w h c", b=B, w=W, h=H)
-
