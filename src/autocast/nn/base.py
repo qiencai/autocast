@@ -30,7 +30,7 @@ class TemporalBackboneBase(nn.Module, ABC):
         n_steps_output: int = 4,
         n_steps_input: int = 1,
         mod_features: int = 256,
-        temporal_method: str = "attention",
+        temporal_method: str = "none",
         num_attention_heads: int = 8,
         attention_hidden_dim: int = 64,
         # TCN parameters

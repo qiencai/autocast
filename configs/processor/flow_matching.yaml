@@ -18,4 +18,4 @@ backbone:
   hid_blocks: [2, 2, 2]
   spatial: 2
   periodic: false
-  temporal_method: "attention"
+  temporal_method: "none"
