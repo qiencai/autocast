@@ -5,15 +5,16 @@ from typing import Any
 import torch
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from omegaconf import OmegaConf
+from torch import nn
 
 
-class OptimizerMixin:
+class OptimizerMixin(nn.Module):
     """Mixin class providing optimizer configuration for Lightning modules.
 
+    Inherits from nn.Module to ensure parameters() method is available.
     Requires the class to have:
         - self.learning_rate: float
         - self.optimizer_config: dict[str, Any] | None
-        - self.parameters(): method returning model parameters (from LightningModule)
         - self.trainer: Lightning Trainer instance (optional, for scheduler)
     """
 
