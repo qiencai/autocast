@@ -53,12 +53,14 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # ---------------- Code to train and evaluate the model ----------------
 
 # Train
-
-# Train
 uv run train_encoder_processor_decoder \
 	--config-path=configs/ \
     --config-name=encoder_processor_decoder \
 	--work-dir=${WORKING_DIR} \
+    model=encoder_processor_decoder \
+    encoder@model.encoder=dc_f32c64_small \
+    decoder@model.decoder=dc_f32c64_small \
+    processor@model.processor=flow_matching_rb \
     logging.wandb.enabled=true \
     trainer.max_epochs=1 \
     trainer.gradient_clip_val=1.0 \
@@ -66,8 +68,6 @@ uv run train_encoder_processor_decoder \
     data.well_dataset_name=rayleigh_benard \
     data.batch_size=8 \
     optimizer=adamw \
-    model/encoder=dc_f32c64_small \
-    model/decoder=dc_f32c64_small \
     "training.autoencoder_checkpoint='outputs/autoencoder_run/20251217_121300/autocast/0nttzj9a/checkpoints/step-step=7900.ckpt'"
 	
 # Evaluate

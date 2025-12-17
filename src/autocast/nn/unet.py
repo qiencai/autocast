@@ -21,6 +21,11 @@ class TemporalUNetBackbone(nn.Module):
         hid_blocks: Sequence[int] = (2, 2, 2),
         spatial: int = 2,
         periodic: bool = False,
+        stride: int | Sequence[int] = 2,
+        dropout: float = 0.0,
+        ffn_factor: float = 1.0,
+        identity_init: bool = False,
+        attention_heads: dict[int, int] | None = None,
     ):
         super().__init__()
 
@@ -40,9 +45,13 @@ class TemporalUNetBackbone(nn.Module):
             hid_channels=hid_channels,
             hid_blocks=hid_blocks,
             kernel_size=3,
-            stride=2,
+            stride=stride,
             spatial=spatial,
             periodic=periodic,
+            dropout=dropout,
+            ffn_factor=ffn_factor,
+            identity_init=identity_init,
+            attention_heads=attention_heads or {},
         )
 
     def forward(self, x_t: TensorBTSC, t: Tensor, cond: TensorBTSC) -> TensorBTSC:
