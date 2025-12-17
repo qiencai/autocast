@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from azula.nn.embedding import SineEncoding
 from azula.nn.unet import UNet
@@ -23,11 +23,16 @@ class TemporalUNetBackbone(nn.Module):
         periodic: bool = False,
         stride: int | Sequence[int] = 2,
         dropout: float = 0.0,
-        ffn_factor: float = 1.0,
+        ffn_factor: int = 1,
         identity_init: bool = False,
-        attention_heads: dict[int, int] | None = None,
+        attention_heads: Mapping[int, int] | None = None,
+        checkpointing: bool = False,
     ):
         super().__init__()
+
+        # Convert DictConfig or other Mapping to plain dict for downstream use
+        if attention_heads is not None and not isinstance(attention_heads, dict):
+            attention_heads = dict(attention_heads)
 
         # Time embedding
         self.time_embedding = nn.Sequential(
@@ -52,6 +57,7 @@ class TemporalUNetBackbone(nn.Module):
             ffn_factor=ffn_factor,
             identity_init=identity_init,
             attention_heads=attention_heads or {},
+            checkpointing=checkpointing,
         )
 
     def forward(self, x_t: TensorBTSC, t: Tensor, cond: TensorBTSC) -> TensorBTSC:

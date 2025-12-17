@@ -9,7 +9,7 @@ from pathlib import Path
 
 import torch
 from hydra import compose, initialize_config_dir
-from omegaconf import DictConfig, ListConfig, open_dict
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 
 from autocast.train.autoencoder import build_datamodule
 from autocast.types import Batch
