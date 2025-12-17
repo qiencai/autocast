@@ -3,9 +3,8 @@ from pathlib import Path
 import torch
 from autoemulate.simulations.reaction_diffusion import ReactionDiffusion
 
+from autocast.data.advection_diffusion import AdvectionDiffusion
 from autocast.data.datamodule import SpatioTemporalDataModule, TheWellDataModule
-
-from .advection_diffusion import AdvectionDiffusion
 
 
 def get_datamodule(
@@ -20,6 +19,7 @@ def get_datamodule(
     n_test: int = 4,
     simulation_datasets_path: str = "../datasets/tmp",
     the_well_dataset_path: str = "../datasets/",
+    overwrite_tmp: bool = False,
 ):
     """Get the configured datamodule.
 
@@ -49,6 +49,8 @@ def get_datamodule(
         Base path to store and load temporary datasets from running simulations.
     the_well_dataset_path: str
         Base path to The Well datasets.
+    overwrite_tmp: bool
+        Whether to overwrite existing temporary datasets.
     """
 
     def generate_split(simulator):
@@ -61,7 +63,7 @@ def get_datamodule(
     if not the_well:
         if simulation_name.startswith("advection_diffusion"):
             Sim = AdvectionDiffusion
-        if simulation_name == "reaction_diffusion":
+        elif simulation_name == "reaction_diffusion":
             Sim = ReactionDiffusion
         else:
             raise ValueError(f"Unknown simulation name: {simulation_name}")
@@ -73,7 +75,7 @@ def get_datamodule(
         cache_path = Path(f"{simulation_datasets_path}/{simulation_name}")
 
         # Load from cache if it exists, otherwise generate and save
-        if cache_path.exists():
+        if cache_path.exists() and not overwrite_tmp:
             print(f"Loading cached simulation data from {cache_path}")
         else:
             print("Generating simulation data...")
@@ -82,12 +84,12 @@ def get_datamodule(
             for split in ["train", "valid", "test"]:
                 split_path = Path(cache_path, split)
                 split_path.mkdir(parents=True, exist_ok=True)
-                data_to_save = (
-                    combined_data[split][..., :1]
+                combined_data[split]["data"] = (
+                    combined_data[split]["data"][..., :1]
                     if simulation_name == "advection_diffusion"
-                    else combined_data[split]
+                    else combined_data[split]["data"]
                 )
-                torch.save(data_to_save, Path(split_path, "data.pt"))
+                torch.save(combined_data[split], Path(split_path, "data.pt"))
 
         return SpatioTemporalDataModule(
             data=None,
