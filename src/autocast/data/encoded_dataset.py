@@ -1,11 +1,13 @@
 from collections.abc import Iterable
+from pathlib import Path
 
 import h5py
 import torch
 from einops import repeat
-from torch.utils.data import ConcatDataset, Dataset
+from lightning.pytorch import LightningDataModule
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
-from autocast.types.batch import EncodedSample
+from autocast.types.batch import EncodedSample, collate_encoded_samples
 from autocast.types.types import Tensor, TensorNC
 
 
@@ -134,4 +136,273 @@ class MiniWellInputOutput(EncodedDataset, EncodedBatchMixin):
                 "label": label,
                 "encoded_info": data.get("encoded_info", {}),
             }
+        )
+
+
+class EncodedDataModule(LightningDataModule):
+    """DataModule for encoded datasets that produce EncodedBatch objects.
+
+    This datamodule wraps datasets that produce EncodedSample objects (like
+    MiniWellInputOutput) and provides train/val/test dataloaders that collate
+    samples into EncodedBatch objects.
+    """
+
+    def __init__(
+        self,
+        data_path: str | None = None,
+        n_steps_input: int = 1,
+        n_steps_output: int = 1,
+        stride: int = 1,
+        batch_size: int = 16,
+        num_workers: int = 0,
+        concat_inputs_and_label: bool = True,
+        dataset_cls: type[EncodedDataset] | None = None,
+        **dataset_kwargs,
+    ):
+        """Initialize the EncodedDataModule.
+
+        Args:
+            data_path: Base path to the dataset files. Should contain
+                train/, valid/, test/ subdirectories with data.h5 files.
+            n_steps_input: Number of input time steps.
+            n_steps_output: Number of output time steps to predict.
+            stride: Stride for stepping through trajectories.
+            batch_size: Batch size for dataloaders.
+            num_workers: Number of workers for dataloaders. Default 0 for
+                h5py compatibility.
+            concat_inputs_and_label: Whether to concatenate labels with inputs.
+            dataset_cls: Dataset class to use. Defaults to MiniWellInputOutput.
+            **dataset_kwargs: Additional kwargs passed to dataset constructor.
+        """
+        super().__init__()
+        self.data_path = Path(data_path) if data_path is not None else None
+        self.n_steps_input = n_steps_input
+        self.n_steps_output = n_steps_output
+        self.stride = stride
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.concat_inputs_and_label = concat_inputs_and_label
+        self.dataset_cls = dataset_cls or MiniWellInputOutput
+        self.dataset_kwargs = dataset_kwargs
+
+        self.train_dataset: EncodedDataset | None = None
+        self.val_dataset: EncodedDataset | None = None
+        self.test_dataset: EncodedDataset | None = None
+
+    def setup(self, stage: str | None = None) -> None:
+        """Set up datasets for the given stage."""
+        if self.data_path is None:
+            msg = "data_path must be provided"
+            raise ValueError(msg)
+
+        # Compute total steps needed for the MiniWell dataset
+        total_steps = self.n_steps_input + self.n_steps_output
+
+        common_kwargs = {
+            "n_steps_input": self.n_steps_input,
+            "n_steps_output": self.n_steps_output,
+            "steps": total_steps,
+            "stride": self.stride,
+            "concat_inputs_and_label": self.concat_inputs_and_label,
+            **self.dataset_kwargs,
+        }
+
+        if stage == "fit" or stage is None:
+            train_file = self.data_path / "train" / "data.h5"
+            if train_file.exists():
+                self.train_dataset = self.dataset_cls(
+                    file_name=str(train_file),  # type: ignore TODO: update with protocol to support different classes
+                    **common_kwargs,
+                )
+
+            valid_file = self.data_path / "valid" / "data.h5"
+            if valid_file.exists():
+                self.val_dataset = self.dataset_cls(
+                    file_name=str(valid_file),  # type: ignore TODO: update with protocol to support different classes
+                    **common_kwargs,
+                )
+
+        if stage == "test" or stage is None:
+            test_file = self.data_path / "test" / "data.h5"
+            if test_file.exists():
+                self.test_dataset = self.dataset_cls(
+                    file_name=str(test_file),  # type: ignore TODO: update with protocol to support different classes
+                    **common_kwargs,
+                )
+
+    def train_dataloader(self) -> DataLoader:
+        """Return training dataloader."""
+        if self.train_dataset is None:
+            self.setup(stage="fit")
+        return DataLoader(
+            self.train_dataset,  # type: ignore[arg-type]
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+            collate_fn=collate_encoded_samples,
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        """Return validation dataloader."""
+        if self.val_dataset is None:
+            self.setup(stage="fit")
+        return DataLoader(
+            self.val_dataset,  # type: ignore[arg-type]
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            collate_fn=collate_encoded_samples,
+        )
+
+    def test_dataloader(self) -> DataLoader:
+        """Return test dataloader."""
+        if self.test_dataset is None:
+            self.setup(stage="test")
+        return DataLoader(
+            self.test_dataset,  # type: ignore[arg-type]
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            collate_fn=collate_encoded_samples,
+        )
+
+
+class MiniWellDataModule(LightningDataModule):
+    """DataModule for MiniWell datasets that accepts file lists.
+
+    This datamodule wraps MiniWellInputOutput datasets and provides
+    train/val/test dataloaders that collate samples into EncodedBatch objects.
+    Accepts either individual files or lists of files for each split.
+    """
+
+    def __init__(
+        self,
+        train_files: str | list[str] | None = None,
+        valid_files: str | list[str] | None = None,
+        test_files: str | list[str] | None = None,
+        n_steps_input: int = 1,
+        n_steps_output: int = 1,
+        stride: int = 1,
+        batch_size: int = 16,
+        num_workers: int = 0,
+        concat_inputs_and_label: bool = True,
+    ):
+        """Initialize the MiniWellDataModule.
+
+        Args:
+            train_files: Path(s) to training h5 file(s). Can be a single path
+                string or a list of paths.
+            valid_files: Path(s) to validation h5 file(s). Can be a single path
+                string or a list of paths.
+            test_files: Path(s) to test h5 file(s). Can be a single path
+                string or a list of paths.
+            n_steps_input: Number of input time steps.
+            n_steps_output: Number of output time steps to predict.
+            stride: Stride for stepping through trajectories.
+            batch_size: Batch size for dataloaders.
+            num_workers: Number of workers for dataloaders. Default 0 for
+                h5py compatibility.
+            concat_inputs_and_label: Whether to concatenate labels with inputs.
+        """
+        super().__init__()
+        self.train_files = self._normalize_files(train_files)
+        self.valid_files = self._normalize_files(valid_files)
+        self.test_files = self._normalize_files(test_files)
+        self.n_steps_input = n_steps_input
+        self.n_steps_output = n_steps_output
+        self.stride = stride
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.concat_inputs_and_label = concat_inputs_and_label
+
+        self.train_dataset: Dataset | None = None
+        self.val_dataset: Dataset | None = None
+        self.test_dataset: Dataset | None = None
+
+    @staticmethod
+    def _normalize_files(files: str | list[str] | None) -> list[str]:
+        """Convert file input to a list of file paths."""
+        if files is None:
+            return []
+        if isinstance(files, str):
+            return [files]
+        return list(files)
+
+    def _create_dataset(self, files: list[str]) -> Dataset | None:
+        """Create a dataset from a list of files."""
+        if not files:
+            return None
+
+        # Compute total steps needed for the MiniWell dataset
+        total_steps = self.n_steps_input + self.n_steps_output
+
+        common_kwargs = {
+            "n_steps_input": self.n_steps_input,
+            "n_steps_output": self.n_steps_output,
+            "steps": total_steps,
+            "stride": self.stride,
+            "concat_inputs_and_label": self.concat_inputs_and_label,
+        }
+
+        if len(files) == 1:
+            return MiniWellInputOutput(file_name=files[0], **common_kwargs)
+
+        # Multiple files - create ConcatDataset
+        datasets = [MiniWellInputOutput(file_name=f, **common_kwargs) for f in files]
+        return ConcatDataset(datasets)
+
+    def setup(self, stage: str | None = None) -> None:
+        """Set up datasets for the given stage."""
+        if stage == "fit" or stage is None:
+            if self.train_dataset is None:
+                self.train_dataset = self._create_dataset(self.train_files)
+            if self.val_dataset is None:
+                self.val_dataset = self._create_dataset(self.valid_files)
+
+        if (stage == "test" or stage is None) and self.test_dataset is None:
+            self.test_dataset = self._create_dataset(self.test_files)
+
+    def train_dataloader(self) -> DataLoader:
+        """Return training dataloader."""
+        if self.train_dataset is None:
+            self.setup(stage="fit")
+        if self.train_dataset is None:
+            msg = "No training files provided"
+            raise ValueError(msg)
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+            collate_fn=collate_encoded_samples,
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        """Return validation dataloader."""
+        if self.val_dataset is None:
+            self.setup(stage="fit")
+        if self.val_dataset is None:
+            msg = "No validation files provided"
+            raise ValueError(msg)
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            collate_fn=collate_encoded_samples,
+        )
+
+    def test_dataloader(self) -> DataLoader:
+        """Return test dataloader."""
+        if self.test_dataset is None:
+            self.setup(stage="test")
+        if self.test_dataset is None:
+            msg = "No test files provided"
+            raise ValueError(msg)
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            collate_fn=collate_encoded_samples,
         )
