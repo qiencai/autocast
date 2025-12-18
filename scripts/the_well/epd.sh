@@ -66,7 +66,7 @@ uv run train_encoder_processor_decoder \
     trainer.gradient_clip_val=1.0 \
     data=the_well \
     data.well_dataset_name=rayleigh_benard \
-    data.num_workers=4 \
+    data.num_workers=0 \
     data.batch_size=8 \
     data.cache_small=false \
     data.max_cache_size=0.0 \
