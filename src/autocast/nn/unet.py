@@ -102,16 +102,22 @@ class TemporalUNetBackbone(TemporalBackboneBase):
         -------
             UNet module
         """
+        # Extract required parameters and remove from kwargs to avoid duplicates
+        hid_channels = kwargs.pop("hid_channels")
+        hid_blocks = kwargs.pop("hid_blocks")
+        spatial = kwargs.pop("spatial")
+        periodic = kwargs.pop("periodic")
+
         return UNet(
             in_channels=self.in_channels * self.n_steps_output,
             out_channels=self.out_channels * self.n_steps_output,
             cond_channels=self.cond_channels * self.n_steps_input,
             mod_features=self.mod_features,
-            hid_channels=kwargs["hid_channels"],
-            hid_blocks=kwargs["hid_blocks"],
+            hid_channels=hid_channels,
+            hid_blocks=hid_blocks,
             kernel_size=3,
             stride=2,
-            spatial=kwargs["spatial"],
-            periodic=kwargs["periodic"],
+            spatial=spatial,
+            periodic=periodic,
             **kwargs,
         )

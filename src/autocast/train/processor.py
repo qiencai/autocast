@@ -243,10 +243,13 @@ def configure_processor_dimensions(
     _maybe_set(processor_cfg, "n_steps_output", n_steps_output)
     _maybe_set(processor_cfg, "n_channels_out", out_channel_count)
 
+    # Backbone expects per-timestep channel counts; it multiplies by n_steps internally
     backbone_cfg = processor_cfg.get("backbone") if processor_cfg else None
-    _maybe_set(backbone_cfg, "in_channels", out_channel_count * n_steps_output)
-    _maybe_set(backbone_cfg, "out_channels", out_channel_count * n_steps_output)
-    _maybe_set(backbone_cfg, "cond_channels", in_channel_count * n_steps_input)
+    _maybe_set(backbone_cfg, "in_channels", out_channel_count)
+    _maybe_set(backbone_cfg, "out_channels", out_channel_count)
+    _maybe_set(backbone_cfg, "cond_channels", in_channel_count)
+    _maybe_set(backbone_cfg, "n_steps_input", n_steps_input)
+    _maybe_set(backbone_cfg, "n_steps_output", n_steps_output)
 
 
 def _ensure_output_path(path: Path, work_dir: Path) -> Path:

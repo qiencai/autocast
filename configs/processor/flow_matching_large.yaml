@@ -14,17 +14,8 @@ backbone:
   n_steps_input: null
   cond_channels: null
   mod_features: 256
-  hid_channels: [64, 128, 256, 512, 768, 1024]
-  hid_blocks: [3, 3, 3, 3, 3, 3]
+  hid_channels: [64, 128, 256, 512]
+  hid_blocks: [3, 3, 3, 3]
   spatial: 2
-  periodic: false
-  emb_features: 256
-  temporal_method: "none"
-  stride: 2
-  norm: "layer"
-  attention_heads: {5: 8}
-  ffn_factor: 1
   periodic: true
-  dropout: 0.05
-  checkpointing: true
-  identity_init: true
+  temporal_method: "none"
