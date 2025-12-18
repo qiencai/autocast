@@ -177,15 +177,17 @@ def prepare_encoded_datamodule(cfg: DictConfig):
     train_inputs = _get_field(batch, "encoded_inputs", "input_fields")
     train_outputs = _get_field(batch, "encoded_output_fields", "output_fields")
 
-    # Shape is (B, T, C, *spatial) for channels-last or (B, T, *spatial, C)
-    # Detect channel position - assume channels are the smaller non-spatial dim
-    channel_count = train_inputs.shape[2]  # Assume (B, T, C, H, W) layout
+    # Shape is (B, T, *spatial, C) for channels-last encoded data
+    # Input channels may include concatenated label channels, so extract separately
+    in_channel_count = train_inputs.shape[-1]
+    out_channel_count = train_outputs.shape[-1]
     inferred_n_steps_input = train_inputs.shape[1]
     inferred_n_steps_output = train_outputs.shape[1]
 
     return (
         datamodule,
-        channel_count,
+        in_channel_count,
+        out_channel_count,
         inferred_n_steps_input,
         inferred_n_steps_output,
         train_inputs.shape,
@@ -227,7 +229,8 @@ def _maybe_set(cfg_node: DictConfig | None, key: str, value: int) -> None:
 
 def configure_processor_dimensions(
     cfg: DictConfig,
-    channel_count: int,
+    in_channel_count: int,
+    out_channel_count: int,
     n_steps_input: int,
     n_steps_output: int,
 ) -> None:
@@ -235,15 +238,15 @@ def configure_processor_dimensions(
     model_cfg = _model_cfg(cfg)
     processor_cfg = model_cfg.get("processor")
 
-    _maybe_set(processor_cfg, "in_channels", channel_count * n_steps_input)
-    _maybe_set(processor_cfg, "out_channels", channel_count * n_steps_output)
+    _maybe_set(processor_cfg, "in_channels", in_channel_count * n_steps_input)
+    _maybe_set(processor_cfg, "out_channels", out_channel_count * n_steps_output)
     _maybe_set(processor_cfg, "n_steps_output", n_steps_output)
-    _maybe_set(processor_cfg, "n_channels_out", channel_count)
+    _maybe_set(processor_cfg, "n_channels_out", out_channel_count)
 
     backbone_cfg = processor_cfg.get("backbone") if processor_cfg else None
-    _maybe_set(backbone_cfg, "in_channels", channel_count * n_steps_output)
-    _maybe_set(backbone_cfg, "out_channels", channel_count * n_steps_output)
-    _maybe_set(backbone_cfg, "cond_channels", channel_count * n_steps_input)
+    _maybe_set(backbone_cfg, "in_channels", out_channel_count * n_steps_output)
+    _maybe_set(backbone_cfg, "out_channels", out_channel_count * n_steps_output)
+    _maybe_set(backbone_cfg, "cond_channels", in_channel_count * n_steps_input)
 
 
 def _ensure_output_path(path: Path, work_dir: Path) -> Path:
@@ -297,7 +300,8 @@ def main() -> None:
 
     (
         datamodule,
-        channel_count,
+        in_channel_count,
+        out_channel_count,
         inferred_n_steps_input,
         inferred_n_steps_output,
         input_shape,
@@ -323,7 +327,8 @@ def main() -> None:
 
     configure_processor_dimensions(
         cfg,
-        channel_count=channel_count,
+        in_channel_count=in_channel_count,
+        out_channel_count=out_channel_count,
         n_steps_input=inferred_n_steps_input,
         n_steps_output=inferred_n_steps_output,
     )
