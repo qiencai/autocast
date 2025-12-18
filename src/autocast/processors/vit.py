@@ -184,7 +184,7 @@ class AxialAttentionBlock(nn.Module):
         out = torch.zeros_like(x)
 
         for in_perm, out_perm in self.spatial_permutations:
-            q1, k1, v1 = map(lambda t: rearrange(t, in_perm).contiguous(), (q, k, v))
+            q1, k1, v1 = (rearrange(t, in_perm).contiguous() for t in (q, k, v))
             ax_out = F.scaled_dot_product_attention(q1, k1, v1)
             ax_out = rearrange(ax_out, out_perm).contiguous()
             out = out + ax_out
@@ -195,7 +195,6 @@ class AxialAttentionBlock(nn.Module):
             x = self.gamma * x
 
         return residual + self.drop_path(x)
-
 
 
 class AViT(BaseModel):
