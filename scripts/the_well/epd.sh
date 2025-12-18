@@ -68,8 +68,10 @@ uv run train_encoder_processor_decoder \
     data.well_dataset_name=rayleigh_benard \
     data.batch_size=8 \
     optimizer=adamw \
+    trainer.callbacks.0.every_n_train_steps=5000 \
     "training.autoencoder_checkpoint='outputs/autoencoder_run/20251217_121300/autocast/0nttzj9a/checkpoints/step-step=7900.ckpt'"
-	
+	# trainer.enable_checkpointing=false \
+    
 # Evaluate
 uv run evaluate_encoder_processor_decoder \
 	--config-path=configs/ \
