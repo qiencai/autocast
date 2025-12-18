@@ -67,7 +67,13 @@ be used without a W&B account.
 
 ## Running on HPC 
 
-In the [Scripts](/scripts/) folders, slurm scripts can be found for running training and evaluation on the baskerville HPC. 
+In the [slurm_templates](/slurm_templates/) folders, template slurm scripts can be found for the following use cases: 
+
+- train_and_eval_autoencoder.sh : Training and evaluation of the autoencoder 
+- train_and_eval_encoder-processor-decoder.sh : Training and evaluation of the encoder-processor-decoder approach
+- encoder-processor-decoder-parameter_sweep : Same as above but runs a parameter sweep 
+
+We advise you copy these scripts into a folder called `slurm_scripts` (which is in the gitignore) and edit as you see fit. 
 
 ### Single Job 
 
@@ -88,10 +94,10 @@ It uses slurm arrays and hydra override functionality to sweep through combinati
 
 - outputs	
 	- {job_name}
-		- Job-{job_id} # Unique for each sweep run 
+		- job-{job_id} # Unique for each sweep run 
 			- parameter_lookup.csv # csv file mapping task id to parameter values. 
-			- Task-0 # 0 is the slurm array task id. It is unique for each set of parameters
-			- Task-1
+			- task-0 # 0 is the slurm array task id. It is unique for each set of parameters
+			- task-1
 			- etc. 
 
 A checklist of things to change in the example script:

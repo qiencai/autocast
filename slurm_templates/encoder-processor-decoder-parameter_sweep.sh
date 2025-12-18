@@ -40,7 +40,7 @@ JOB_ID="${SLURM_ARRAY_JOB_ID}"
 
 # Finally, this builds the working directory path. 
 # It follows the structure outputs/JOB_NAME/TIMESTAMP
-WORKING_DIR="outputs/${JOB_NAME}/Job-${JOB_ID}/Task-${SLURM_ARRAY_TASK_ID}"
+WORKING_DIR="outputs/${JOB_NAME}/job-${JOB_ID}/task-${SLURM_ARRAY_TASK_ID}"
 
 # Write the slurm output and error files to the working directory
 mkdir -p "${WORKING_DIR}"
@@ -68,7 +68,7 @@ BATCH_SIZE=${BATCH_SIZES[$BATCH_INDEX]}
 echo "Task ID: ${SLURM_ARRAY_TASK_ID}, Max Epochs: ${MAX_EPOCH}, Batch Size: ${BATCH_SIZE}"
 
 # ---------------- Write Parameter Lookup ----------------
-LOOKUP_DIR="outputs/${JOB_NAME}/Job-${JOB_ID}"
+LOOKUP_DIR="outputs/${JOB_NAME}/job-${JOB_ID}"
 LOOKUP_FILE="${LOOKUP_DIR}/parameter_lookup.csv"
 
 # Create header for lookup file (only first task creates header)
