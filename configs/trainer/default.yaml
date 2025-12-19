@@ -13,6 +13,8 @@ gradient_clip_val: null
 callbacks:
   - _target_: lightning.pytorch.callbacks.ModelCheckpoint
     save_top_k: 3
+    monitor: train_loss
+    mode: min
     every_n_train_steps: 5000
     save_on_train_epoch_end: false
     filename: "step-{step}"
