@@ -19,7 +19,7 @@ def _largest_divisor_leq(n: int, max_divisor: int) -> int:
     return max(d, 1)
 
 
-class hMLP_stem(nn.Module):
+class PatchEmbedding(nn.Module):
     """Image to Patch Embedding."""
 
     def __init__(
@@ -60,8 +60,8 @@ class hMLP_stem(nn.Module):
         return self.in_projs(x)
 
 
-class hMLP_output(nn.Module):
-    """Patch to Image De-bedding."""
+class PatchUnembedding(nn.Module):
+    """Patch to Image Unembedding."""
 
     def __init__(
         self,
@@ -132,7 +132,6 @@ class AxialAttentionBlock(nn.Module):
         )
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
-        # Fix: PyTorch LayerNorm has no bias= argument
         self.norm = nn.LayerNorm(hidden_dim, elementwise_affine=False)
 
         self.fused_heads = [hidden_dim, hidden_dim, hidden_dim, 4 * hidden_dim]
@@ -234,7 +233,7 @@ class AViT(BaseModel):
         )
         self.absolute_pe = nn.Parameter(0.02 * torch.randn(*pe_size))
 
-        self.embed = hMLP_stem(
+        self.embed = PatchEmbedding(
             dim_in=dim_in,
             hidden_dim=hidden_dim,
             groups=groups,
@@ -253,7 +252,7 @@ class AViT(BaseModel):
             ]
         )
 
-        self.debed = hMLP_output(
+        self.debed = PatchUnembedding(
             hidden_dim=hidden_dim,
             dim_out=dim_out,
             groups=groups,
