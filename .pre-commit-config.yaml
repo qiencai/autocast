@@ -10,10 +10,12 @@ repos:
     # Run the formatter.
     - id: ruff-format
       types_or: [ python, pyi ]
+  exclude: ^src/autocast/external/.*$
 - repo: https://github.com/RobertCraigie/pyright-python
   rev: v1.1.407
   hooks:
   - id: pyright
+  exclude: ^src/autocast/external/.*$
 - repo: https://github.com/kynan/nbstripout
   rev: 0.8.1
   hooks:

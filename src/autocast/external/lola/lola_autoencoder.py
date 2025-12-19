@@ -14,10 +14,10 @@ from omegaconf import DictConfig
 from torch import Tensor, nn
 from torch.nn.functional import cosine_similarity
 
-from autocast.decoders.lola_decoder import DCDecoder
+from autocast.external.lola.lola_decoder import DCDecoder
 
 # from .nn.dcae import DCDecoder, DCEncoder
-from autocast.encoders.lola_encoder import DCEncoder
+from autocast.external.lola.lola_encoder import DCEncoder
 
 # from .nn.vit import ViT
 

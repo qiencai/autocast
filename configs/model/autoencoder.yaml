@@ -1,7 +1,9 @@
 defaults:
   # Updated parameters for increased compression for AE for reaction diffusion data
-  - /encoder: dc_deep
-  - /decoder: dc_deep
+  # - /encoder: dc_deep
+  # - /decoder: dc_deep
+  - /encoder: wrapped_encoder
+  - /decoder: wrapped_decoder
   - _self_
 
 learning_rate: 0.0005

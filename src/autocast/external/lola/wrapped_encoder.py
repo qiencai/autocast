@@ -4,7 +4,7 @@ import torch
 from einops import rearrange
 
 from autocast.encoders.base import Encoder
-from autocast.nn.lola_autoencoder import get_autoencoder
+from autocast.external.lola.lola_autoencoder import get_autoencoder
 from autocast.types.batch import Batch
 
 

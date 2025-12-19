@@ -5,7 +5,7 @@ from einops import rearrange
 
 from autocast.decoders.base import Decoder
 from autocast.encoders.base import Encoder
-from autocast.nn.lola_autoencoder import get_autoencoder
+from autocast.external.lola.lola_autoencoder import get_autoencoder
 from autocast.types.batch import Batch
 
 

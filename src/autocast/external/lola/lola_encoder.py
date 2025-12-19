@@ -20,7 +20,7 @@ from torch.utils.checkpoint import checkpoint
 from autocast.nn.dc_utils import (
     ConvNd,
 )
-from autocast.nn.lola_layers import (
+from autocast.external.lola.lola_layers import (
     ConvNd,
     LayerNorm,
     Patchify,
