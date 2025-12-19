@@ -1,4 +1,4 @@
-from collections.abc import Sequence  # noqa: EXE002
+from collections.abc import Sequence
 from typing import Any
 
 import lightning as L

@@ -35,7 +35,7 @@ class EncoderProcessorDecoder(
         rollout_stride: int | None = None,
         teacher_forcing_ratio: float = 0.5,
         max_rollout_steps: int = 10,
-        train_processor_only: bool = False,
+        train_in_latent_space: bool = False,
         loss_func: nn.Module | None = None,
         train_metrics: Sequence[Metric] | None = [],
         val_metrics: Sequence[Metric] | None = None,
@@ -51,8 +51,8 @@ class EncoderProcessorDecoder(
         self.rollout_stride = rollout_stride if rollout_stride is not None else stride
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.max_rollout_steps = max_rollout_steps
-        self.train_processor_only = train_processor_only
-        if self.train_processor_only:
+        self.train_in_latent_space = train_in_latent_space
+        if self.train_in_latent_space:
             self.encoder_decoder.freeze()
         self.loss_func = loss_func
 
@@ -82,7 +82,7 @@ class EncoderProcessorDecoder(
         return decoded  # noqa: RET504
 
     def loss(self, batch: Batch) -> tuple[Tensor, Tensor | None]:
-        if self.train_processor_only:
+        if self.train_in_latent_space:
             encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)
             loss = self.processor.loss(encoded_batch)
             y_pred = None

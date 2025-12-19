@@ -89,8 +89,8 @@ def make_toy_batch() -> Callable[..., Batch]:
         batch_size: int = 2,
         t_in: int = 2,
         t_out: int | None = None,
-        w: int = 4,
-        h: int = 4,
+        w: int = 16,
+        h: int = 16,
         c: int = 1,
     ) -> Batch:
         t_out = t_out or t_in
@@ -152,6 +152,7 @@ def encoded_batch(make_toy_batch: Callable[..., Batch]) -> EncodedBatch:
     return EncodedBatch(
         encoded_inputs=encoded_inputs,
         encoded_output_fields=encoded_outputs,
+        label=None,
         encoded_info={},
     )
 
@@ -171,6 +172,7 @@ class _EncodedBatchDataset(Dataset):
         return EncodedBatch(
             encoded_inputs=encoded_inputs,
             encoded_output_fields=encoded_outputs,
+            label=None,
             encoded_info={},
         )
 
