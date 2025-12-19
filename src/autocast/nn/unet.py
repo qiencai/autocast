@@ -34,7 +34,6 @@ class TemporalUNetBackbone(TemporalBackboneBase):
         # TCN parameters
         tcn_kernel_size: int = 3,
         tcn_num_layers: int = 2,
-        **kwargs,
     ):
         """Initialize Temporal UNet Backbone.
 
@@ -71,7 +70,6 @@ class TemporalUNetBackbone(TemporalBackboneBase):
             attention_hidden_dim=attention_hidden_dim,
             tcn_kernel_size=tcn_kernel_size,
             tcn_num_layers=tcn_num_layers,
-            **kwargs,
         )
 
         # Build UNet backbone
@@ -80,7 +78,6 @@ class TemporalUNetBackbone(TemporalBackboneBase):
             hid_blocks=hid_blocks,
             spatial=spatial,
             periodic=periodic,
-            **kwargs,
         )
 
     @property
@@ -102,22 +99,15 @@ class TemporalUNetBackbone(TemporalBackboneBase):
         -------
             UNet module
         """
-        # Extract required parameters and remove from kwargs to avoid duplicates
-        hid_channels = kwargs.pop("hid_channels")
-        hid_blocks = kwargs.pop("hid_blocks")
-        spatial = kwargs.pop("spatial")
-        periodic = kwargs.pop("periodic")
-
         return UNet(
             in_channels=self.in_channels * self.n_steps_output,
             out_channels=self.out_channels * self.n_steps_output,
             cond_channels=self.cond_channels * self.n_steps_input,
             mod_features=self.mod_features,
-            hid_channels=hid_channels,
-            hid_blocks=hid_blocks,
+            hid_channels=kwargs["hid_channels"],
+            hid_blocks=kwargs["hid_blocks"],
             kernel_size=3,
             stride=2,
-            spatial=spatial,
-            periodic=periodic,
-            **kwargs,
+            spatial=kwargs["spatial"],
+            periodic=kwargs["periodic"],
         )
