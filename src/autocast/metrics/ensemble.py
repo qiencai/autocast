@@ -64,15 +64,16 @@ class EnsembleBaseMetric(Metric):
             f"y_true must be a torch.Tensor or np.ndarray, got {type(y_true)}"
         )
 
-        assert y_pred.shape == y_true.shape, (
-            f"y_pred and y_true must have the same shape, "
-            f"got {y_pred.shape} and {y_true.shape}"
-        )
-
         assert y_pred.ndim >= 4, (
             f"y_pred has {y_pred.ndim} dimensions, should be at least 4, "
             f"following the pattern(B, T, S, C)"
         )
+
+        if y_pred.shape[:-1] != y_true.shape:
+            raise ValueError(
+                f"y_pred and y_true must have the same shape except for the last "
+                f"dimension (ensemble members). Got {y_pred.shape} and {y_true.shape}"
+            )
 
         return y_pred, y_true
 
@@ -158,12 +159,12 @@ class EnsembleBaseMetric(Metric):
 
 def _common_crps_score(
     y_pred: TensorBTSCM, y_true: TensorBTSC, adjustment_factor: float
-) -> TensorBTC:
+) -> TensorBTSC:
     """
     Compute CRPS reduced over spatial dims only.
 
     Expected input shape: (B, T, S, C, M)
-    Expected output shape: (B, T, C)
+    Expected output shape: (B, T, S, C)
 
     Args:
         y_pred: Predictions of shape (B, T, S, C, M)
@@ -172,7 +173,7 @@ def _common_crps_score(
 
     Returns
     -------
-        Tensor of shape (B, T, C) with CRPS scores
+        Tensor of shape (B, T, S, C) with CRPS scores
     """
     # Expand y_true to match ensemble dimension
     n_ensemble = y_pred.shape[-1]
