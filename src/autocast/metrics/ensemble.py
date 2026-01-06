@@ -156,15 +156,54 @@ class EnsembleBaseMetric(Metric):
         return tensor.ndim - 3  # Subtract B, T, C
 
 
+def _common_crps_score(
+    y_pred: TensorBTSCM, y_true: TensorBTSC, adjustment_factor: float
+) -> TensorBTC:
+    """
+    Compute CRPS reduced over spatial dims only.
+
+    Expected input shape: (B, T, *S, C, M)
+    Expected output shape: (B, T, C)
+
+    Args:
+        y_pred: Predictions of shape (B, T, *S, C, M)
+        y_true: Ground truth of shape (B, T, *S, C)
+        adjustment_factor: Factor to adjust the second term in CRPS calculation
+
+    Returns
+    -------
+        Tensor of shape (B, T, C) with CRPS scores
+    """
+    # Expand y_true to match ensemble dimension
+    n_ensemble = y_pred.shape[-1]
+    y_true_expanded = repeat(y_true, "... -> ... m", m=n_ensemble)  # (B, T, S, C, M)
+
+    # Compute CRPS using the formula
+    term1: TensorBTSC = torch.mean(torch.abs(y_pred - y_true_expanded), dim=-1)
+    term2: TensorBTSC = (
+        0.5
+        * torch.mean(
+            torch.abs(
+                rearrange(y_pred, "... m -> ... 1 m")  # (B, T, S, C, 1, M)
+                - rearrange(y_pred, "... m -> ... m 1")  # (B, T, S, C, M, 1)
+            ),  # (B, T, S, C, M, M)
+            dim=(-2, -1),  # (B, T, S, C)
+        )
+        * adjustment_factor  # e.g. for FairCRPS this is M / (M-1)
+    )
+
+    crps: TensorBTSC = term1 - term2
+
+    return crps
+
+
 class CRPS(EnsembleBaseMetric):
     """
     Continuous Ranked Probability Score (CRPS) for ensemble forecasts.
 
-    References
-    ----------
-    Gneiting, T., & Raftery, A. E. (2007). Strictly proper scoring rules,
-    prediction, and estimation. Journal of the American Statistical Association,
-    102(477), 359-378.
+    Hersbach, H., 2000: Decomposition of the Continuous Ranked Probability Score for
+    Ensemble Prediction Systems. Wea. Forecasting, 15, 559-570,
+    https://doi.org/10.1175/1520-0434(2000)015<0559:DOTCRP>2.0.CO;2.
     """
 
     name: str = "crps"
@@ -184,23 +223,44 @@ class CRPS(EnsembleBaseMetric):
         -------
             Tensor of shape (B, T, C) with CRPS scores
         """
+        crps = _common_crps_score(y_pred, y_true, adjustment_factor=1.0)
+        # Reduce over spatial dimensions: (B, T, *S, C) -> (B, T, C)
+        n_spatial_dims = self._infer_n_spatial_dims(crps)
+        crps_reduced = crps.mean(dim=tuple(range(2, 2 + n_spatial_dims)))
+
+        return crps_reduced
+
+
+class FairCRPS(EnsembleBaseMetric):
+    """
+    Fair Continuous Ranked Probability Score (CRPS) for ensemble forecasts.
+
+    Ferro, C.A.T. (2014), Fair scores for ensemble forecasts. Q.J.R. Meteorol. Soc.,
+    140: 1917-1923. https://doi.org/10.1002/qj.2270
+    """
+
+    name: str = "fcrps"
+
+    def score(self, y_pred: TensorBTSCM, y_true: TensorBTSC) -> TensorBTC:
+        """
+        Compute CRPS reduced over spatial dims only.
+
+        Expected input shape: (B, T, *S, C, M)
+        Expected output shape: (B, T, C)
+
+        Args:
+            y_pred: Predictions of shape (B, T, *S, C, M)
+            y_true: Ground truth of shape (B, T, *S, C)
+
+        Returns
+        -------
+            Tensor of shape (B, T, C) with CRPS scores
+        """
         # Expand y_true to match ensemble dimension
         n_ensemble = y_pred.shape[-1]
-        y_true_expanded = repeat(
-            y_true, "... -> ... m", m=n_ensemble
-        )  # (B, T, S, C, M)
-
-        # Compute CRPS using the formula
-        term1: TensorBTSC = torch.mean(torch.abs(y_pred - y_true_expanded), dim=-1)
-        term2: TensorBTSC = 0.5 * torch.mean(
-            torch.abs(
-                rearrange(y_pred, "... m -> ... 1 m")  # (B, T, S, C, 1, M)
-                - rearrange(y_pred, "... m -> ... m 1")  # (B, T, S, C, M, 1)
-            ),  # (B, T, S, C, M, M)
-            dim=(-2, -1),  # (B, T, S, C)
+        crps = _common_crps_score(
+            y_pred, y_true, adjustment_factor=n_ensemble / (n_ensemble - 1)
         )
-
-        crps: TensorBTSC = term1 - term2
 
         # Reduce over spatial dimensions: (B, T, *S, C) -> (B, T, C)
         n_spatial_dims = self._infer_n_spatial_dims(crps)
