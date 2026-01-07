@@ -3,6 +3,7 @@ import torch
 
 from autocast.metrics.base import BaseMetric
 from autocast.types import TensorBTC, TensorBTSC
+from autocast.types.types import ArrayLike
 
 
 class BTSCMetric(BaseMetric[TensorBTSC, TensorBTSC]):
@@ -19,9 +20,7 @@ class BTSCMetric(BaseMetric[TensorBTSC, TensorBTSC]):
     name: str = "base_metric"
 
     def _check_input(
-        self,
-        y_pred: torch.Tensor | np.ndarray,
-        y_true: torch.Tensor | np.ndarray,
+        self, y_pred: ArrayLike, y_true: ArrayLike
     ) -> tuple[TensorBTSC, TensorBTSC]:
         """
         Check types and shapes and converts inputs to torch.Tensor.
@@ -58,11 +57,7 @@ class BTSCMetric(BaseMetric[TensorBTSC, TensorBTSC]):
 
         return y_pred, y_true
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         """
         Compute metric reduced over spatial dims only.
 
@@ -79,11 +74,7 @@ class MSE(BTSCMetric):
 
     name: str = "mse"
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         return torch.mean((y_pred - y_true) ** 2, dim=spatial_dims)
@@ -94,11 +85,7 @@ class MAE(BTSCMetric):
 
     name: str = "mae"
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         return torch.mean((y_pred - y_true).abs(), dim=spatial_dims)
@@ -165,11 +152,7 @@ class RMSE(BTSCMetric):
 
     name: str = "rmse"
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         return torch.sqrt(torch.mean((y_pred - y_true) ** 2, dim=spatial_dims))
@@ -192,11 +175,7 @@ class NRMSE(BTSCMetric):
         )
         self.eps = eps
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         norm = torch.mean(y_true**2, dim=spatial_dims)
@@ -222,11 +201,7 @@ class VMSE(BTSCMetric):
         )
         self.eps = eps
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         norm_var = torch.std(y_true, dim=spatial_dims) ** 2
@@ -255,11 +230,7 @@ class VRMSE(BTSCMetric):
         )
         self.eps = eps
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
 
@@ -275,11 +246,7 @@ class LInfinity(BTSCMetric):
 
     name: str = "l_infinity"
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         return torch.max(

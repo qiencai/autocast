@@ -4,7 +4,7 @@ from einops import rearrange, repeat
 
 from autocast.metrics.base import BaseMetric
 from autocast.types import TensorBTC, TensorBTSC
-from autocast.types.types import TensorBTSCM
+from autocast.types.types import ArrayLike, TensorBTSCM
 
 
 class BTSCMMetric(BaseMetric[TensorBTSCM, TensorBTSC]):
@@ -21,9 +21,7 @@ class BTSCMMetric(BaseMetric[TensorBTSCM, TensorBTSC]):
     name: str = "ensemble_base_metric"
 
     def _check_input(
-        self,
-        y_pred: torch.Tensor | np.ndarray,
-        y_true: torch.Tensor | np.ndarray,
+        self, y_pred: ArrayLike, y_true: ArrayLike
     ) -> tuple[TensorBTSC, TensorBTSC]:
         """
         Check types and shapes and converts inputs to torch.Tensor.

@@ -1,11 +1,10 @@
 from typing import Generic, TypeVar
 
-import numpy as np
 import torch
 from torchmetrics import Metric
 
 from autocast.types import TensorBTC
-from autocast.types.types import Tensor
+from autocast.types.types import ArrayLike, Tensor
 
 TPred = TypeVar("TPred", bound=Tensor)
 TTrue = TypeVar("TTrue", bound=Tensor)
@@ -30,27 +29,15 @@ class BaseMetric(Metric, Generic[TPred, TTrue]):
         # Internal flag to set shape of sum_score
         self._initialized = False
 
-    def _check_input(
-        self,
-        y_pred: torch.Tensor | np.ndarray,
-        y_true: torch.Tensor | np.ndarray,
-    ) -> tuple[TPred, TTrue]:
+    def _check_input(self, y_pred: ArrayLike, y_true: ArrayLike) -> tuple[TPred, TTrue]:
         """Validate / convert inputs. Concrete subclasses must implement."""
         raise NotImplementedError
 
-    def score(
-        self,
-        y_pred: TPred,
-        y_true: TTrue,
-    ) -> TensorBTC:
+    def score(self, y_pred: TPred, y_true: TTrue) -> TensorBTC:
         """Compute spatially reduced score. Concrete subclasses must implement."""
         raise NotImplementedError
 
-    def update(
-        self,
-        y_pred: torch.Tensor | np.ndarray,
-        y_true: torch.Tensor | np.ndarray,
-    ) -> None:
+    def update(self, y_pred: ArrayLike, y_true: ArrayLike) -> None:
         """Update metric state with a batch of predictions and targets."""
         y_pred_t, y_true_t = self._check_input(y_pred, y_true)
 
