@@ -1,3 +1,5 @@
+import abc
+from abc import ABC
 from typing import Generic, TypeVar
 
 import torch
@@ -10,7 +12,7 @@ TPred = TypeVar("TPred", bound=Tensor)
 TTrue = TypeVar("TTrue", bound=Tensor)
 
 
-class BaseMetric(Metric, Generic[TPred, TTrue]):
+class BaseMetric(Metric, Generic[TPred, TTrue], ABC):
     """Shared template for spatial metrics that reduce over spatial axes."""
 
     def __init__(
@@ -33,16 +35,16 @@ class BaseMetric(Metric, Generic[TPred, TTrue]):
         """Validate / convert inputs. Concrete subclasses must implement."""
         raise NotImplementedError
 
-    def score(self, y_pred: TPred, y_true: TTrue) -> TensorBTC:
-        """Compute spatially reduced score. Concrete subclasses must implement."""
-        raise NotImplementedError
+    @abc.abstractmethod
+    def _score(self, y_pred: TPred, y_true: TTrue) -> TensorBTC: ...
+
+    def score(self, y_pred: ArrayLike, y_true: ArrayLike) -> TensorBTC:
+        y_pred_tensor, y_true_tensor = self._check_input(y_pred, y_true)
+        return self._score(y_pred_tensor, y_true_tensor)
 
     def update(self, y_pred: ArrayLike, y_true: ArrayLike) -> None:
         """Update metric state with a batch of predictions and targets."""
-        y_pred_t, y_true_t = self._check_input(y_pred, y_true)
-
-        # (B, T, *S, C) -> (B, T, C)
-        score_spatial = self.score(y_pred_t, y_true_t)
+        score_spatial = self.score(y_pred, y_true)  # (B, T, *S, C) -> (B, T, C)
 
         if score_spatial.ndim != 3:
             raise ValueError(

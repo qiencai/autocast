@@ -57,7 +57,7 @@ class BTSCMetric(BaseMetric[TensorBTSC, TensorBTSC]):
 
         return y_pred, y_true
 
-    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         """
         Compute metric reduced over spatial dims only.
 
@@ -74,7 +74,7 @@ class MSE(BTSCMetric):
 
     name: str = "mse"
 
-    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         return torch.mean((y_pred - y_true) ** 2, dim=spatial_dims)
@@ -85,7 +85,7 @@ class MAE(BTSCMetric):
 
     name: str = "mae"
 
-    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         return torch.mean((y_pred - y_true).abs(), dim=spatial_dims)
@@ -108,11 +108,7 @@ class NMAE(BTSCMetric):
         )
         self.eps = eps
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         norm = torch.mean(torch.abs(y_true), dim=spatial_dims)
@@ -136,11 +132,7 @@ class NMSE(BTSCMetric):
         )
         self.eps = eps
 
-    def score(
-        self,
-        y_pred: TensorBTSC,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         norm = torch.mean(y_true**2, dim=spatial_dims)
@@ -152,7 +144,7 @@ class RMSE(BTSCMetric):
 
     name: str = "rmse"
 
-    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         return torch.sqrt(torch.mean((y_pred - y_true) ** 2, dim=spatial_dims))
@@ -175,7 +167,7 @@ class NRMSE(BTSCMetric):
         )
         self.eps = eps
 
-    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         norm = torch.mean(y_true**2, dim=spatial_dims)
@@ -201,7 +193,7 @@ class VMSE(BTSCMetric):
         )
         self.eps = eps
 
-    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         norm_var = torch.std(y_true, dim=spatial_dims) ** 2
@@ -230,7 +222,7 @@ class VRMSE(BTSCMetric):
         )
         self.eps = eps
 
-    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
 
@@ -246,7 +238,7 @@ class LInfinity(BTSCMetric):
 
     name: str = "l_infinity"
 
-    def score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSC, y_true: TensorBTSC) -> TensorBTC:
         self.n_spatial_dims = self._infer_n_spatial_dims(y_pred)
         spatial_dims = tuple(range(-self.n_spatial_dims - 1, -1))
         return torch.max(

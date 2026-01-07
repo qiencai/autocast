@@ -59,21 +59,6 @@ class BTSCMMetric(BaseMetric[TensorBTSCM, TensorBTSC]):
 
         return y_pred, y_true
 
-    def score(
-        self,
-        y_pred: TensorBTSCM,
-        y_true: TensorBTSC,
-    ) -> TensorBTC:
-        """
-        Compute metric reduced over spatial dims only.
-
-        Expected input shape: (B, T, S, C, M)
-        Expected output shape: (B, T, C)
-
-        Must be implemented by subclasses.
-        """
-        raise NotImplementedError
-
 
 def _common_crps_score(
     y_pred: TensorBTSCM, y_true: TensorBTSC, adjustment_factor: float
@@ -129,7 +114,7 @@ class CRPS(BTSCMMetric):
 
     name: str = "crps"
 
-    def score(self, y_pred: TensorBTSCM, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSCM, y_true: TensorBTSC) -> TensorBTC:
         """
         Compute CRPS reduced over spatial dims only.
 
@@ -164,7 +149,7 @@ class FairCRPS(BTSCMMetric):
 
     name: str = "fcrps"
 
-    def score(self, y_pred: TensorBTSCM, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSCM, y_true: TensorBTSC) -> TensorBTC:
         """
         Compute CRPS reduced over spatial dims only.
 
@@ -221,7 +206,7 @@ class AlphaFairCRPS(BTSCMMetric):
         assert 0 < alpha <= 1, "alpha must be in (0,1]"
         self.alpha = alpha
 
-    def score(self, y_pred: TensorBTSCM, y_true: TensorBTSC) -> TensorBTC:
+    def _score(self, y_pred: TensorBTSCM, y_true: TensorBTSC) -> TensorBTC:
         """
         Compute afCRPS reduced over spatial dims only.
 
