@@ -31,9 +31,10 @@ class BaseMetric(Metric, Generic[TPred, TTrue], ABC):
         # Internal flag to set shape of sum_score
         self._initialized = False
 
-    def _check_input(self, y_pred: ArrayLike, y_true: ArrayLike) -> tuple[TPred, TTrue]:
-        """Validate / convert inputs. Concrete subclasses must implement."""
-        raise NotImplementedError
+    @abc.abstractmethod
+    def _check_input(
+        self, y_pred: ArrayLike, y_true: ArrayLike
+    ) -> tuple[TPred, TTrue]: ...
 
     @abc.abstractmethod
     def _score(self, y_pred: TPred, y_true: TTrue) -> TensorBTC: ...
