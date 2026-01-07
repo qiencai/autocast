@@ -17,8 +17,6 @@ class BTSCMMetric(BaseMetric[TensorBTSCM, TensorBTSC]):
         dist_sync_on_step: Synchronize metric state across processes at each forward()
     """
 
-    name: str = "ensemble_base_metric"
-
     def _check_input(
         self, y_pred: ArrayLike, y_true: ArrayLike
     ) -> tuple[TensorBTSC, TensorBTSC]:
