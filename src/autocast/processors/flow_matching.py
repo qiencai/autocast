@@ -35,7 +35,9 @@ class FlowMatchingProcessor(Processor):
         self.n_steps_output = n_steps_output
         self.n_channels_out = n_channels_out
 
-    def flow_field(self, z: Tensor, t: Tensor, x: Tensor) -> Tensor:
+    def flow_field(
+        self, z: Tensor, t: Tensor, x: Tensor, label: Tensor | None
+    ) -> Tensor:
         """Flow matching vector field.
 
         The vector field over the tangent space of output states (z).
@@ -50,13 +52,13 @@ class FlowMatchingProcessor(Processor):
         -------
             Time derivative of output states with the same shape as `z`.
         """
-        return self.flow_matching_model(z, t, x)
+        return self.flow_matching_model(z, t, x, label)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, label: Tensor | None) -> Tensor:
         """Alias to map for Lightning/PyTorch compatibility."""
-        return self.map(x)
+        return self.map(x, label)
 
-    def map(self, x: Tensor) -> Tensor:
+    def map(self, x: Tensor, label: Tensor | None = None) -> Tensor:
         """Map inputs states (x) to output states (z) by integrating the flow ODE.
 
         Starting from noise, Euler-integrate the learned vector field until t=1.
@@ -80,7 +82,7 @@ class FlowMatchingProcessor(Processor):
         # Simple fixed-step Euler integration over the flow field.
         dt = torch.tensor(1.0 / self.flow_ode_steps, device=device, dtype=dtype)
         for _ in range(self.flow_ode_steps):
-            z = z + dt * self.flow_field(z, t, x)
+            z = z + dt * self.flow_field(z, t, x, label)
             t = t + dt
         return z
 
@@ -110,5 +112,5 @@ class FlowMatchingProcessor(Processor):
         zt = (1 - t_broadcast) * z0 + t_broadcast * target_states
 
         target_velocity = target_states - z0
-        v_pred = self.flow_field(zt, t, input_states)
+        v_pred = self.flow_field(zt, t, input_states, label=batch.label)
         return torch.mean((v_pred - target_velocity) ** 2)

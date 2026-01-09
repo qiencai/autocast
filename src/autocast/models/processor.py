@@ -52,8 +52,8 @@ class ProcessorModel(
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-    def forward(self, x: TensorBNC) -> TensorBNC:
-        return self.processor.map(x)
+    def forward(self, x: TensorBNC, label: Tensor | None = None) -> TensorBNC:
+        return self.processor.map(x, label)
 
     def training_step(
         self,

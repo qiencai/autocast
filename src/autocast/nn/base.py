@@ -30,6 +30,7 @@ class TemporalBackboneBase(nn.Module, ABC):
         n_steps_output: int = 4,
         n_steps_input: int = 1,
         mod_features: int = 256,
+        label_features: int | None = None,
         temporal_method: str = "none",
         num_attention_heads: int = 8,
         attention_hidden_dim: int = 64,
@@ -71,6 +72,16 @@ class TemporalBackboneBase(nn.Module, ABC):
             nn.Linear(mod_features, mod_features),
             nn.SiLU(),
             nn.Linear(mod_features, mod_features),
+        )
+
+        self.label_embedding = (
+            nn.Sequential(
+                nn.Linear(label_features, mod_features),
+                nn.SiLU(),
+                nn.Linear(mod_features, mod_features),
+            )
+            if label_features is not None
+            else None
         )
 
         # Initialize temporal processing modules
@@ -173,7 +184,9 @@ class TemporalBackboneBase(nn.Module, ABC):
         their backbone (e.g., self.unet or self.vit).
         """
 
-    def forward(self, x_t: TensorBTSC, t: Tensor, cond: TensorBTSC) -> TensorBTSC:
+    def forward(
+        self, x_t: TensorBTSC, t: Tensor, cond: TensorBTSC, label: Tensor | None
+    ) -> TensorBTSC:
         """Forward pass of the temporal backbone.
 
         Args:
@@ -189,6 +202,8 @@ class TemporalBackboneBase(nn.Module, ABC):
 
         # Embed diffusion timestep
         t_emb = self.time_embedding(t)
+        if self.label_embedding is not None:
+            t_emb += self.label_embedding(label)
 
         # Apply temporal processing
         x_t_temporal, cond_temporal = self.apply_temporal_processing(x_t, cond)
