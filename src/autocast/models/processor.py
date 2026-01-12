@@ -52,8 +52,8 @@ class ProcessorModel(
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-    def forward(self, x: TensorBNC, label: Tensor | None = None) -> TensorBNC:
-        return self.processor.map(x, label)
+    def forward(self, x: TensorBNC, mod: Tensor | None = None) -> TensorBNC:
+        return self.processor.map(x, mod)
 
     def training_step(
         self,
@@ -114,11 +114,11 @@ class ProcessorModel(
         )
 
     def _predict(self, batch: EncodedBatch) -> Tensor:
-        return self.processor.map(batch.encoded_inputs)
+        return self.processor.map(batch.encoded_inputs, batch.label)
 
-    def map(self, x: Tensor) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None) -> Tensor:
         """Map input tensor through the processor."""
-        return self.processor.map(x)
+        return self.processor.map(x, global_cond)
 
     def _true_slice(self, batch: EncodedBatch, stride: int) -> tuple[Tensor, bool]:
         if batch.encoded_output_fields.shape[1] >= stride:

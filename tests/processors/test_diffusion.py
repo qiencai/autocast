@@ -149,7 +149,7 @@ def test_diffusion_processor(
         sampler_steps=5,
     )
     model = ProcessorModel(processor=processor, sampler_steps=5, stride=n_steps_output)
-    output = model.map(encoded_batch.encoded_inputs)
+    output = model.map(encoded_batch.encoded_inputs, encoded_batch.label)
     assert output.shape == encoded_batch.encoded_output_fields.shape
 
     train_loss = model.training_step(encoded_batch, 0)
@@ -172,7 +172,7 @@ def test_diffusion_processor(
     # Testing map
     with torch.no_grad():
         model.eval()
-        output = model.map(encoded_batch.encoded_inputs)
+        output = model.map(encoded_batch.encoded_inputs, encoded_batch.label)
         assert output.shape == encoded_batch.encoded_output_fields.shape
 
     # Testing rollout (only when input and output channels match)

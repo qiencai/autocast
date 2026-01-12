@@ -36,7 +36,7 @@ def test_unet(n_steps_output, n_steps_input, n_channels_in, n_channels_out):
         1, n_steps_output, 16, 16, n_channels_out
     )  # (B, T_out, W, H, C_out)
     cond = torch.randn(1, n_steps_input, 16, 16, n_channels_in)  # (B, T_in, W, H, C_in)
-    output = unet.forward(x_t, torch.ones(x_t.shape[0]), cond)
+    output = unet.forward(x_t, torch.ones(x_t.shape[0]), cond, None)
     assert output.shape == (
         1,
         n_steps_output,

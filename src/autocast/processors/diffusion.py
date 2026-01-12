@@ -48,7 +48,7 @@ class DiffusionProcessor(Processor):
         # Store schedule for direct access
         self.schedule = schedule
 
-    def map(self, x: Tensor, label: Tensor | None = None) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:
         """Map input window of states/times to output window using denoiser."""
         dtype = x.dtype
         device = x.device
@@ -64,14 +64,14 @@ class DiffusionProcessor(Processor):
             dtype=dtype,
             device=device,
         )  # Fully noised
-        return sampler(x_1, cond=x, label=label)
+        return sampler(x_1, cond=x, global_cond=global_cond)
 
-    def forward(self, x: Tensor, label: Tensor | None) -> Tensor:
-        return self.map(x, label)
+    def forward(self, x: Tensor, global_cond: Tensor | None) -> Tensor:
+        return self.map(x, global_cond)
 
-    def _denoise(self, x: Tensor, t: Tensor, cond: Tensor) -> Tensor:
-        posterior = self.denoiser(x, t, cond=cond)
-        return posterior.mean
+    # def _denoise(self, x: Tensor, t: Tensor, cond: Tensor) -> Tensor:
+    #     posterior = self.denoiser(x, t, cond=cond)
+    #     return posterior.mean
 
     def loss(self, batch: EncodedBatch) -> Tensor:
         """Training step with diffusion loss.
@@ -86,7 +86,7 @@ class DiffusionProcessor(Processor):
         t = torch.rand(x_0.size(0), device=x_0.device)  # (B,)
 
         # Cannot use Azula's built-in weighted loss since ligntning calls forward
-        loss = self.denoiser.loss(x_0, t=t, cond=x_cond, label=batch.label)
+        loss = self.denoiser.loss(x_0, t=t, cond=x_cond, global_cond=batch.label)
 
         # TODO: consider an API for looking at alternative losses
         # # Compute weighted loss

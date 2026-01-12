@@ -36,7 +36,7 @@ class FlowMatchingProcessor(Processor):
         self.n_channels_out = n_channels_out
 
     def flow_field(
-        self, z: Tensor, t: Tensor, x: Tensor, label: Tensor | None
+        self, z: Tensor, t: Tensor, x: Tensor, global_cond: Tensor | None = None
     ) -> Tensor:
         """Flow matching vector field.
 
@@ -47,18 +47,19 @@ class FlowMatchingProcessor(Processor):
             z: Current output states of shape (B, T_out, *spatial, C_out).
             t: Time tensor of shape (B,).
             x: Conditioning inputs of shape (B, T_in, *spatial, C_in).
+            global_cond: Optional non-spatial conditioning/modulation tensor.
 
         Returns
         -------
             Time derivative of output states with the same shape as `z`.
         """
-        return self.flow_matching_model(z, t, x, label)
+        return self.flow_matching_model(z, t, x, global_cond)
 
-    def forward(self, x: Tensor, label: Tensor | None) -> Tensor:
+    def forward(self, x: Tensor, global_cond: Tensor | None) -> Tensor:
         """Alias to map for Lightning/PyTorch compatibility."""
-        return self.map(x, label)
+        return self.map(x, global_cond)
 
-    def map(self, x: Tensor, label: Tensor | None = None) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:
         """Map inputs states (x) to output states (z) by integrating the flow ODE.
 
         Starting from noise, Euler-integrate the learned vector field until t=1.
@@ -82,7 +83,7 @@ class FlowMatchingProcessor(Processor):
         # Simple fixed-step Euler integration over the flow field.
         dt = torch.tensor(1.0 / self.flow_ode_steps, device=device, dtype=dtype)
         for _ in range(self.flow_ode_steps):
-            z = z + dt * self.flow_field(z, t, x, label)
+            z = z + dt * self.flow_field(z, t, x, global_cond)
             t = t + dt
         return z
 
@@ -112,5 +113,5 @@ class FlowMatchingProcessor(Processor):
         zt = (1 - t_broadcast) * z0 + t_broadcast * target_states
 
         target_velocity = target_states - z0
-        v_pred = self.flow_field(zt, t, input_states, label=batch.label)
+        v_pred = self.flow_field(zt, t, input_states, global_cond=batch.label)
         return torch.mean((v_pred - target_velocity) ** 2)

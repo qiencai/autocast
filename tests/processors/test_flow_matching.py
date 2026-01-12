@@ -133,7 +133,7 @@ def test_flow_matching_processor(
         flow_ode_steps=1,
     )
     model = ProcessorModel(processor)
-    output = model.map(encoded_batch.encoded_inputs)
+    output = model.map(encoded_batch.encoded_inputs, None)
     assert output.shape == encoded_batch.encoded_output_fields.shape
 
     train_loss = model.training_step(encoded_batch, 0)

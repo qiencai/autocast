@@ -31,7 +31,7 @@ class _IdentityProcessor(Processor[EncodedBatch]):
             loss_func=nn.MSELoss(),
         )
 
-    def map(self, x: Tensor) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:  # noqa: ARG002
         return x
 
     def loss(self, batch: EncodedBatch) -> Tensor:

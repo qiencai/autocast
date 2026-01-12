@@ -322,7 +322,7 @@ def test_processor_model_map():
     model = ProcessorModel(processor=processor, learning_rate=1e-4)
 
     x = torch.randn(2, 1, 8, 8, 8)
-    output = model.map(x)
+    output = model.map(x, None)
 
     assert output.shape == (2, 4, 8, 8, 8), f"Unexpected shape: {output.shape}"
     assert not output.isnan().any(), "Output should not contain NaN"

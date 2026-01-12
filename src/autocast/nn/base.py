@@ -30,7 +30,7 @@ class TemporalBackboneBase(nn.Module, ABC):
         n_steps_output: int = 4,
         n_steps_input: int = 1,
         mod_features: int = 256,
-        label_features: int | None = None,
+        global_cond_features: int | None = None,
         temporal_method: str = "none",
         num_attention_heads: int = 8,
         attention_hidden_dim: int = 64,
@@ -47,6 +47,7 @@ class TemporalBackboneBase(nn.Module, ABC):
             n_steps_output: Number of output timesteps to predict
             n_steps_input: Number of input timesteps for conditioning
             mod_features: Dimension for time embedding (diffusion timestep)
+            global_cond_features: Dimension for optional conditioning/modulation
             temporal_method: Method for temporal processing. Options:
                 - "attention": Multi-head self-attention over time
                 - "tcn": Temporal convolutional network
@@ -65,6 +66,7 @@ class TemporalBackboneBase(nn.Module, ABC):
         self.n_steps_output = n_steps_output
         self.n_steps_input = n_steps_input
         self.mod_features = mod_features
+        self.global_cond_features = global_cond_features
 
         # Time embedding for diffusion timestep
         self.time_embedding = nn.Sequential(
@@ -74,13 +76,13 @@ class TemporalBackboneBase(nn.Module, ABC):
             nn.Linear(mod_features, mod_features),
         )
 
-        self.label_embedding = (
+        self.mod_embedding = (
             nn.Sequential(
-                nn.Linear(label_features, mod_features),
+                nn.Linear(global_cond_features, mod_features),
                 nn.SiLU(),
                 nn.Linear(mod_features, mod_features),
             )
-            if label_features is not None
+            if global_cond_features is not None
             else None
         )
 
@@ -185,7 +187,11 @@ class TemporalBackboneBase(nn.Module, ABC):
         """
 
     def forward(
-        self, x_t: TensorBTSC, t: Tensor, cond: TensorBTSC, label: Tensor | None
+        self,
+        x_t: TensorBTSC,
+        t: Tensor,
+        cond: TensorBTSC,
+        global_cond: Tensor | None = None,
     ) -> TensorBTSC:
         """Forward pass of the temporal backbone.
 
@@ -193,6 +199,7 @@ class TemporalBackboneBase(nn.Module, ABC):
             x_t: Noisy data (B, T, W, H, C) - spatial dims before channels
             t: Diffusion time steps (B,)
             cond: Conditioning input (B, T_cond, W, H, C)
+            global_cond: Optional global conditioning/modulation vector (B, C_label)
 
         Returns
         -------
@@ -202,8 +209,14 @@ class TemporalBackboneBase(nn.Module, ABC):
 
         # Embed diffusion timestep
         t_emb = self.time_embedding(t)
-        if self.label_embedding is not None:
-            t_emb += self.label_embedding(label)
+        if self.mod_embedding is not None:
+            if global_cond is None:
+                msg = (
+                    "Model initialized with global_cond_features but no global_cond "
+                    "provided"
+                )
+                raise ValueError(msg)
+            t_emb += self.mod_embedding(global_cond)
 
         # Apply temporal processing
         x_t_temporal, cond_temporal = self.apply_temporal_processing(x_t, cond)
