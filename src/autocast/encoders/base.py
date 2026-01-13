@@ -1,18 +1,21 @@
 from abc import ABC, abstractmethod
 from dataclasses import replace
+from typing import Generic, TypeVar
 
 from torch import nn
 
 from autocast.types import Batch, EncodedBatch, TensorBNC
+from autocast.types.types import Tensor
+
+# Generic batch type variables
+BatchT = TypeVar("BatchT")
+BatchTEncoded = TypeVar("BatchTEncoded")
 
 
-class Encoder(nn.Module, ABC):
-    """Base encoder."""
+class GenericEncoder(nn.Module, ABC, Generic[BatchT, BatchTEncoded]):
+    """Base encoder interface."""
 
-    encoder_model: nn.Module
-    latent_dim: int
-
-    def preprocess(self, batch: Batch) -> Batch:
+    def preprocess(self, batch: BatchT) -> BatchT:
         """Optionally transform a batch before encoding.
 
         Subclasses can override to implement pre-encoding steps that still
@@ -21,24 +24,46 @@ class Encoder(nn.Module, ABC):
         return batch
 
     @abstractmethod
-    def encode(self, batch: Batch) -> TensorBNC:
+    def encode(self, batch: BatchT) -> TensorBNC | tuple[TensorBNC, Tensor | None]:
         """Encode the input tensor into the latent space.
 
         Parameters
         ----------
-        x: Batch
+        batch: BatchT
             Input batch to be encoded.
 
         Returns
         -------
-        TensorBNC
+        TensorBNC | tuple[TensorBNC, Tensor | None]
             Encoded tensor in the latent space with shape (B, *, C_latent).
         """
 
+    @abstractmethod
     def encode_batch(
-        self,
-        batch: Batch,
-        encoded_info: dict | None = None,
+        self, batch: BatchT, encoded_info: dict | None = None
+    ) -> BatchTEncoded:
+        """Encode a full BatchT into a BatchTEncoded.
+
+        Parameters
+        ----------
+        batch: BatchT
+            Input batch to be encoded.
+        encoded_info: dict | None
+            Optional dictionary of additional encoded information to include.
+
+        Returns
+        -------
+        BatchTEncoded
+            Encoded batch containing encoded inputs and original output fields.
+        """
+
+    def forward(self, batch: BatchT) -> TensorBNC | tuple[TensorBNC, Tensor | None]:
+        return self.encode(batch)
+
+
+class _Encoder(GenericEncoder[Batch, EncodedBatch]):
+    def encode_batch(
+        self, batch: Batch, encoded_info: dict | None = None
     ) -> EncodedBatch:
         """Encode a full Batch into an EncodedBatch.
 
@@ -55,21 +80,74 @@ class Encoder(nn.Module, ABC):
         EncodedBatch
             Encoded batch containing encoded inputs and original output fields.
         """
-        encoded_inputs = self.encode(batch)
+        encoded = self.encode(batch)
+
+        def _process_encoded(
+            encoded: TensorBNC | tuple[TensorBNC, Tensor | None],
+        ) -> tuple[TensorBNC, Tensor | None]:
+            return (
+                (encoded[0], encoded[1])
+                if isinstance(encoded, tuple)
+                else (encoded, None)
+            )
+
+        encoded_inputs, label = _process_encoded(encoded)
 
         # Assign output fields to inputs to be encoded identically in this default impl
         # Create a new batch with output fields as input fields to prevent mutation
         output_batch = replace(batch, input_fields=batch.output_fields.clone())
 
-        encoded_outputs = self.encode(output_batch)
+        encoded_outputs, _ = _process_encoded(self.encode(output_batch))
 
         # Return encoded batch
         return EncodedBatch(
             encoded_inputs=encoded_inputs,
             encoded_output_fields=encoded_outputs,
-            label=None,  # TODO: revisit handling of labels if part of API
+            label=label,
             encoded_info=encoded_info or {},
         )
 
-    def __call__(self, batch: Batch) -> TensorBNC:
-        return self.encode(batch)
+
+class Encoder(_Encoder):
+    """Base encoder."""
+
+    encoder_model: nn.Module
+    latent_dim: int
+
+    @abstractmethod
+    def encode(self, batch: Batch) -> TensorBNC:
+        """Encode the input tensor into the latent space.
+
+        Parameters
+        ----------
+        x: Batch
+            Input batch to be encoded.
+
+        Returns
+        -------
+        TensorBNC
+            Encoded tensor in the latent space with shape (B, *, C_latent).
+        """
+
+
+class EncoderWithCond(_Encoder):
+    """Encoder that returns encoded tensor and optional conditioning."""
+
+    encoder_model: nn.Module
+    latent_dim: int
+
+    @abstractmethod
+    def encode(self, batch: Batch) -> tuple[TensorBNC, Tensor | None]:
+        """Encode the input tensor into the latent space.
+
+        Parameters
+        ----------
+        x: Batch
+            Input batch to be encoded.
+
+        Returns
+        -------
+        tuple[TensorBNC, Tensor | None]
+            Encoded tensor in the latent space with shape (B, *, C_latent) with optional
+            conditioning tensor of shape (B, D).
+        """
