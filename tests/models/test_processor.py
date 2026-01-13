@@ -143,7 +143,6 @@ def _build_flow_matching_processor(
     )
     return FlowMatchingProcessor(
         backbone=backbone,
-        schedule=VPSchedule(),
         n_steps_output=n_steps_output,
         n_channels_out=n_channels_out,
         flow_ode_steps=2,
