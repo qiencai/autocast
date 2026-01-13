@@ -3,7 +3,7 @@ from pathlib import Path
 
 import h5py
 import torch
-from einops import rearrange, repeat
+from einops import rearrange
 from lightning.pytorch import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
@@ -20,7 +20,7 @@ class EncodedBatchMixin:
         return EncodedSample(
             encoded_inputs=data["input_fields"],
             encoded_output_fields=data["output_fields"],
-            label=data.get("label"),
+            global_cond=data.get("label"),
             encoded_info=data.get("encoded_info", {}),
         )
 
@@ -92,12 +92,10 @@ class MiniWellInputOutput(EncodedDataset, EncodedBatchMixin):
         n_steps_output: int,
         steps: int = 1,
         stride: int = 1,
-        concat_inputs_and_label: bool = True,
     ):
         Dataset.__init__(self)
         self.n_steps_input = n_steps_input
         self.n_steps_output = n_steps_output
-        self.concat_inputs_and_label = concat_inputs_and_label
         self.miniwell_dataset = MiniWellDataset(
             file=file_name, steps=steps, stride=stride
         )
@@ -117,25 +115,12 @@ class MiniWellInputOutput(EncodedDataset, EncodedBatchMixin):
             self.n_steps_input : self.n_steps_input + self.n_steps_output
         ]
         label: TensorNC = data.get("label")  # type: ignore  # noqa: PGH003
-        if self.concat_inputs_and_label:
-            # Broadcast label across spatial dims to match input_fields shape
-            # input_fields: (T, C, *spatial), label: (*) -> (1, numel, *spatial)
-            t = input_fields.shape[0]
-            spatial_dims = input_fields.shape[2:]  # (H, W, ...)
-            label_flat = label.flatten()  # Flatten any shape to 1D
-            label_expanded = repeat(
-                label_flat,
-                "c -> t c " + " ".join(f"d{i}" for i in range(len(spatial_dims))),
-                t=t,
-                **{f"d{i}": s for i, s in enumerate(spatial_dims)},
-            )
-            input_fields = torch.cat([input_fields, label_expanded], dim=1)
 
         return self.to_sample(
             {
                 "input_fields": rearrange(input_fields, "t c ... -> t ... c"),
                 "output_fields": rearrange(output_fields, "t c ... -> t ... c"),
-                "label": label,
+                "global_cond": label,
                 "encoded_info": data.get("encoded_info", {}),
             }
         )
@@ -157,7 +142,6 @@ class EncodedDataModule(LightningDataModule):
         stride: int = 1,
         batch_size: int = 16,
         num_workers: int = 0,
-        concat_inputs_and_label: bool = True,
         dataset_cls: type[EncodedDataset] | None = None,
         **dataset_kwargs,
     ):
@@ -172,7 +156,6 @@ class EncodedDataModule(LightningDataModule):
             batch_size: Batch size for dataloaders.
             num_workers: Number of workers for dataloaders. Default 0 for
                 h5py compatibility.
-            concat_inputs_and_label: Whether to concatenate labels with inputs.
             dataset_cls: Dataset class to use. Defaults to MiniWellInputOutput.
             **dataset_kwargs: Additional kwargs passed to dataset constructor.
         """
@@ -183,7 +166,6 @@ class EncodedDataModule(LightningDataModule):
         self.stride = stride
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.concat_inputs_and_label = concat_inputs_and_label
         self.dataset_cls = dataset_cls or MiniWellInputOutput
         self.dataset_kwargs = dataset_kwargs
 
@@ -205,7 +187,6 @@ class EncodedDataModule(LightningDataModule):
             "n_steps_output": self.n_steps_output,
             "steps": total_steps,
             "stride": self.stride,
-            "concat_inputs_and_label": self.concat_inputs_and_label,
             **self.dataset_kwargs,
         }
 
@@ -285,7 +266,6 @@ class MiniWellDataModule(LightningDataModule):
         stride: int = 1,
         batch_size: int = 16,
         num_workers: int = 0,
-        concat_inputs_and_label: bool = True,
     ):
         """Initialize the MiniWellDataModule.
 
@@ -298,7 +278,6 @@ class MiniWellDataModule(LightningDataModule):
             batch_size: Batch size for dataloaders.
             num_workers: Number of workers for dataloaders. Default 0 for
                 h5py compatibility.
-            concat_inputs_and_label: Whether to concatenate labels with inputs.
         """
         super().__init__()
         self.data_path = Path(data_path) if data_path is not None else None
@@ -307,7 +286,6 @@ class MiniWellDataModule(LightningDataModule):
         self.stride = stride
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.concat_inputs_and_label = concat_inputs_and_label
 
         self.train_dataset: Dataset | None = None
         self.val_dataset: Dataset | None = None
@@ -331,7 +309,6 @@ class MiniWellDataModule(LightningDataModule):
             "n_steps_output": self.n_steps_output,
             "steps": total_steps,
             "stride": self.stride,
-            "concat_inputs_and_label": self.concat_inputs_and_label,
         }
 
         if len(files) == 1:

@@ -106,7 +106,7 @@ class ProcessorModel(
         return EncodedBatch(
             encoded_inputs=batch.encoded_inputs.clone(),
             encoded_output_fields=batch.encoded_output_fields.clone(),
-            label=None,
+            global_cond=None,
             encoded_info={
                 key: value.clone() if hasattr(value, "clone") else value
                 for key, value in batch.encoded_info.items()
@@ -114,7 +114,7 @@ class ProcessorModel(
         )
 
     def _predict(self, batch: EncodedBatch) -> Tensor:
-        return self.processor.map(batch.encoded_inputs, batch.label)
+        return self.processor.map(batch.encoded_inputs, batch.global_cond)
 
     def map(self, x: Tensor, global_cond: Tensor | None) -> Tensor:
         """Map input tensor through the processor."""
@@ -151,7 +151,7 @@ class ProcessorModel(
         return EncodedBatch(
             encoded_inputs=combined,
             encoded_output_fields=next_outputs,
-            label=batch.label,
+            global_cond=batch.global_cond,
             encoded_info=batch.encoded_info,
         )
 

@@ -36,7 +36,7 @@ class EncodedSample:
 
     encoded_inputs: TensorBNC
     encoded_output_fields: TensorBNC
-    label: TensorNC | None
+    global_cond: TensorNC | None
     encoded_info: dict[str, Tensor]
 
 
@@ -56,7 +56,7 @@ class EncodedBatch:
 
     encoded_inputs: TensorBTSC
     encoded_output_fields: TensorBTSC
-    label: TensorBNC | None
+    global_cond: TensorBNC | None
     encoded_info: dict[str, Tensor]
 
 
@@ -107,7 +107,7 @@ def collate_encoded_samples(samples: Sequence[EncodedSample]) -> EncodedBatch:
     encoded_output_fields = torch.stack(
         [sample.encoded_output_fields for sample in samples], dim=0
     )
-    label = _stack_optional("label")
+    global_cond = _stack_optional("global_cond")
 
     # Merge encoded_info dicts
     encoded_info: dict[str, Tensor] = {}
@@ -120,6 +120,6 @@ def collate_encoded_samples(samples: Sequence[EncodedSample]) -> EncodedBatch:
     return EncodedBatch(
         encoded_inputs=encoded_inputs,
         encoded_output_fields=encoded_output_fields,
-        label=label,
+        global_cond=global_cond,
         encoded_info=encoded_info,
     )

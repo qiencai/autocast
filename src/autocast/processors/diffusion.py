@@ -78,7 +78,7 @@ class DiffusionProcessor(Processor):
         t = torch.rand(x_0.size(0), device=x_0.device)  # (B,)
 
         # Cannot use Azula's built-in weighted loss since ligntning calls forward
-        loss = self.denoiser.loss(x_0, t=t, cond=x_cond, global_cond=batch.label)
+        loss = self.denoiser.loss(x_0, t=t, cond=x_cond, global_cond=batch.global_cond)
 
         # TODO: consider an API for looking at alternative losses
         # # Compute weighted loss

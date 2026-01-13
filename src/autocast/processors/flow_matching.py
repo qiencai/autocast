@@ -106,5 +106,5 @@ class FlowMatchingProcessor(Processor):
         zt = (1 - t_broadcast) * z0 + t_broadcast * target_states
 
         target_velocity = target_states - z0
-        v_pred = self.flow_field(zt, t, input_states, global_cond=batch.label)
+        v_pred = self.flow_field(zt, t, input_states, global_cond=batch.global_cond)
         return torch.mean((v_pred - target_velocity) ** 2)

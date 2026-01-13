@@ -178,7 +178,6 @@ def prepare_encoded_datamodule(cfg: DictConfig):
     train_outputs = _get_field(batch, "encoded_output_fields", "output_fields")
 
     # Shape is (B, T, *spatial, C) for channels-last encoded data
-    # Input channels may include concatenated label channels, so extract separately
     in_channel_count = train_inputs.shape[-1]
     out_channel_count = train_outputs.shape[-1]
     inferred_n_steps_input = train_inputs.shape[1]

@@ -91,7 +91,7 @@ class _Encoder(GenericEncoder[Batch, EncodedBatch]):
                 else (encoded, None)
             )
 
-        encoded_inputs, label = _process_encoded(encoded)
+        encoded_inputs, global_cond = _process_encoded(encoded)
 
         # Assign output fields to inputs to be encoded identically in this default impl
         # Create a new batch with output fields as input fields to prevent mutation
@@ -103,7 +103,7 @@ class _Encoder(GenericEncoder[Batch, EncodedBatch]):
         return EncodedBatch(
             encoded_inputs=encoded_inputs,
             encoded_output_fields=encoded_outputs,
-            label=label,
+            global_cond=global_cond,
             encoded_info=encoded_info or {},
         )
 

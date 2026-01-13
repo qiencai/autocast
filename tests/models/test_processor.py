@@ -62,7 +62,7 @@ class MockEncodedDataset(Dataset):
         return EncodedBatch(
             encoded_inputs=encoded_inputs,
             encoded_output_fields=encoded_outputs,
-            label=None,
+            global_cond=None,
             encoded_info={},
         )
 
@@ -158,7 +158,7 @@ def _make_encoded_batch(
     n_channels_out: int = 8,
     batch_size: int = 2,
     spatial_size: int = 8,
-    label: torch.Tensor | None = None,
+    global_cond: torch.Tensor | None = None,
     encoded_info: dict | None = None,
 ) -> EncodedBatch:
     """Create an EncodedBatch for testing."""
@@ -169,7 +169,7 @@ def _make_encoded_batch(
         encoded_output_fields=torch.randn(
             batch_size, n_steps_output, spatial_size, spatial_size, n_channels_out
         ),
-        label=label,
+        global_cond=global_cond,
         encoded_info=encoded_info or {},
     )
 
@@ -291,7 +291,7 @@ def test_processor_model_advance_batch():
     batch = EncodedBatch(
         encoded_inputs=torch.randn(2, 2, 8, 8, 8),  # n_steps_input=2
         encoded_output_fields=torch.randn(2, 8, 8, 8, 8),  # 8 output steps
-        label=None,
+        global_cond=None,
         encoded_info={},
     )
 
@@ -380,24 +380,24 @@ def test_varying_channels(n_channels_in: int, n_channels_out: int):
 # --- Tests with Labels ---
 
 
-def test_encoded_batch_with_labels():
-    """Test that ProcessorModel works when labels are present."""
+def test_encoded_batch_with_global_conds():
+    """Test that ProcessorModel works when global_conds are present."""
     processor = _build_diffusion_processor()
     model = ProcessorModel(processor=processor, learning_rate=1e-4)
 
-    batch = _make_encoded_batch(label=torch.randn(2, 1, 3))
+    batch = _make_encoded_batch(global_cond=torch.randn(2, 1, 3))
     loss = model.training_step(batch, batch_idx=0)
 
-    assert not loss.isnan(), "Loss should not be NaN with labels"
+    assert not loss.isnan(), "Loss should not be NaN with global_conds"
 
 
-def test_clone_batch_preserves_labels():
-    """Test that _clone_batch preserves label=None correctly."""
+def test_clone_batch_preserves_global_conds():
+    """Test that _clone_batch preserves global_cond=None correctly."""
     processor = _build_diffusion_processor()
     model = ProcessorModel(processor=processor, learning_rate=1e-4)
 
-    batch = _make_encoded_batch(label=torch.randn(2, 1, 3))
+    batch = _make_encoded_batch(global_cond=torch.randn(2, 1, 3))
     cloned = model._clone_batch(batch)
 
-    # Current implementation sets label=None in clone
-    assert cloned.label is None, "Clone sets label to None"
+    # Current implementation sets global_cond=None in clone
+    assert cloned.global_cond is None, "Clone sets global_cond to None"

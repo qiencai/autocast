@@ -60,7 +60,7 @@ class _DiffusionEncodedDataset(Dataset):
         return EncodedBatch(
             encoded_inputs=encoded_inputs,
             encoded_output_fields=encoded_outputs,
-            label=None,
+            global_cond=None,
             encoded_info={},
         )
 
@@ -72,7 +72,7 @@ def _build_encoded_loader(
     n_channels_in: int,
     n_channels_out: int,
     n_steps: int | None = None,
-) -> DataLoader:
+) -> DataLoader[EncodedBatch]:
     dataset = _DiffusionEncodedDataset(
         n_steps_input=n_steps_input,
         n_steps_output=n_steps_output,
@@ -127,7 +127,7 @@ def test_diffusion_processor(
         n_channels_in=n_channels_in,
         n_channels_out=n_channels_out,
     )
-    encoded_batch = next(iter(encoded_loader))
+    encoded_batch: EncodedBatch = next(iter(encoded_loader))
 
     processor = DiffusionProcessor(
         backbone=TemporalUNetBackbone(
@@ -149,7 +149,7 @@ def test_diffusion_processor(
         sampler_steps=5,
     )
     model = ProcessorModel(processor=processor, sampler_steps=5, stride=n_steps_output)
-    output = model.map(encoded_batch.encoded_inputs, encoded_batch.label)
+    output = model.map(encoded_batch.encoded_inputs, encoded_batch.global_cond)
     assert output.shape == encoded_batch.encoded_output_fields.shape
 
     train_loss = model.training_step(encoded_batch, 0)
@@ -172,7 +172,7 @@ def test_diffusion_processor(
     # Testing map
     with torch.no_grad():
         model.eval()
-        output = model.map(encoded_batch.encoded_inputs, encoded_batch.label)
+        output = model.map(encoded_batch.encoded_inputs, encoded_batch.global_cond)
         assert output.shape == encoded_batch.encoded_output_fields.shape
 
     # Testing rollout (only when input and output channels match)
