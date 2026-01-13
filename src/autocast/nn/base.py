@@ -30,7 +30,7 @@ class TemporalBackboneBase(nn.Module, ABC):
         n_steps_output: int = 4,
         n_steps_input: int = 1,
         mod_features: int = 256,
-        global_cond_features: int | None = None,
+        global_cond_channels: int | None = None,
         temporal_method: str = "none",
         temporal_attention_heads: int = 8,
         temporal_attention_hidden_dim: int = 64,
@@ -47,7 +47,7 @@ class TemporalBackboneBase(nn.Module, ABC):
             n_steps_output: Number of output timesteps to predict
             n_steps_input: Number of input timesteps for conditioning
             mod_features: Dimension for time embedding (diffusion timestep)
-            global_cond_features: Dimension for optional conditioning/modulation
+            global_cond_channels: Dimension for optional conditioning/modulation
             temporal_method: Method for temporal processing. Options:
                 - "attention": Multi-head self-attention over time
                 - "tcn": Temporal convolutional network
@@ -66,7 +66,7 @@ class TemporalBackboneBase(nn.Module, ABC):
         self.n_steps_output = n_steps_output
         self.n_steps_input = n_steps_input
         self.mod_features = mod_features
-        self.global_cond_features = global_cond_features
+        self.global_cond_channels = global_cond_channels
 
         # Time embedding for diffusion timestep
         self.time_embedding = nn.Sequential(
@@ -78,11 +78,11 @@ class TemporalBackboneBase(nn.Module, ABC):
 
         self.global_cond_embedding = (
             nn.Sequential(
-                nn.Linear(global_cond_features, mod_features),
+                nn.Linear(global_cond_channels, mod_features),
                 nn.SiLU(),
                 nn.Linear(mod_features, mod_features),
             )
-            if global_cond_features is not None
+            if global_cond_channels is not None
             else None
         )
 
@@ -213,7 +213,7 @@ class TemporalBackboneBase(nn.Module, ABC):
         # Combine with global conditioning embedding if provided
         if self.global_cond_embedding is not None:
             if global_cond is None:
-                msg = "Model init with global_cond_features but no global_cond provided"
+                msg = "Model init with global_cond_channels but no global_cond provided"
                 raise ValueError(msg)
             t_emb = t_emb + self.global_cond_embedding(global_cond)
 

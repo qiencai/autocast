@@ -23,7 +23,7 @@ class TemporalViTBackbone(TemporalBackboneBase):
         n_steps_output: int,
         n_steps_input: int,
         mod_features: int = 256,
-        global_cond_features: int | None = None,
+        global_cond_channels: int | None = None,
         hid_channels: int = 768,
         hid_blocks: int = 12,
         attention_heads: int = 12,
@@ -49,7 +49,7 @@ class TemporalViTBackbone(TemporalBackboneBase):
             n_steps_output: Number of output timesteps to predict
             n_steps_input: Number of input timesteps for conditioning
             mod_features: Dimension for time embedding (diffusion timestep)
-            global_cond_features: Dimension for optional conditioning/modulation
+            global_cond_channels: Dimension for optional conditioning/modulation
             hid_channels: Hidden dimension for ViT transformer
             hid_blocks: Number of transformer blocks
             attention_heads: Number of attention heads in ViT
@@ -75,7 +75,7 @@ class TemporalViTBackbone(TemporalBackboneBase):
             n_steps_output=n_steps_output,
             n_steps_input=n_steps_input,
             mod_features=mod_features,
-            global_cond_features=global_cond_features,
+            global_cond_channels=global_cond_channels,
             temporal_method=temporal_method,
             temporal_attention_heads=temporal_attention_heads,
             temporal_attention_hidden_dim=temporal_attention_hidden_dim,
