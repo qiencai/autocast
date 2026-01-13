@@ -76,7 +76,7 @@ class TemporalBackboneBase(nn.Module, ABC):
             nn.Linear(mod_features, mod_features),
         )
 
-        self.mod_embedding = (
+        self.global_cond_embedding = (
             nn.Sequential(
                 nn.Linear(global_cond_features, mod_features),
                 nn.SiLU(),
@@ -209,14 +209,13 @@ class TemporalBackboneBase(nn.Module, ABC):
 
         # Embed diffusion timestep
         t_emb = self.time_embedding(t)
-        if self.mod_embedding is not None:
+
+        # Combine with global conditioning embedding if provided
+        if self.global_cond_embedding is not None:
             if global_cond is None:
-                msg = (
-                    "Model initialized with global_cond_features but no global_cond "
-                    "provided"
-                )
+                msg = "Model init with global_cond_features but no global_cond provided"
                 raise ValueError(msg)
-            t_emb += self.mod_embedding(global_cond)
+            t_emb = t_emb + self.global_cond_embedding(global_cond)
 
         # Apply temporal processing
         x_t_temporal, cond_temporal = self.apply_temporal_processing(x_t, cond)
