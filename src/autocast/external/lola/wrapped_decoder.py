@@ -1,7 +1,9 @@
 from collections.abc import Callable
+from pathlib import Path
 
 import torch
 from einops import rearrange
+from tqdm.auto import trange
 
 from autocast.decoders.base import Decoder
 from autocast.encoders.base import Encoder
@@ -43,15 +45,31 @@ class WrappedDecoder(Decoder):
     wrapped_autoencoder: torch.nn.Module
     wrapped_decode_func: Callable
 
-    def __init__(self, **kwargs):
+    def __init__(self, device: str = "cpu", **kwargs):
         super().__init__()
+        self.batch_size = kwargs.pop("batch_size", 16)
+        runpath = kwargs.pop("runpath", None)
         self.wrapped_autoencoder = get_autoencoder(**kwargs)
-        runpath = kwargs.get("runpath")
         if runpath is not None:
+            print(f"Loading AutoEncoder weights from {runpath}")
             state = torch.load(
-                runpath / "state.pth",
+                Path(runpath) / "state.pth",
                 weights_only=True,
-                map_location=kwargs.get("device"),
+                map_location=device,
             )
             self.wrapped_autoencoder.load_state_dict(state)
         self.wrapped_decode_func = self.wrapped_autoencoder.decode
+
+    def decode(self, z: torch.Tensor) -> torch.Tensor:
+        b, t, *spatial, c = z.shape
+        z = rearrange(z, "B T ... C -> (B T) C ...")
+        decoded = torch.empty((0, c, *spatial), device=z.device, dtype=z.dtype)
+        for i in trange(0, z.shape[0], self.batch_size):
+            z_batch = z[i : i + self.batch_size]
+            decoded_batch = self.wrapped_decode_func(z_batch)
+            if i == 0:
+                decoded = decoded_batch
+            else:
+                decoded = torch.cat((decoded, decoded_batch), dim=0)
+        stacked = rearrange(decoded, "(B T) C ... -> B T ... C", B=b, T=t)
+        return stacked
