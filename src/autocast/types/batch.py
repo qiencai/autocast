@@ -54,8 +54,8 @@ class Batch:
 class EncodedBatch:
     """A batch after being processed by an Encoder."""
 
-    encoded_inputs: TensorBTSC
-    encoded_output_fields: TensorBTSC
+    encoded_inputs: TensorBNC
+    encoded_output_fields: TensorBNC
     global_cond: TensorBNC | None
     encoded_info: dict[str, Tensor]
 
