@@ -20,7 +20,7 @@ def _toy_encoded_batch(
     return EncodedBatch(
         encoded_inputs=encoded_inputs,
         encoded_output_fields=encoded_outputs,
-        label=None,
+        global_cond=None,
         encoded_info={},
     )
 
@@ -31,7 +31,7 @@ class _IdentityProcessor(Processor[EncodedBatch]):
             loss_func=nn.MSELoss(),
         )
 
-    def map(self, x: Tensor) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:  # noqa: ARG002
         return x
 
     def loss(self, batch: EncodedBatch) -> Tensor:

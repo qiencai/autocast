@@ -16,7 +16,7 @@ def test_fno_processor(encoded_batch, encoded_dummy_loader):
         processor=processor,
     )
 
-    output = model.map(encoded_batch.encoded_inputs)
+    output = model.map(encoded_batch.encoded_inputs, None)
     assert output.shape == encoded_batch.encoded_output_fields.shape
 
     train_loss = model.training_step(encoded_batch, 0)

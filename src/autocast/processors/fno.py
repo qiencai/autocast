@@ -91,7 +91,7 @@ class FNOProcessor(Processor[EncodedBatch]):
         self._reset_positional_embedding_cache()
         return self
 
-    def map(self, x: Tensor) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:  # noqa: ARG002
         return self(x)
 
     def loss(self, batch: EncodedBatch) -> Tensor:

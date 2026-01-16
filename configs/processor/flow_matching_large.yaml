@@ -1,27 +1,7 @@
+defaults:
+  - /backbone@backbone: unet_large
+  - _self_
 _target_: autocast.processors.flow_matching.FlowMatchingProcessor
-stride: ${training.stride}
-teacher_forcing_ratio: 0.0
-max_rollout_steps: ${training.n_steps_output}
-learning_rate: 0.0001
 flow_ode_steps: 4
 n_steps_output: null
 n_channels_out: null
-backbone:
-  _target_: autocast.nn.unet.TemporalUNetBackbone
-  in_channels: null
-  out_channels: null
-  n_steps_output: null
-  n_steps_input: null
-  cond_channels: null
-  mod_features: 256
-  hid_channels: [64, 128, 256, 512]
-  hid_blocks: [3, 3, 3, 3]
-  temporal_method: "none"
-  stride: 2 # TODO: stride as non-integer raises exception
-  spatial: 2
-  periodic: true
-  dropout: 0.05
-  ffn_factor: 1
-  checkpointing: true
-  identity_init: true
-  attention_heads: {5: 8}

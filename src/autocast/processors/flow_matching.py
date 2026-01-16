@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import torch
 from torch import nn
 
@@ -16,26 +14,20 @@ class FlowMatchingProcessor(Processor):
         self,
         *,
         backbone: nn.Module,
-        schedule: Any | None = None,
-        denoiser_type: str | None = None,
-        loss_func: nn.Module | None = None,
-        learning_rate: float = 1e-4,
         flow_ode_steps: int = 1,
         n_steps_output: int = 4,
         n_channels_out: int = 1,
-        **kwargs: Any,
     ) -> None:
         # Store core hyperparameters and optional prebuilt backbone.
-        super().__init__(loss_func=loss_func or nn.MSELoss(), **kwargs)
+        super().__init__()
         self.flow_matching_model = backbone
-        self.schedule = schedule  # accepted for API compatibility
-        self.denoiser_type = denoiser_type
-        self.learning_rate = learning_rate
         self.flow_ode_steps = max(flow_ode_steps, 1)
         self.n_steps_output = n_steps_output
         self.n_channels_out = n_channels_out
 
-    def flow_field(self, z: Tensor, t: Tensor, x: Tensor) -> Tensor:
+    def flow_field(
+        self, z: Tensor, t: Tensor, x: Tensor, global_cond: Tensor | None = None
+    ) -> Tensor:
         """Flow matching vector field.
 
         The vector field over the tangent space of output states (z).
@@ -45,18 +37,19 @@ class FlowMatchingProcessor(Processor):
             z: Current output states of shape (B, T_out, *spatial, C_out).
             t: Time tensor of shape (B,).
             x: Conditioning inputs of shape (B, T_in, *spatial, C_in).
+            global_cond: Optional non-spatial conditioning/modulation tensor.
 
         Returns
         -------
             Time derivative of output states with the same shape as `z`.
         """
-        return self.flow_matching_model(z, t, x)
+        return self.flow_matching_model(z, t=t, cond=x, global_cond=global_cond)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:
         """Alias to map for Lightning/PyTorch compatibility."""
-        return self.map(x)
+        return self.map(x, global_cond)
 
-    def map(self, x: Tensor) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:
         """Map inputs states (x) to output states (z) by integrating the flow ODE.
 
         Starting from noise, Euler-integrate the learned vector field until t=1.
@@ -80,7 +73,7 @@ class FlowMatchingProcessor(Processor):
         # Simple fixed-step Euler integration over the flow field.
         dt = torch.tensor(1.0 / self.flow_ode_steps, device=device, dtype=dtype)
         for _ in range(self.flow_ode_steps):
-            z = z + dt * self.flow_field(z, t, x)
+            z = z + dt * self.flow_field(z, t, x, global_cond)
             t = t + dt
         return z
 
@@ -110,5 +103,5 @@ class FlowMatchingProcessor(Processor):
         zt = (1 - t_broadcast) * z0 + t_broadcast * target_states
 
         target_velocity = target_states - z0
-        v_pred = self.flow_field(zt, t, input_states)
+        v_pred = self.flow_field(zt, t, input_states, global_cond=batch.global_cond)
         return torch.mean((v_pred - target_velocity) ** 2)

@@ -1,15 +1,7 @@
 import torch
 from azula.denoise import KarrasDenoiser, SimpleDenoiser
 from azula.noise import Schedule
-
-# Import Azula's samplers
-from azula.sample import (
-    DDIMSampler,
-    DDPMSampler,
-    EulerSampler,
-    HeunSampler,
-    Sampler,
-)
+from azula.sample import DDIMSampler, DDPMSampler, EulerSampler, HeunSampler, Sampler
 from torch import nn
 
 from autocast.processors.base import Processor
@@ -48,7 +40,7 @@ class DiffusionProcessor(Processor):
         # Store schedule for direct access
         self.schedule = schedule
 
-    def map(self, x: Tensor) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:
         """Map input window of states/times to output window using denoiser."""
         dtype = x.dtype
         device = x.device
@@ -64,14 +56,14 @@ class DiffusionProcessor(Processor):
             dtype=dtype,
             device=device,
         )  # Fully noised
-        return sampler(x_1, cond=x)
+        return sampler(x_1, cond=x, global_cond=global_cond)
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self.map(x)
+    def forward(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:
+        return self.map(x, global_cond)
 
-    def _denoise(self, x: Tensor, t: Tensor, cond: Tensor) -> Tensor:
-        posterior = self.denoiser(x, t, cond=cond)
-        return posterior.mean
+    # def _denoise(self, x: Tensor, t: Tensor, cond: Tensor) -> Tensor:
+    #     posterior = self.denoiser(x, t, cond=cond)
+    #     return posterior.mean
 
     def loss(self, batch: EncodedBatch) -> Tensor:
         """Training step with diffusion loss.
@@ -86,7 +78,7 @@ class DiffusionProcessor(Processor):
         t = torch.rand(x_0.size(0), device=x_0.device)  # (B,)
 
         # Cannot use Azula's built-in weighted loss since ligntning calls forward
-        loss = self.denoiser.loss(x_0, t=t, cond=x_cond)
+        loss = self.denoiser.loss(x_0, t=t, cond=x_cond, global_cond=batch.global_cond)
 
         # TODO: consider an API for looking at alternative losses
         # # Compute weighted loss

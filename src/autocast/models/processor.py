@@ -52,8 +52,8 @@ class ProcessorModel(
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-    def forward(self, x: TensorBNC) -> TensorBNC:
-        return self.processor.map(x)
+    def forward(self, x: TensorBNC, global_cond: Tensor | None = None) -> TensorBNC:
+        return self.processor.map(x, global_cond)
 
     def training_step(
         self,
@@ -106,7 +106,7 @@ class ProcessorModel(
         return EncodedBatch(
             encoded_inputs=batch.encoded_inputs.clone(),
             encoded_output_fields=batch.encoded_output_fields.clone(),
-            label=None,
+            global_cond=None,
             encoded_info={
                 key: value.clone() if hasattr(value, "clone") else value
                 for key, value in batch.encoded_info.items()
@@ -114,11 +114,11 @@ class ProcessorModel(
         )
 
     def _predict(self, batch: EncodedBatch) -> Tensor:
-        return self.processor.map(batch.encoded_inputs)
+        return self.processor.map(batch.encoded_inputs, batch.global_cond)
 
-    def map(self, x: Tensor) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None) -> Tensor:
         """Map input tensor through the processor."""
-        return self.processor.map(x)
+        return self.processor.map(x, global_cond)
 
     def _true_slice(self, batch: EncodedBatch, stride: int) -> tuple[Tensor, bool]:
         if batch.encoded_output_fields.shape[1] >= stride:
@@ -151,7 +151,7 @@ class ProcessorModel(
         return EncodedBatch(
             encoded_inputs=combined,
             encoded_output_fields=next_outputs,
-            label=batch.label,
+            global_cond=batch.global_cond,
             encoded_info=batch.encoded_info,
         )
 

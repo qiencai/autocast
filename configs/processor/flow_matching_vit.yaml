@@ -1,9 +1,8 @@
 defaults:
-  - /backbone@backbone: unet
+  - /backbone@backbone: vit
   - _self_
 
 _target_: autocast.processors.flow_matching.FlowMatchingProcessor
-flow_ode_steps: 4
+flow_ode_steps: 10
 n_steps_output: null
 n_channels_out: null
-

@@ -329,7 +329,7 @@ class AViTProcessor(Processor[EncodedBatch]):
 
         raise ValueError(f"Unsupported n_spatial_dims={self.n_spatial_dims}")
 
-    def map(self, x: Tensor) -> Tensor:
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:  # noqa: ARG002
         return self(x)
 
     def loss(self, batch: EncodedBatch) -> Tensor:
