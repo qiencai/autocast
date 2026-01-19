@@ -47,6 +47,14 @@ class ConditionalLayerNorm(nn.Module):
                 device=device,
                 dtype=dtype,
             )
+            self.normalizer = nn.LayerNorm(
+                normalized_shape,
+                eps=eps,
+                elementwise_affine=False,
+                bias=bias,
+                device=device,
+                dtype=dtype,
+            )
             self.standard_ln = None
         else:
             # Standard LayerNorm fallback
@@ -79,16 +87,8 @@ class ConditionalLayerNorm(nn.Module):
         # - LayerNorm normalizes over the last N dimensions, where N is
         #   len(normalized_shape).
 
-        # Determine dimensions to reduce
-        if isinstance(self.normalized_shape, int):
-            dims = (-1,)
-        else:
-            # Count up from the number of dims in normalized_shape from the end
-            dims = tuple(range(x.ndim - len(self.normalized_shape), x.ndim))
-        # Calculate mean, var, and normalized x
-        mean = x.mean(dim=dims, keepdim=True)
-        var = x.var(dim=dims, unbiased=False, keepdim=True)
-        x_norm = (x - mean) / torch.sqrt(var + self.eps)
+        # Normalize x using ln without affine params (mean/std across normalized_shape)
+        x_norm = self.normalizer(x)
 
         # Generate scale and shift
         assert self.gamma is not None, "init failed to create gamma layer"
