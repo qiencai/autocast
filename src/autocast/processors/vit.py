@@ -344,7 +344,9 @@ class AViTProcessor(Processor[EncodedBatch]):
         if self.n_noise_channels is None:
             noise = None
         else:
-            noise = torch.randn(x.shape[0], self.n_noise_channels)
+            noise = torch.randn(
+                x.shape[0], self.n_noise_channels, dtype=x.dtype, device=x.device
+            )
         return self(x, noise)
 
     def loss(self, batch: EncodedBatch) -> Tensor:
