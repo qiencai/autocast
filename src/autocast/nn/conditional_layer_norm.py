@@ -80,7 +80,7 @@ class ConditionalLayerNorm(nn.Module):
             raise ValueError(msg)
 
         # x: (B, ..., C_channels)
-        # TODO: check cond: (B, C_noise
+        # x_noise: (B, C_noise)
 
         # Normalize x
         # - normalized_shape contains dimension sizes
