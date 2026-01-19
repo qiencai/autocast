@@ -175,7 +175,7 @@ class AxialAttentionBlock(nn.Module):
 
     def forward(self, x, x_noise):
         residual = x
-        x = self.norm(x, cond=x_noise)
+        x = self.norm(x, x_noise=x_noise)
 
         q, k, v, ff = self.fused_projection(x).split(self.fused_heads, dim=-1)
 
@@ -184,7 +184,7 @@ class AxialAttentionBlock(nn.Module):
             rearrange(t, self.head_split, he=self.num_heads).contiguous()
             for t in (q, k, v)
         )
-        q, k = self.qnorm(q, cond=x_noise), self.knorm(k, cond=x_noise)
+        q, k = self.qnorm(q, x_noise=x_noise), self.knorm(k, x_noise=x_noise)
 
         out = torch.zeros_like(x)
 
