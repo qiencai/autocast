@@ -64,7 +64,7 @@ class WrappedDecoder(Decoder):
         b, t, *_ = z.shape
         z = rearrange(z, "B T ... C -> (B T) C ...")
         outputs = []
-        for i in trange(0, z.shape[0], self.batch_size):
+        for i in range(0, z.shape[0], self.batch_size):
             z_batch = z[i : i + self.batch_size]
             decoded_batch = self.wrapped_decode_func(z_batch)
             outputs.append(decoded_batch)
