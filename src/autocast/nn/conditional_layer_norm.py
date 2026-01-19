@@ -114,6 +114,5 @@ class ConditionalLayerNorm(nn.Module):
             )  # (B, 1, ..., 1, C_channels)
             beta = rearrange(beta, f"b c -> {shape_str}")  # (B, 1, ..., 1, C_channels)
 
-        # gamma * x_norm + beta = x_norm
-        # return x_norm
+        # Apply conditional scale and shift to the normalized input
         return gamma * x_norm + beta
