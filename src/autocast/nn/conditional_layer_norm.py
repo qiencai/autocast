@@ -69,13 +69,13 @@ class ConditionalLayerNorm(nn.Module):
                 dtype=dtype,
             )
 
-    def forward(self, x: Tensor, cond: Tensor | None = None) -> Tensor:
+    def forward(self, x: Tensor, x_noise: Tensor | None = None) -> Tensor:
         # Standard LayerNorm if no noise channels configured
         if self.standard_ln is not None:
             return self.standard_ln(x)
 
         # Conditional LayerNorm requires conditioning tensor
-        if cond is None:
+        if x_noise is None:
             msg = "Conditioning tensor required for ConditionalLayerNorm"
             raise ValueError(msg)
 
@@ -95,15 +95,15 @@ class ConditionalLayerNorm(nn.Module):
         assert self.beta is not None, "init failed to create beta layer"
 
         # Flatten all non-batch dims into a single conditioning vector per batch item
-        cond = cond.flatten(start_dim=1)  # (B, C_noise)
-        if cond.shape[-1] != self.n_noise_channels:
+        x_noise = x_noise.flatten(start_dim=1)  # (B, C_noise)
+        if x_noise.shape[-1] != self.n_noise_channels:
             msg = (
-                f"Conditioning tensor last dim size {cond.shape[-1]} "
+                f"Conditioning tensor last dim size {x_noise.shape[-1]} "
                 f"does not match n_noise_channels {self.n_noise_channels}"
             )
             raise ValueError(msg)
-        gamma = self.gamma(cond)  # (B, C_channels)
-        beta = self.beta(cond)  # (B, C_channels)
+        gamma = self.gamma(x_noise)  # (B, C_channels)
+        beta = self.beta(x_noise)  # (B, C_channels)
 
         # Insert 1s for all dimensions between B and C_channels
         dims_to_add = x.ndim - gamma.ndim

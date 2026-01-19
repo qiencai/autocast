@@ -1,5 +1,3 @@
-from typing import Any
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -8,6 +6,7 @@ from the_well.benchmark.models.common import BaseModel
 from timm.layers.drop import DropPath
 from torch import nn
 
+from autocast.nn.conditional_layer_norm import ConditionalLayerNorm
 from autocast.processors.base import Processor
 from autocast.types import EncodedBatch, Tensor
 
@@ -111,6 +110,8 @@ class AxialAttentionBlock(nn.Module):
         n_spatial_dims: int = 2,
         drop_path: float = 0.0,
         layer_scale_init_value: float = 1e-6,
+        n_noise_channels: int | None = None,
+        elementwise_affine: bool = False,
     ):
         super().__init__()
         if hidden_dim % num_heads != 0:
@@ -132,14 +133,20 @@ class AxialAttentionBlock(nn.Module):
         )
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
-        self.norm = nn.LayerNorm(hidden_dim, elementwise_affine=False)
+        self.norm = ConditionalLayerNorm(
+            hidden_dim, n_noise_channels, elementwise_affine=elementwise_affine
+        )
 
         self.fused_heads = [hidden_dim, hidden_dim, hidden_dim, 4 * hidden_dim]
         self.fused_projection = nn.Linear(hidden_dim, sum(self.fused_heads))
 
         head_dim = hidden_dim // num_heads
-        self.qnorm = nn.LayerNorm(head_dim, elementwise_affine=False)
-        self.knorm = nn.LayerNorm(head_dim, elementwise_affine=False)
+        self.qnorm = ConditionalLayerNorm(
+            head_dim, n_noise_channels, elementwise_affine=elementwise_affine
+        )
+        self.knorm = ConditionalLayerNorm(
+            head_dim, n_noise_channels, elementwise_affine=elementwise_affine
+        )
 
         self.output_head = nn.Linear(hidden_dim, hidden_dim)
         self.mlp_remaining = nn.Sequential(
@@ -167,9 +174,9 @@ class AxialAttentionBlock(nn.Module):
         else:
             raise ValueError(f"Unsupported n_spatial_dims={n_spatial_dims}")
 
-    def forward(self, x):
+    def forward(self, x, x_noise):
         residual = x
-        x = self.norm(x)
+        x = self.norm(x, cond=x_noise)
 
         q, k, v, ff = self.fused_projection(x).split(self.fused_heads, dim=-1)
 
@@ -178,7 +185,7 @@ class AxialAttentionBlock(nn.Module):
             rearrange(t, self.head_split, he=self.num_heads).contiguous()
             for t in (q, k, v)
         )
-        q, k = self.qnorm(q), self.knorm(k)
+        q, k = self.qnorm(q, cond=x_noise), self.knorm(k, cond=x_noise)
 
         out = torch.zeros_like(x)
 
@@ -213,6 +220,8 @@ class AViT(BaseModel):
         processor_blocks: int = 8,
         drop_path: float = 0.0,
         groups: int = 12,
+        n_noise_channels: int | None = None,
+        elementwise_affine: bool = False,
     ):
         super().__init__(n_spatial_dims, spatial_resolution)
 
@@ -247,6 +256,8 @@ class AViT(BaseModel):
                     num_heads=num_heads,
                     n_spatial_dims=self.n_spatial_dims,
                     drop_path=float(self.dp[i]),
+                    n_noise_channels=n_noise_channels,
+                    elementwise_affine=elementwise_affine,
                 )
                 for i in range(processor_blocks)
             ]
@@ -266,14 +277,14 @@ class AViT(BaseModel):
         else:
             raise ValueError(f"Unsupported n_spatial_dims={self.n_spatial_dims}")
 
-    def forward(self, x):
+    def forward(self, x, x_noise: Tensor | None = None) -> Tensor:
         x = rearrange(x, self.embed_reshapes[0])
         x = self.embed(x)
         x = rearrange(x, self.embed_reshapes[1])
 
         x = x + self.absolute_pe
         for blk in self.blocks:
-            x = blk(x)
+            x = blk(x, x_noise=x_noise)
 
         x = rearrange(x, self.embed_reshapes[0])
         x = self.debed(x)
@@ -294,8 +305,10 @@ class AViTProcessor(Processor[EncodedBatch]):
         drop_path: float = 0.0,
         groups: int = 8,
         loss_func: nn.Module | None = None,
-        learning_rate: float = 1e-3,
-        **avit_kwargs: Any,
+        n_noise_channels: int | None = None,
+        elementwise_affine: bool = False,
+        # learning_rate: float = 1e-3,
+        # **avit_kwargs: Any,
     ):
         super().__init__()
         self.n_spatial_dims = len(spatial_resolution)
@@ -310,27 +323,34 @@ class AViTProcessor(Processor[EncodedBatch]):
             processor_blocks=n_layers,
             drop_path=drop_path,
             groups=groups,
-            **avit_kwargs,
+            n_noise_channels=n_noise_channels,
+            elementwise_affine=elementwise_affine,
         )
 
         self.loss_func = loss_func or nn.MSELoss()
-        self.learning_rate = learning_rate
+        self.n_noise_channels = n_noise_channels
+        # self.learning_rate = learning_rate
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x_noise: Tensor | None = None) -> Tensor:
         if self.n_spatial_dims == 2:
             x = x.permute(0, 2, 3, 1).contiguous()  # (B,W,H,C)
-            y = self.model(x)  # (B,W,H,Cout)
+            y = self.model(x, x_noise)  # (B,W,H,Cout)
             return y.permute(0, 3, 1, 2).contiguous()
 
         if self.n_spatial_dims == 3:
             x = x.permute(0, 2, 3, 4, 1).contiguous()  # (B,W,H,D,C)
-            y = self.model(x)  # (B,W,H,D,Cout)
+            y = self.model(x, x_noise)  # (B,W,H,D,Cout)
             return y.permute(0, 4, 1, 2, 3).contiguous()
 
         raise ValueError(f"Unsupported n_spatial_dims={self.n_spatial_dims}")
 
-    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:  # noqa: ARG002
-        return self(x)
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:  # noqa: ARG002 since noise generation is internal
+        # Generate noise if needed for generating conditional layer norm outputs
+        if self.n_noise_channels is None:
+            noise = None
+        else:
+            noise = torch.randn(x.shape[0], self.n_noise_channels)
+        return self(x, noise)
 
     def loss(self, batch: EncodedBatch) -> Tensor:
         pred = self.map(batch.encoded_inputs)
