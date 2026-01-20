@@ -23,6 +23,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     title: str = "Ground Truth vs Prediction",
     pred_uq_label: str = "Prediction UQ",
     colorbar_mode: Literal["none", "row", "column", "all"] = "none",
+    colorbar_mode_uq: Literal["none", "row"] = "none",
     channel_names: list[str] | None = None,
 ):
     """Create a video comparing ground truth and predicted spatiotemporal time series.
@@ -153,8 +154,16 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
             if row_idx < n_primary_rows:
                 norm = norms[row_idx][ch]
             elif row_idx == len(rows_to_plot) - 1 and pred_uq_batch is not None:
-                uq_min = float(pred_uq_batch[..., ch].min())
-                uq_max = float(pred_uq_batch[..., ch].max())
+                uq_min = (
+                    float(pred_uq_batch[..., ch].min())
+                    if colorbar_mode_uq == "none"
+                    else float(pred_uq_batch.min())
+                )
+                uq_max = (
+                    float(pred_uq_batch[..., ch].max())
+                    if colorbar_mode_uq == "none"
+                    else float(pred_uq_batch.max())
+                )
                 uq_norm = Normalize(vmin=uq_min, vmax=uq_max)
                 norm = uq_norm
             else:
