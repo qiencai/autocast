@@ -7,19 +7,24 @@ from matplotlib import animation
 from matplotlib.colors import Normalize, TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 
+from autocast.types.types import Tensor, TensorBTSC
+
 
 def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
-    true,
-    pred,
-    batch_idx=0,
-    fps=5,
-    vmin=None,
-    vmax=None,
-    cmap="viridis",
-    save_path=None,
-    title="Ground Truth vs Prediction",
+    true: TensorBTSC,
+    pred: TensorBTSC,
+    pred_uq: TensorBTSC | None = None,
+    batch_idx: int = 0,
+    fps: int = 5,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    cmap: str = "viridis",
+    save_path: str | None = None,
+    title: str = "Ground Truth vs Prediction",
+    pred_uq_label: str = "Prediction UQ",
     colorbar_mode: Literal["none", "row", "column", "all"] = "none",
-    channel_names=None,
+    colorbar_mode_uq: Literal["none", "row"] = "none",
+    channel_names: list[str] | None = None,
 ):
     """Create a video comparing ground truth and predicted spatiotemporal time series.
 
@@ -68,12 +73,15 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
 
     true_batch = true[batch_idx]
     pred_batch = pred[batch_idx]
+    pred_uq_batch = pred_uq[batch_idx] if pred_uq is not None else None
 
     T, _, _, C = true_batch.shape
 
     if hasattr(true_batch, "detach"):
         true_batch = true_batch.detach().cpu().numpy()
         pred_batch = pred_batch.detach().cpu().numpy()
+        if pred_uq_batch is not None:
+            pred_uq_batch = pred_uq_batch.detach().cpu().numpy()
 
     diff_batch = true_batch - pred_batch
 
@@ -85,7 +93,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
         max_val = vmax if vmax is not None else max(float(arr.max()) for arr in arrays)
         return min_val, max_val
 
-    norms = [[None] * C for _ in range(n_primary_rows)]
+    norms: list[list[Normalize | None]] = [[None] * C for _ in range(n_primary_rows)]
 
     if colorbar_mode_str == "column":
         for ch in range(C):
@@ -116,11 +124,13 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     diff_span = diff_max if diff_max > 0 else 1e-9
     diff_norm = TwoSlopeNorm(vmin=-diff_span, vcenter=0, vmax=diff_span)
 
-    rows_to_plot = [
+    rows_to_plot: list[tuple[np.ndarray | Tensor | None, str, str]] = [
         (true_batch, "Ground Truth", cmap),
         (pred_batch, "Prediction", cmap),
         (diff_batch, "Difference (True - Pred)", "RdBu"),
     ]
+    if pred_uq is not None:
+        rows_to_plot.append((pred_uq_batch, pred_uq_label, "inferno"))
     total_rows = len(rows_to_plot)
 
     fig = plt.figure(figsize=(C * 4, total_rows * 4))
@@ -136,14 +146,29 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
         for ch in range(C):
             ax = fig.add_subplot(gs[row_idx, ch])
 
+            if data is None:
+                msg = "Data for plotting cannot be None."
+                raise ValueError(msg)
             frame0 = rearrange(data[0, :, :, ch], "w h -> h w")
 
-            im = ax.imshow(
-                frame0,
-                cmap=row_cmap,
-                aspect="auto",
-                norm=norms[row_idx][ch] if row_idx < n_primary_rows else diff_norm,
-            )
+            if row_idx < n_primary_rows:
+                norm = norms[row_idx][ch]
+            elif row_idx == len(rows_to_plot) - 1 and pred_uq_batch is not None:
+                uq_min = (
+                    float(pred_uq_batch[..., ch].min())
+                    if colorbar_mode_uq == "none"
+                    else float(pred_uq_batch.min())
+                )
+                uq_max = (
+                    float(pred_uq_batch[..., ch].max())
+                    if colorbar_mode_uq == "none"
+                    else float(pred_uq_batch.max())
+                )
+                uq_norm = Normalize(vmin=uq_min, vmax=uq_max)
+                norm = uq_norm
+            else:
+                norm = diff_norm
+            im = ax.imshow(frame0, cmap=row_cmap, aspect="auto", norm=norm)
 
             if row_idx == 0:
                 ax.set_title(
@@ -177,6 +202,8 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
             images[0][ch].set_array(true_batch[frame, :, :, ch])
             images[1][ch].set_array(pred_batch[frame, :, :, ch])
             images[2][ch].set_array(diff_batch[frame, :, :, ch])
+            if pred_uq_batch is not None:
+                images[3][ch].set_array(pred_uq_batch[frame, :, :, ch])
         suptitle_text.set_text(
             f"{title} - Batch {batch_idx} - Time Step: {frame}/{T - 1}"
         )
