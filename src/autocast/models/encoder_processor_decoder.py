@@ -82,8 +82,8 @@ class EncoderProcessorDecoder(
 
     def forward(self, batch: Batch) -> TensorBTSC | TensorBTSCM:
         batch = self._apply_input_noise(batch)
-        encoded = self.encoder_decoder.encoder.encode(batch)
-        mapped = self.processor.map(encoded)
+        encoded, global_cond = self.encoder_decoder.encoder.encode_with_cond(batch)
+        mapped = self.processor.map(encoded, global_cond)
         decoded = self.encoder_decoder.decoder.decode(mapped)
         return decoded
 
