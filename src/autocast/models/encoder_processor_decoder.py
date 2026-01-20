@@ -159,6 +159,11 @@ class EncoderProcessorDecoder(
                 if batch.constant_fields is not None
                 else None
             ),
+            boundary_conditions=(
+                batch.boundary_conditions.clone()
+                if batch.boundary_conditions is not None
+                else None
+            ),
         )
 
     def _predict(self, batch: Batch) -> Tensor:
