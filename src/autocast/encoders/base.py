@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import replace
 from typing import Generic, TypeVar
 
+import torch
 from torch import nn
 
 from autocast.types import Batch, EncodedBatch, TensorBNC
@@ -131,14 +132,31 @@ class Encoder(_Encoder):
         """
 
 
-class EncoderWithCond(_Encoder):
+class EncoderWithCond(Encoder):
     """Encoder that returns encoded tensor and optional conditioning."""
 
     encoder_model: nn.Module
     latent_dim: int
 
-    @abstractmethod
-    def encode(self, batch: Batch) -> tuple[TensorBNC, Tensor | None]:
+    def encode_cond(self, batch: Batch) -> Tensor | None:
+        """Encode global conditioning tensor from the batch.
+
+        Default implementation flattens constant scalars and boundary conditions.
+        """
+        global_cond = None
+        if batch.constant_scalars is not None:
+            global_cond = batch.constant_scalars
+        if batch.boundary_conditions is not None:
+            bc = batch.boundary_conditions
+            bc = bc.flatten().unsqueeze(0)
+            if global_cond is None:
+                global_cond = bc
+            else:
+                global_cond = torch.cat([global_cond, bc], dim=1)
+
+        return global_cond
+
+    def encode_with_cond(self, batch: Batch) -> tuple[TensorBNC, Tensor | None]:
         """Encode the input tensor into the latent space.
 
         Parameters
@@ -152,3 +170,4 @@ class EncoderWithCond(_Encoder):
             Encoded tensor in the latent space with shape (B, *, C_latent) with optional
             conditioning tensor of shape (B, D).
         """
+        return (self.encode(batch), self.encode_cond(batch))

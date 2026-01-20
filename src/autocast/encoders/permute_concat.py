@@ -1,18 +1,18 @@
 import torch
 from einops import rearrange
 
-from autocast.encoders.base import Encoder
-from autocast.types import Batch, Tensor, TensorBNC
+from autocast.encoders.base import EncoderWithCond
+from autocast.types import Batch, TensorBNC
 
 
-class PermuteConcat(Encoder):
+class PermuteConcat(EncoderWithCond):
     """Permute and concatenate Encoder."""
 
     def __init__(self, with_constants: bool = False) -> None:
         super().__init__()
         self.with_constants = with_constants
 
-    def forward(self, batch: Batch) -> Tensor:
+    def encode(self, batch: Batch) -> TensorBNC:
         # Destructure batch, time, space, channels
         b, t, w, h, _ = batch.input_fields.shape  # TODO: generalize beyond 2D spatial
         x = batch.input_fields
@@ -31,6 +31,3 @@ class PermuteConcat(Encoder):
             x = torch.cat([x, scalars], dim=1)
 
         return rearrange(x, "b c t w h -> b (c t) w h")
-
-    def encode(self, batch: Batch) -> TensorBNC:
-        return self.forward(batch)
