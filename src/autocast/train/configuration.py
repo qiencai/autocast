@@ -96,6 +96,31 @@ def _infer_encoder_latent_channels(
             encoder.train(prev_training)
 
 
+def _infer_encoder_global_cond_channels(
+    encoder, example_batch: Batch | None = None
+) -> int | None:
+    if example_batch is None or not hasattr(encoder, "encode_cond"):
+        return None
+
+    prev_training = getattr(encoder, "training", None)
+    if prev_training is not None:
+        encoder.eval()
+    try:
+        with torch.no_grad():
+            cond = encoder.encode_cond(example_batch)  # type: ignore[attr-defined]
+        if cond is not None:
+            inferred = int(cond.shape[-1])
+            log.debug("Inferred cond channel count=%s from sample batch", inferred)
+            return inferred
+        return 0
+    except Exception as exc:  # pragma: no cover - defensive
+        log.debug("Failed to infer cond channels via encode_cond(): %s", exc)
+        return None
+    finally:
+        if prev_training is not None:
+            encoder.train(prev_training)
+
+
 def _override_dimension(
     cfg_node: DictConfig | None,
     key: str,
@@ -125,6 +150,9 @@ def align_processor_channels_with_encoder(
         encoder,
         fallback_channels=channel_count,
         example_batch=example_batch,
+    )
+    global_cond_channels = _infer_encoder_global_cond_channels(
+        encoder, example_batch=example_batch
     )
 
     processor_cfg = _model_cfg(cfg).get("processor")
@@ -177,6 +205,13 @@ def align_processor_channels_with_encoder(
                 latent_channels,
                 (channel_count,),
             )
+            if global_cond_channels is not None:
+                _override_dimension(
+                    backbone_cfg,
+                    "global_cond_channels",
+                    global_cond_channels,
+                    (channel_count, latent_channels),
+                )
             _override_dimension(
                 backbone_cfg,
                 "n_steps_input",
