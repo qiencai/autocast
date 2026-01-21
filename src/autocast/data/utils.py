@@ -21,6 +21,7 @@ def get_datamodule(
     the_well_dataset_path: str = "../datasets/",
     overwrite_tmp: bool = False,
     num_workers: int = 8,
+    batch_size: int = 16,
 ):
     """Get the configured datamodule.
 
@@ -52,6 +53,10 @@ def get_datamodule(
         Base path to The Well datasets.
     overwrite_tmp: bool
         Whether to overwrite existing temporary datasets.
+    num_workers: int
+        Number of workers for data loading.
+    batch_size: int = 16,
+        Batch size for the datamodule.
     """
 
     def generate_split(simulator):
@@ -99,7 +104,7 @@ def get_datamodule(
             n_steps_output=n_steps_output,
             stride=n_steps_output,
             autoencoder_mode=autoencoder_mode,
-            batch_size=16,
+            batch_size=batch_size,
             num_workers=num_workers,
         )
 
@@ -114,4 +119,5 @@ def get_datamodule(
         use_normalization=True,
         autoencoder_mode=autoencoder_mode,
         num_workers=num_workers,
+        batch_size=batch_size,
     )
