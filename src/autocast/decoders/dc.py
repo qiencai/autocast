@@ -2,7 +2,6 @@ import math
 from collections.abc import Sequence
 from typing import cast
 
-import torch
 from azula.nn.layers import ConvNd, Unpatchify
 from einops import rearrange
 from torch import nn
@@ -170,9 +169,6 @@ class DCDecoder(Decoder):
 
         self.decoder_model = self.ascent
 
-    def postprocess(self, decoded: TensorBTSC) -> TensorBTSC:
-        return rearrange(decoded, "B C ... -> B ... C")
-
     def decode(self, z: TensorBTSC) -> TensorBTSC:
         """Decode latent tensor with time dimension back to original space.
 
@@ -187,14 +183,10 @@ class DCDecoder(Decoder):
             Decoded tensor with shape (B, T, spatial_expanded..., C_o).
 
         """
-        outputs = []
-        for idx in range(z.shape[1]):
-            x = z[:, idx, ...]
-            x = rearrange(x, "B ... C -> B C ...").contiguous()
-            for blocks in self.ascent:
-                for block in cast(nn.ModuleList, blocks):
-                    x = block(x)
-            x = self.unpatch(x)
-            x = self.postprocess(x)
-            outputs.append(x)
-        return torch.stack(outputs, dim=1)
+        b, t, *_, c = z.shape
+        z = rearrange(z, "B T ... C -> (B T) C ...")
+        for blocks in self.ascent:
+            for block in cast(nn.ModuleList, blocks):
+                z = block(z)
+            z = self.unpatch(z)
+        return rearrange(z, "(B T) C ... -> B T ... C", B=b, T=t, C=c)
