@@ -7,6 +7,7 @@ from einops import rearrange
 from torch import Tensor, nn
 from torch.utils.data import DataLoader, Dataset
 
+from autocast.processors.base import Processor
 from autocast.types import Batch, EncodedBatch
 
 
@@ -186,6 +187,21 @@ def encoded_dummy_loader(make_toy_batch: Callable[..., Batch]) -> DataLoader:
         collate_fn=_single_item_collate,
         num_workers=0,
     )
+
+
+class CondCaptureProcessor(Processor[EncodedBatch]):
+    """Test helper processor that captures global_cond for assertions."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.last_global_cond: Tensor | None = None
+
+    def map(self, x: Tensor, global_cond: Tensor | None = None) -> Tensor:
+        self.last_global_cond = global_cond
+        return x
+
+    def loss(self, batch: EncodedBatch) -> Tensor:
+        return torch.zeros((), device=batch.encoded_inputs.device)
 
 
 if __name__ == "__main__":

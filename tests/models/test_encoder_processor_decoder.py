@@ -1,5 +1,7 @@
 import lightning as L
 import pytest
+import torch
+from conftest import CondCaptureProcessor
 from torch import nn
 
 from autocast.decoders.channels_last import ChannelsLast
@@ -7,7 +9,7 @@ from autocast.encoders.permute_concat import PermuteConcat
 from autocast.models.encoder_decoder import EncoderDecoder
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
 from autocast.processors.base import Processor
-from autocast.types import EncodedBatch, Tensor
+from autocast.types import Batch, EncodedBatch, Tensor
 
 
 class TinyProcessor(Processor[EncodedBatch]):
@@ -63,6 +65,40 @@ def test_encoder_processor_decoder_training_step_runs(make_toy_batch, dummy_load
         limit_train_batches=1,
         accelerator="cpu",
     ).fit(model, train_dataloaders=dummy_loader, val_dataloaders=dummy_loader)
+
+
+def test_global_cond_passes_from_encoder_to_processor():
+    batch_size = 2
+    t_steps = 3
+    w = 8
+    h = 8
+    channels = 2
+    cond_dim = 4
+
+    input_fields = torch.randn(batch_size, t_steps, w, h, channels)
+    output_fields = torch.randn(batch_size, t_steps, w, h, channels)
+    constant_scalars = torch.randn(batch_size, cond_dim)
+
+    batch = Batch(
+        input_fields=input_fields,
+        output_fields=output_fields,
+        constant_scalars=constant_scalars,
+        constant_fields=None,
+    )
+
+    encoder = PermuteConcat(with_constants=False)
+    decoder = ChannelsLast(output_channels=channels, time_steps=t_steps)
+    encoder_decoder = EncoderDecoder(encoder=encoder, decoder=decoder)
+
+    processor = CondCaptureProcessor()
+    model = EncoderProcessorDecoder(
+        encoder_decoder=encoder_decoder, processor=processor
+    )
+
+    _ = model(batch)
+
+    assert processor.last_global_cond is not None
+    assert torch.allclose(processor.last_global_cond, constant_scalars)
 
 
 @pytest.mark.parametrize(
