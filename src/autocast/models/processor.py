@@ -106,7 +106,9 @@ class ProcessorModel(
         return EncodedBatch(
             encoded_inputs=batch.encoded_inputs.clone(),
             encoded_output_fields=batch.encoded_output_fields.clone(),
-            global_cond=None,
+            global_cond=(
+                batch.global_cond.clone() if batch.global_cond is not None else None
+            ),
             encoded_info={
                 key: value.clone() if hasattr(value, "clone") else value
                 for key, value in batch.encoded_info.items()

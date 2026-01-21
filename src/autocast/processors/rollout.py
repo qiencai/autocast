@@ -21,7 +21,8 @@ class RolloutMixin(ABC, Generic[BatchT]):
         max_rollout_steps: int = 10,
         teacher_forcing_ratio: float = 0.0,
         free_running_only: bool = False,
-        return_windows=False,
+        return_windows: bool = False,
+        detach: bool = True,
     ) -> RolloutOutput:
         """Perform rollout over multiple time steps.
 
@@ -34,6 +35,9 @@ class RolloutMixin(ABC, Generic[BatchT]):
         return_windows: bool, optional
             If True, returns the true outputs in windows matching the model's output
             shape. By default False.
+        detach: bool, optional
+            If True, detaches the output from the graph before feeding it back in
+            as input. Set to False for autoregressive loss calculation. By default True.
 
 
         Notes
@@ -81,7 +85,11 @@ class RolloutMixin(ABC, Generic[BatchT]):
 
             rand_val = torch.rand(1, device=output.device).item()
             teacher_force = true_slice.numel() > 0 and rand_val < teacher_forcing_ratio
-            next_inputs = true_slice if teacher_force else output.detach()
+
+            if teacher_force:
+                next_inputs = true_slice
+            else:
+                next_inputs = output.detach() if detach else output
 
             if next_inputs.shape[1] < stride:
                 break
