@@ -148,7 +148,7 @@ class EncoderWithCond(Encoder):
             global_cond = batch.constant_scalars
         if batch.boundary_conditions is not None:
             bc = batch.boundary_conditions
-            bc = bc.flatten().unsqueeze(0)
+            bc = bc.flatten(start_dim=1)
             if global_cond is None:
                 global_cond = bc
             else:
