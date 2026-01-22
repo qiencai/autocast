@@ -12,6 +12,6 @@ uv run python -m autocast.train.autoencoder \
 	data=$DATAPATH \
 	data.data_path=$AUTOCAST_DATASETS/${DATAPATH} \
 	data.use_simulator=false \
-	model.learning_rate=0.00005 \
-	trainer.max_epochs=10 \
+	model.learning_rate=0.00002 \
+	trainer.max_epochs=20 \
 	logging.wandb.enabled=true

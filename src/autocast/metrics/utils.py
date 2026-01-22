@@ -8,6 +8,7 @@ import lightning as L
 from torchmetrics import Metric, MetricCollection
 
 from autocast.metrics import ALL_DETERMINISTIC_METRICS, ALL_ENSEMBLE_METRICS, VRMSE
+from autocast.metrics.deterministic import MAE, MSE, RMSE
 from autocast.types.types import TensorBTSC, TensorBTSCM
 
 
@@ -20,7 +21,7 @@ class MetricsMixin:
         prefix: str,
     ) -> MetricCollection | None:
         # If no metrics provided, default to a single MSE
-        metrics_list = [VRMSE()] if metrics is None else metrics
+        metrics_list = [VRMSE(), RMSE(), MSE(), MAE()] if metrics is None else metrics
 
         metric_dict: dict[str, Metric | MetricCollection] = {}
 

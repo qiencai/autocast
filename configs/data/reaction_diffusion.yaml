@@ -24,3 +24,4 @@ datamodule:
   ftype: torch
   verbose: false
   use_normalization: false
+  num_workers: 0

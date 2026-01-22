@@ -234,7 +234,7 @@ def _batch_to_device(batch: Batch, device: torch.device) -> Batch:
 
 
 def _build_metrics(metric_names: Sequence[str]):
-    names = metric_names or ("mse", "rmse")
+    names = metric_names or ("mse", "rmse", "vrmse")
     metrics = {}
     for name in names:
         metric_cls = AVAILABLE_METRICS[name]
