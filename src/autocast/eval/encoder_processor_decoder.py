@@ -423,6 +423,9 @@ def _render_rollouts(
                 )
                 continue
             filename = video_dir / f"batch_{batch_idx}_sample_{sample_index}.{fmt}"
+            # Limit the rollout to the available ground truth rollout length
+            if trues.shape[1] < preds.shape[1]:
+                preds = preds[:, : trues.shape[1]]
             plot_spatiotemporal_video(
                 true=trues.cpu(),
                 pred=preds.cpu(),

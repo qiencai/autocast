@@ -12,6 +12,9 @@ output:
   checkpoint_name: encoder_processor_decoder.ckpt
   save_config: true
 
+eval:
+  max_rollout_steps: 25
+
 training:
   n_steps_input: 1
   n_steps_output: 4
