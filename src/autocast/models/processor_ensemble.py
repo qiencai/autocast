@@ -79,6 +79,7 @@ class ProcessorModelEnsemble(ProcessorModel):
         teacher_forcing_ratio: float = 0.0,
         free_running_only: bool = False,
         return_windows: bool = False,
+        detach: bool = True,
         n_members: int | None = None,
     ) -> RolloutOutput:
         """Rollout as an ensemble by running independent trajectories for members."""
@@ -95,6 +96,7 @@ class ProcessorModelEnsemble(ProcessorModel):
             teacher_forcing_ratio=teacher_forcing_ratio,
             free_running_only=free_running_only,
             return_windows=return_windows,
+            detach=detach,
         )
 
         # If n_members is specified, rearrange outputs accordingly
