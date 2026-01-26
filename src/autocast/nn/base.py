@@ -29,7 +29,7 @@ class TemporalBackboneBase(nn.Module, ABC):
         cond_channels: int,
         n_steps_output: int,
         n_steps_input: int,
-        global_cond_channels: int,
+        global_cond_channels: int | None,
         include_global_cond: bool,
         mod_features: int = 256,
         temporal_method: str = "none",
@@ -70,7 +70,9 @@ class TemporalBackboneBase(nn.Module, ABC):
         self.mod_features = mod_features
 
         # Validate global conditioning configuration
-        if include_global_cond and global_cond_channels <= 0:
+        if include_global_cond and (
+            global_cond_channels is None or global_cond_channels <= 0
+        ):
             msg = "`include_global_cond` is True but global_cond_channels <= 0"
             raise ValueError(msg)
         self.global_cond_channels = global_cond_channels
@@ -90,7 +92,9 @@ class TemporalBackboneBase(nn.Module, ABC):
                 nn.SiLU(),
                 nn.Linear(mod_features, mod_features),
             )
-            if global_cond_channels > 0 and include_global_cond
+            if global_cond_channels is not None
+            and global_cond_channels > 0
+            and include_global_cond
             else None
         )
 

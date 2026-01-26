@@ -22,7 +22,7 @@ class TemporalViTBackbone(TemporalBackboneBase):
         cond_channels: int,
         n_steps_output: int,
         n_steps_input: int,
-        global_cond_channels: int,
+        global_cond_channels: int | None,
         include_global_cond: bool,
         mod_features: int = 256,
         hid_channels: int = 768,
