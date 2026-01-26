@@ -177,6 +177,60 @@ class FairCRPS(BTSCMMetric):
         return crps_reduced
 
 
+def _alpha_fair_crps_score(
+    y_pred: TensorBTSCM, y_true: TensorBTSC, alpha: float
+) -> TensorBTSC:
+    """
+    Compute afCRPS reduced over spatial dims only.
+
+    Args:
+        y_pred: (B, T, S, C, M)
+        y_true: (B, T, S, C)
+        alpha: Smoothing parameter
+
+    Returns
+    -------
+        afCRPS: (B, T, S, C)
+    """
+    # Expand y_true to match ensemble dimension
+    n_ensemble = y_pred.shape[-1]
+    y_true_m = repeat(y_true, "... -> ... m", m=n_ensemble)
+
+    eps = (1.0 - alpha) / n_ensemble
+
+    abs_diff_ens = torch.abs(
+        rearrange(y_pred, "... m -> ... 1 m") - rearrange(y_pred, "... m -> ... m 1")
+    )  # (B, T, S, C, M, M)
+
+    abs_diff_truth = torch.abs(y_pred - y_true_m)  # (B, T, S, C, M)
+
+    # build the stable sum over pairwise terms
+    # zero the diagonal (j == k) since afCRPS sums only off-diagonal pairs.
+    mask = ~torch.eye(n_ensemble, dtype=torch.bool, device=y_pred.device)  # (M, M)
+    # (M, M) -> (1, 1, 1, 1, M, M)
+    mask = mask.view(*([1] * (abs_diff_ens.ndim - 2)), n_ensemble, n_ensemble)
+
+    # pairwise sum term: |x_j - y| + |x_k - y| - (1 - eps) * |x_j - x_k|
+    term_pair = (
+        rearrange(abs_diff_truth, "... m -> ... m 1")
+        + rearrange(abs_diff_truth, "... m -> ... 1 m")
+        - (1.0 - eps) * abs_diff_ens  # (..., M, M)
+    )  # (B, T, S, C, M, M)
+
+    # apply mask to set j == k terms to zero
+    term_pair = term_pair.masked_fill(~mask, 0.0)  # (B, T, S, C, M, M)
+
+    # sum over all off-diagonal pairs
+    sum_pair = term_pair.sum(dim=(-1, -2))  # (B, T, S, C)
+
+    # normalization factor = 2 M (M - 1)
+    norm = 2.0 * n_ensemble * (n_ensemble - 1)
+
+    afcrps = sum_pair / norm
+
+    return afcrps
+
+
 class AlphaFairCRPS(BTSCMMetric):
     r"""
     Almost Fair Continuous Ranked Probability Score (afCRPS) (stable form).
@@ -218,42 +272,7 @@ class AlphaFairCRPS(BTSCMMetric):
         -------
             afCRPS: (B, T, C)
         """
-        # Expand y_true to match ensemble dimension
-        n_ensemble = y_pred.shape[-1]
-        y_true_m = repeat(y_true, "... -> ... m", m=n_ensemble)
-
-        eps = (1.0 - self.alpha) / n_ensemble
-
-        abs_diff_ens = torch.abs(
-            rearrange(y_pred, "... m -> ... 1 m")
-            - rearrange(y_pred, "... m -> ... m 1")
-        )  # (B, T, S, C, M, M)
-
-        abs_diff_truth = torch.abs(y_pred - y_true_m)  # (B, T, S, C, M)
-
-        # build the stable sum over pairwise terms
-        # zero the diagonal (j == k) since afCRPS sums only off-diagonal pairs.
-        mask = ~torch.eye(n_ensemble, dtype=torch.bool, device=y_pred.device)  # (M, M)
-        # (M, M) -> (1, 1, 1, 1, M, M)
-        mask = mask.view(*([1] * (abs_diff_ens.ndim - 2)), n_ensemble, n_ensemble)
-
-        # pairwise sum term: |x_j - y| + |x_k - y| - (1 - eps) * |x_j - x_k|
-        term_pair = (
-            rearrange(abs_diff_truth, "... m -> ... m 1")
-            + rearrange(abs_diff_truth, "... m -> ... 1 m")
-            - (1.0 - eps) * abs_diff_ens  # (..., M, M)
-        )  # (B, T, S, C, M, M)
-
-        # apply mask to set j == k terms to zero
-        term_pair = term_pair.masked_fill(~mask, 0.0)  # (B, T, S, C, M, M)
-
-        # sum over all off-diagonal pairs
-        sum_pair = term_pair.sum(dim=(-1, -2))  # (B, T, S, C)
-
-        # normalization factor = 2 M (M - 1)
-        norm = 2.0 * n_ensemble * (n_ensemble - 1)
-
-        afcrps = sum_pair / norm
+        afcrps = _alpha_fair_crps_score(y_pred, y_true, self.alpha)
 
         # Reduce over spatial dimensions: (B, T, S, C) -> (B, T, C)
         n_spatial_dims = self._infer_n_spatial_dims(afcrps)
