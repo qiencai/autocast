@@ -4,12 +4,11 @@ out_channels: null
 cond_channels: null
 n_steps_output: null
 n_steps_input: null
-mod_features: 256
 global_cond_channels: null
+include_global_cond: true
+mod_features: 256
 hid_channels: 1024
-# hid_channels: 512
 hid_blocks: 16
-# hid_blocks: 8
 temporal_method: "none"
 # temporal_method: "attention"
 attention_heads: 8

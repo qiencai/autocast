@@ -24,13 +24,14 @@ class TemporalBackboneBase(nn.Module, ABC):
 
     def __init__(
         self,
-        in_channels: int = 1,
-        out_channels: int = 1,
-        cond_channels: int = 1,
-        n_steps_output: int = 4,
-        n_steps_input: int = 1,
+        in_channels: int,
+        out_channels: int,
+        cond_channels: int,
+        n_steps_output: int,
+        n_steps_input: int,
+        global_cond_channels: int | None,
+        include_global_cond: bool,
         mod_features: int = 256,
-        global_cond_channels: int | None = None,
         temporal_method: str = "none",
         temporal_attention_heads: int = 8,
         temporal_attention_hidden_dim: int = 64,
@@ -48,6 +49,7 @@ class TemporalBackboneBase(nn.Module, ABC):
             n_steps_input: Number of input timesteps for conditioning
             mod_features: Dimension for time embedding (diffusion timestep)
             global_cond_channels: Dimension for optional conditioning/modulation
+            include_global_cond: Whether to include global conditioning
             temporal_method: Method for temporal processing. Options:
                 - "attention": Multi-head self-attention over time
                 - "tcn": Temporal convolutional network
@@ -66,7 +68,15 @@ class TemporalBackboneBase(nn.Module, ABC):
         self.n_steps_output = n_steps_output
         self.n_steps_input = n_steps_input
         self.mod_features = mod_features
+
+        # Validate global conditioning configuration
+        if include_global_cond and (
+            global_cond_channels is None or global_cond_channels <= 0
+        ):
+            msg = "`include_global_cond` is True but global_cond_channels <= 0"
+            raise ValueError(msg)
         self.global_cond_channels = global_cond_channels
+        self.include_global_cond = include_global_cond
 
         # Time embedding for diffusion timestep
         self.time_embedding = nn.Sequential(
@@ -83,6 +93,8 @@ class TemporalBackboneBase(nn.Module, ABC):
                 nn.Linear(mod_features, mod_features),
             )
             if global_cond_channels is not None
+            and global_cond_channels > 0
+            and include_global_cond
             else None
         )
 
