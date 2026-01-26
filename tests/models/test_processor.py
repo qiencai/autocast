@@ -4,6 +4,7 @@ import lightning as L
 import pytest
 import torch
 from azula.noise import VPSchedule
+from conftest import CondCaptureProcessor
 from torch.utils.data import DataLoader, Dataset
 
 from autocast.models.processor import ProcessorModel
@@ -388,6 +389,18 @@ def test_encoded_batch_with_global_conds():
     loss = model.training_step(batch, batch_idx=0)
 
     assert not loss.isnan(), "Loss should not be NaN with global_conds"
+
+
+def test_global_cond_passed_to_processor_predict():
+    processor = CondCaptureProcessor()
+    model = ProcessorModel(processor=processor)
+    global_cond = torch.randn(2, 1, 3)
+    batch = _make_encoded_batch(global_cond=global_cond)
+
+    _ = model._predict(batch)
+
+    assert processor.last_global_cond is not None
+    assert torch.allclose(processor.last_global_cond, global_cond)
 
 
 def test_clone_batch_preserves_global_conds():

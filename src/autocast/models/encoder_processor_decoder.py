@@ -82,8 +82,8 @@ class EncoderProcessorDecoder(
 
     def forward(self, batch: Batch) -> TensorBTSC | TensorBTSCM:
         batch = self._apply_input_noise(batch)
-        encoded = self.encoder_decoder.encoder.encode(batch)
-        mapped = self.processor.map(encoded)
+        encoded, global_cond = self.encoder_decoder.encoder.encode_with_cond(batch)
+        mapped = self.processor.map(encoded, global_cond)
         decoded = self.encoder_decoder.decoder.decode(mapped)
         return decoded
 
@@ -159,6 +159,11 @@ class EncoderProcessorDecoder(
                 if batch.constant_fields is not None
                 else None
             ),
+            boundary_conditions=(
+                batch.boundary_conditions.clone()
+                if batch.boundary_conditions is not None
+                else None
+            ),
         )
 
     def _predict(self, batch: Batch) -> Tensor:
@@ -205,4 +210,5 @@ class EncoderProcessorDecoder(
             output_fields=next_outputs,
             constant_scalars=batch.constant_scalars,
             constant_fields=batch.constant_fields,
+            boundary_conditions=batch.boundary_conditions,
         )

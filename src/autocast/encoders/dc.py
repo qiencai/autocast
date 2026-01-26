@@ -2,18 +2,17 @@ import math
 from collections.abc import Sequence
 from typing import cast
 
-import torch
 from azula.nn.layers import ConvNd, Patchify
 from einops import rearrange
 from torch import nn
 
-from autocast.encoders.base import Encoder
+from autocast.encoders.base import EncoderWithCond
 from autocast.nn import ResBlock
 from autocast.nn.dc_utils import build_sample_block
 from autocast.types import Batch, TensorBTSC
 
 
-class DCEncoder(Encoder):
+class DCEncoder(EncoderWithCond):
     """Deep Compressed (DC) encoder module.
 
     Progressively downsamples input to latent representation using residual blocks
@@ -200,16 +199,11 @@ class DCEncoder(Encoder):
             Encoded latent tensor.
 
         """
-        x = rearrange(x, "B T ... C -> B C T ...")
-        outputs = []
-        for idx in range(x.shape[2]):  # loop over time dimension
-            x_t = x[:, :, idx, ...].contiguous()
-            x_t = self.patch(x_t)
-            for blocks in self.descent:
-                for block in cast(nn.ModuleList, blocks):  # ModuleList in construction
-                    x_t = block(x_t)
-            outputs.append(x_t)
-
-        # Stack outputs along time dimension
-        stacked = torch.stack(outputs, dim=1)  # (B, T, C, spatial...)
-        return rearrange(stacked, "B T C ... -> B T ... C")
+        b, t, *_, _ = x.shape
+        # Concatenate batch and time for processing
+        x = rearrange(x, "B T ... C -> (B T) C ...")
+        x = self.patch(x)
+        for blocks in self.descent:
+            for block in cast(nn.ModuleList, blocks):  # ModuleList in construction
+                x = block(x)
+        return rearrange(x, "(B T) C ... -> B T ... C", B=b, T=t, C=self.latent_dim)

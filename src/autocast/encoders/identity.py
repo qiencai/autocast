@@ -1,6 +1,6 @@
 from autocast.encoders.base import Encoder
 from autocast.types.batch import Batch
-from autocast.types.types import Tensor, TensorBNC
+from autocast.types.types import TensorBNC
 
 
 class IdentityEncoder(Encoder):
@@ -9,8 +9,9 @@ class IdentityEncoder(Encoder):
     def __init__(self) -> None:
         super().__init__()
 
-    def forward(self, batch: Batch) -> Tensor:
+    def encode(self, batch: Batch) -> TensorBNC:
         return batch.input_fields
 
-    def encode(self, batch: Batch) -> TensorBNC:
-        return self.forward(batch)
+
+class IdentityEncoderWithCond(IdentityEncoder):
+    """Permute and concatenate Encoder."""
