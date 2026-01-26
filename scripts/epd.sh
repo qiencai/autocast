@@ -6,6 +6,8 @@ export LABEL=$1
 export OUTPATH=$2
 export DATAPATH=$3
 export ADDITIONAL_ARGS=$4
+
+# Run script
 uv run python -m autocast.train.encoder_processor_decoder \
 	--config-path=configs \
 	--config-name=encoder_processor_decoder \

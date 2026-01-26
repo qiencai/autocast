@@ -6,6 +6,8 @@ export LABEL=$1
 export OUTPATH=$2
 export DATAPATH=$3
 export ADDITIONAL_ARGS=$4
+
+# Run script
 uv run python -m autocast.train.autoencoder \
 	--config-path=configs \
 	--config-name=autoencoder \
