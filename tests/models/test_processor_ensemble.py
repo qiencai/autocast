@@ -2,44 +2,41 @@ import pytest
 import torch
 from torch import nn
 
-from autocast.metrics.ensemble import _common_crps_score
+from autocast.losses.ensemble import CRPSLoss
 from autocast.models.processor_ensemble import ProcessorModelEnsemble
 from autocast.processors.base import Processor
 from autocast.types import EncodedBatch, Tensor
 
 
-class MockProcessor(Processor):
-    def __init__(self, output_shape, **kwargs):
+class SimpleLinearProcessor(Processor):
+    def __init__(self, input_dim, output_dim, output_time_steps, **kwargs):
         super().__init__(**kwargs)
-        self.output_shape = output_shape
-        # Dummy parameter to make it a valid module with state
-        self.dummy_param = nn.Parameter(torch.tensor([0.0]))
+        self.linear = nn.Linear(input_dim, output_dim)
+        self.output_time_steps = output_time_steps
 
-    def map(self, x: Tensor, global_cond: Tensor | None) -> Tensor:
-        # Return deterministic output based on input shape for shape verification
-        # But for loss calculation, we might want something we can predict.
-        # Here we just return random matching the batch size of x.
-        b = x.shape[0]
-        # output_shape is (T, H, W, C)
-        return torch.zeros(b, *self.output_shape) + self.dummy_param
+    def map(self, x: Tensor, global_cond: Tensor | None) -> Tensor:  # noqa: ARG002
+        y = self.linear(x)
+        # Simple time expansion for testing T_in=1 -> T_out=N
+        if x.shape[1] == 1 and self.output_time_steps > 1:
+            y = y.expand(-1, self.output_time_steps, -1, -1, -1)
+
+        return y
 
     def loss(self, batch: EncodedBatch) -> Tensor:
-        # Base processor loss shouldn't be called if ensemble logic works in ProcessorModelEnsemble.loss
-        return torch.tensor(-1.0)
+        preds = self.map(batch.encoded_inputs, batch.global_cond)
+        return nn.functional.mse_loss(preds, batch.encoded_output_fields)
 
 
 def test_processor_ensemble_forward_shape():
     """Test that the ensemble forward pass returns the correct shape (B, ..., M)."""
     n_members = 3
     batch_size = 2
-    # Input: (B, T, H, W, C) = (2, 1, 8, 8, 4)
     input_shape = (batch_size, 1, 8, 8, 4)
-    # Output: (T, H, W, C) = (2, 8, 8, 4)
     output_field_shape = (2, 8, 8, 4)
 
     x = torch.randn(*input_shape)
 
-    processor = MockProcessor(output_shape=output_field_shape)
+    processor = SimpleLinearProcessor(input_dim=4, output_dim=4, output_time_steps=2)
     ensemble = ProcessorModelEnsemble(processor=processor, n_members=n_members)
 
     output = ensemble(x, global_cond=None)
@@ -53,13 +50,8 @@ def test_processor_ensemble_loss_integration():
     """Test the custom loss logic in ProcessorModelEnsemble using CRPS."""
     n_members = 3
     batch_size = 2
-
-    # Shapes
-    # Input: (B, T, H, W, C)
     input_shape = (batch_size, 1, 8, 8, 4)
-    # Output field: (T, H, W, C)
     output_field_shape = (2, 8, 8, 4)
-    # Full Output Batch: (B, T, H, W, C)
     output_batch_shape = (batch_size, *output_field_shape)
 
     inputs = torch.randn(*input_shape)
@@ -72,30 +64,20 @@ def test_processor_ensemble_loss_integration():
         encoded_info={},
     )
 
-    def crps_loss(preds, targets):
-        # preds: (B, ..., M)
-        # targets: (B, ...)
-        # _common_crps_score returns spatial map of CRPS
-        score = _common_crps_score(preds, targets, adjustment_factor=1.0)
-        return score.mean()
-
-    processor = MockProcessor(output_shape=output_field_shape)
-    # Ensure preds (which are 0.0 from MockProcessor) are predictable
-    # MockProcessor.map returns zeros + dummy_param (0.0).
-
+    processor = SimpleLinearProcessor(input_dim=4, output_dim=4, output_time_steps=2)
     ensemble = ProcessorModelEnsemble(
-        processor=processor, n_members=n_members, loss_func=crps_loss
+        processor=processor, n_members=n_members, loss_func=CRPSLoss()
     )
 
     loss = ensemble.loss(batch)
 
-    # Calculate expected loss manually
-    # Preds are all 0.0 (from MockProcessor)
-    preds = torch.zeros(batch_size, *output_field_shape, n_members)
-    expected_crps_map = _common_crps_score(preds, targets, adjustment_factor=1.0)
-    expected_loss = expected_crps_map.mean().item()
+    # Calculate expected loss manually - identical predictions across ensemble members
+    with torch.no_grad():
+        single_preds = processor.map(inputs, None)  # (B, T, H, W, C)
+        # CRPS with M replicated identical predictions reduces to MAE
+        expected_loss = torch.mean(torch.abs(single_preds - targets))
 
-    assert loss.item() == pytest.approx(expected_loss)
+    assert loss.item() == pytest.approx(expected_loss.item())
 
 
 def test_processor_ensemble_loss_fallback():
@@ -116,8 +98,7 @@ def test_processor_ensemble_loss_fallback():
         encoded_info={},
     )
 
-    processor = MockProcessor(output_shape=output_field_shape)
-    # MockProcessor.loss returns -1.0
+    processor = SimpleLinearProcessor(input_dim=4, output_dim=4, output_time_steps=2)
 
     ensemble = ProcessorModelEnsemble(
         processor=processor,
@@ -126,4 +107,8 @@ def test_processor_ensemble_loss_fallback():
     )
 
     loss = ensemble.loss(batch)
-    assert loss.item() == -1.0
+
+    # Fallback calls super().loss() which calls processor.loss()
+    expected_loss = processor.loss(batch)
+
+    assert loss.item() == pytest.approx(expected_loss.item())
