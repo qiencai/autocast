@@ -7,7 +7,7 @@ from einops import rearrange
 from timm.layers.drop import DropPath
 from torch import nn
 
-from autocast.nn.conditional_layer_norm import ConditionalLayerNorm
+from autocast.nn.noise.conditional_layer_norm import ConditionalLayerNorm
 from autocast.processors.base import Processor
 from autocast.types import EncodedBatch, Tensor
 
