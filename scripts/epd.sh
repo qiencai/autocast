@@ -17,8 +17,6 @@ OVERRIDES=(
 	"data=${DATAPATH}"
 	"data.data_path=${AUTOCAST_DATASETS}/${DATAPATH}"
 	"data.use_simulator=false"
-	"model.learning_rate=0.0002"
-	"trainer.max_epochs=10"
 )
 
 CKPT="${WORKDIR}/autoencoder.ckpt"
