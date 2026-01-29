@@ -44,50 +44,50 @@ def _get_training_cfg(config: DictConfig) -> dict[str, Any]:
     training_cfg = config.get("training")
     if training_cfg is None:
         training_cfg = config.get("datamodule")
+from typing import DictConfig
     if training_cfg is None:
         return {}
     cfg = OmegaConf.to_container(training_cfg, resolve=True)
     return cfg if isinstance(cfg, dict) else {}  # type: ignore  # noqa: PGH003
 
 
+def _normalize_encoder_cfg(
+    cfg: dict[str, Any], n_channels: int | None, n_steps_input: int | None
+) -> dict[str, Any]:
+    if n_channels is not None:
+        if cfg.get("in_channels") in (None, "auto"):
+            cfg["in_channels"] = cfg.get("input_channels", cfg.get("n_channels_in"))
+        if cfg.get("in_channels") in (None, "auto"):
+            cfg["in_channels"] = n_channels
+    if n_steps_input is not None:
+        if cfg.get("time_steps") in (None, "auto"):
+            cfg["time_steps"] = cfg.get("n_steps_input")
+        if cfg.get("time_steps") in (None, "auto"):
+            cfg["time_steps"] = n_steps_input
+    return cfg
+
+
+def _normalize_decoder_cfg(
+    cfg: dict[str, Any], n_channels: int | None, n_steps_output: int | None
+) -> dict[str, Any]:
+    if n_channels is not None:
+        if cfg.get("out_channels") in (None, "auto"):
+            cfg["out_channels"] = cfg.get("output_channels", cfg.get("n_channels_out"))
+        if cfg.get("out_channels") in (None, "auto"):
+            cfg["out_channels"] = n_channels
+        if cfg.get("output_channels") in (None, "auto"):
+            cfg["output_channels"] = cfg.get("out_channels")
+    if n_steps_output is not None:
+        if cfg.get("time_steps") in (None, "auto"):
+            cfg["time_steps"] = cfg.get("n_steps_output")
+        if cfg.get("time_steps") in (None, "auto"):
+            cfg["time_steps"] = n_steps_output
+    return cfg
+
+
 def _filter_kwargs_for_target(
     target: str | None, kwargs: dict[str, Any]
 ) -> dict[str, Any]:
-    if target is None:
-        return kwargs
-    try:
-        cls = get_class(target)
-    except Exception:
-        return kwargs
-    try:
-        sig = inspect.signature(cls.__init__)
-    except (TypeError, ValueError):
-        return kwargs
-    if any(
-        param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()
-    ):
-        return kwargs
-    allowed = set(sig.parameters.keys())
-    allowed.discard("self")
-    return {k: v for k, v in kwargs.items() if k in allowed}
-
-
-def setup_datamodule(config: DictConfig):
-    """Create the datamodule and infer data shapes."""
-    # Build DataModule
-    datamodule = build_datamodule(config)
-
-    # Infer Shapes from first batch
-    datamodule.setup(stage="fit")
-    batch = next(iter(datamodule.train_dataloader()))
-
-    # Abstract field access
-    if isinstance(batch, Batch):
-        train_inputs = batch.input_fields
-        train_outputs = batch.output_fields
-    elif isinstance(batch, EncodedBatch):
-        train_inputs = batch.encoded_inputs
-        train_outputs = batch.encoded_output_fields
     else:
         raise TypeError(f"Unsupported batch type: {type(batch)}")
 
@@ -105,31 +105,6 @@ def setup_datamodule(config: DictConfig):
         "n_steps_output": training_cfg.get("n_steps_output", output_shape[1]),
         "input_shape": input_shape,
         "output_shape": output_shape,
-        "example_batch": batch,
-    }
-
-    return datamodule, config, logic_stats
-
-
-def setup_encoded_datamodule(config: DictConfig):
-    """Alias for setup_datamodule, generic enough to handle both."""
-    return setup_datamodule(config)
-
-
-def setup_autoencoder_components(
-    config: DictConfig, stats: dict
-) -> tuple[EncoderWithCond, Decoder]:
-    """Build or load the autoencoder (Encoder and Decoder)."""
-    model_cfg = config.get("model", {})
-    encoder_cfg = model_cfg.get("encoder")
-    decoder_cfg = model_cfg.get("decoder")
-
-    training_cfg = _get_training_cfg(config)
-    n_channels = stats.get("channel_count")
-
-    if isinstance(encoder_cfg, DictConfig):
-        encoder_cfg = OmegaConf.to_container(encoder_cfg, resolve=True)
-    if isinstance(encoder_cfg, dict):
         if (
             "in_channels" in encoder_cfg
             and isinstance(n_channels, int)
@@ -138,14 +113,14 @@ def setup_autoencoder_components(
             encoder_cfg["in_channels"] = n_channels
         if (
             "time_steps" in encoder_cfg
-            and isinstance(training_cfg.get("n_steps_input"), int)
+            and isinstance(n_steps_input, int)
             and encoder_cfg.get("time_steps") in (None, "auto")
         ):
-            encoder_cfg["time_steps"] = training_cfg.get("n_steps_input")
+            encoder_cfg["time_steps"] = n_steps_input
 
-    if isinstance(decoder_cfg, DictConfig):
-        decoder_cfg = OmegaConf.to_container(decoder_cfg, resolve=True)
-    if isinstance(decoder_cfg, dict):
+def setup_encoded_datamodule(config: DictConfig):
+    """Alias for setup_datamodule, generic enough to handle both."""
+    return setup_datamodule(config)
         if (
             "out_channels" in decoder_cfg
             and isinstance(n_channels, int)
@@ -160,10 +135,37 @@ def setup_autoencoder_components(
             decoder_cfg["output_channels"] = n_channels
         if (
             "time_steps" in decoder_cfg
-            and isinstance(training_cfg.get("n_steps_output"), int)
+            and isinstance(n_steps_output, int)
             and decoder_cfg.get("time_steps") in (None, "auto")
         ):
-            decoder_cfg["time_steps"] = training_cfg.get("n_steps_output")
+            decoder_cfg["time_steps"] = n_steps_output
+    """Build or load the autoencoder (Encoder and Decoder)."""
+    model_cfg = config.get("model", {})
+    encoder_cfg = model_cfg.get("encoder")
+    decoder_cfg = model_cfg.get("decoder")
+
+    training_cfg = _get_training_cfg(config)
+    n_channels = stats.get("channel_count")
+    n_steps_input = training_cfg.get("n_steps_input")
+    n_steps_output = training_cfg.get("n_steps_output")
+
+    if isinstance(encoder_cfg, DictConfig):
+        encoder_cfg = OmegaConf.to_container(encoder_cfg, resolve=True)
+    if isinstance(encoder_cfg, dict):
+        encoder_cfg = _normalize_encoder_cfg(
+            encoder_cfg,
+            n_channels if isinstance(n_channels, int) else None,
+            n_steps_input if isinstance(n_steps_input, int) else None,
+        )
+
+    if isinstance(decoder_cfg, DictConfig):
+        decoder_cfg = OmegaConf.to_container(decoder_cfg, resolve=True)
+    if isinstance(decoder_cfg, dict):
+        decoder_cfg = _normalize_decoder_cfg(
+            decoder_cfg,
+            n_channels if isinstance(n_channels, int) else None,
+            n_steps_output if isinstance(n_steps_output, int) else None,
+        )
 
     encoder = instantiate(encoder_cfg)
     decoder = instantiate(decoder_cfg)
@@ -272,6 +274,7 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
 
     # Infer Latent Dimensions to configure Processor
     latent_channels = _infer_latent_channels(encoder, stats["example_batch"])  # type: ignore TODO
+    stats["latent_channels"] = latent_channels
     msg = f"Inferred latent channel count: {latent_channels}"
     log.info(msg)
 
