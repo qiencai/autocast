@@ -11,8 +11,10 @@ defaults:
 
 seed: 42
 experiment_name: ae
+
 datamodule:
   autoencoder_mode: true
+
 output:
   checkpoint_name: autoencoder.ckpt
   save_config: true
