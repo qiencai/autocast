@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import lightning as L
 import torch
@@ -10,6 +11,8 @@ from hydra.utils import instantiate
 from torch import nn
 
 from autocast.config.base import Config
+from autocast.decoders.base import Decoder
+from autocast.encoders.base import Encoder, EncoderWithCond
 from autocast.logging import create_wandb_logger
 from autocast.models.autoencoder import AE, AELoss
 from autocast.models.encoder_decoder import EncoderDecoder
@@ -72,14 +75,20 @@ def setup_encoded_datamodule(config: Config):
     return setup_datamodule(config)
 
 
-def setup_autoencoder_components(config: Config) -> tuple[nn.Module, nn.Module]:
+def setup_autoencoder_components(config: Config) -> tuple[EncoderWithCond, Decoder]:
     """Build or load the autoencoder (Encoder and Decoder)."""
     model_cfg = config.model
-    # Ensure config dicts have correct dimensions if needed
-    # (Pydantic models handled by config.model_dump later or direct access)
+    # Convert Pydantic models to dicts for Hydra instantiation
+    encoder_cfg = model_cfg.encoder  # type: ignore TODO
+    if hasattr(encoder_cfg, "model_dump"):
+        encoder_cfg = encoder_cfg.model_dump()
 
-    encoder = instantiate(model_cfg.encoder)
-    decoder = instantiate(model_cfg.decoder)
+    decoder_cfg = model_cfg.decoder  # type: ignore TODO
+    if hasattr(decoder_cfg, "model_dump"):
+        decoder_cfg = decoder_cfg.model_dump()
+
+    encoder = instantiate(encoder_cfg)
+    decoder = instantiate(decoder_cfg)
 
     checkpoint = config.training.autoencoder_checkpoint
 
@@ -103,7 +112,7 @@ def setup_autoencoder_components(config: Config) -> tuple[nn.Module, nn.Module]:
     return encoder, decoder
 
 
-def _infer_latent_channels(encoder: nn.Module, batch: Any) -> int:
+def _infer_latent_channels(encoder: Encoder, batch: Any) -> int:
     """Run a forward pass to determine latent channel count."""
     prev_training = encoder.training
     encoder.eval()
@@ -118,21 +127,22 @@ def _infer_latent_channels(encoder: nn.Module, batch: Any) -> int:
             channel_dim = getattr(encoder, "channel_dim", -1)
             return encoded.shape[channel_dim]
     except Exception as e:
-        log.warning(
-            f"Could not infer latent channels: {e}. Defaulting to input channels."
-        )
+        msg = f"Could not infer latent channels: {e}. Defaulting to input channels."
+        log.warning(msg)
         return batch.input_fields.shape[-1]
     finally:
         encoder.train(prev_training)
 
 
 def setup_processor_model(config: Config, stats: dict) -> ProcessorModel:
-    """Setup just the processor model for training on latents."""
+    """Set up just the processor model for training on latents."""
     model_cfg = config.model
 
     # Update processor config with inferred dimensions
     # We edit the Pydantic object directly
-    proc_cfg = model_cfg.processor
+    proc_cfg = model_cfg.processor  # type: ignore TODO
+    if hasattr(proc_cfg, "model_dump"):
+        proc_cfg = proc_cfg.model_dump()
 
     # If using 'auto' or not set, we might need manual overrides.
     # Ideally, we pass these as kwargs or instantiate does it?
@@ -159,7 +169,7 @@ def setup_processor_model(config: Config, stats: dict) -> ProcessorModel:
         "learning_rate": config.model.learning_rate,
     }
     if is_ensemble:
-        kwargs["n_members"] = model_cfg.n_members
+        kwargs["n_members"] = model_cfg.n_members  # type: ignore TODO
 
     return cls(**kwargs)
 
@@ -175,15 +185,19 @@ def setup_epd_model(config: Config, stats: dict) -> EncoderProcessorDecoder:
             p.requires_grad = False
 
     # Infer Latent Dimensions to configure Processor
-    latent_channels = _infer_latent_channels(encoder, stats["example_batch"])
-    log.info(f"Inferred latent channel count: {latent_channels}")
+    latent_channels = _infer_latent_channels(encoder, stats["example_batch"])  # type: ignore TODO
+    msg = f"Inferred latent channel count: {latent_channels}"
+    log.info(msg)
 
     # Build Processor
     # Pass inferred dimensions as kwargs to instantiate to ensure correctness
     # regardless of config defaults
-    proc_cfg = config.model.processor
+    proc_cfg = config.model.processor  # type: ignore TODO
+    if hasattr(proc_cfg, "model_dump"):
+        proc_cfg = proc_cfg.model_dump()
 
-    # Note: Logic for 'n_channels_out' vs 'out_channels' depends on the specific processor (UNet vs ViT)
+    # Note: Logic for 'n_channels_out' vs 'out_channels' depends on the specific
+    # processor (UNet vs ViT)
     # Generic approach:
     processor = instantiate(
         proc_cfg,
@@ -193,7 +207,7 @@ def setup_epd_model(config: Config, stats: dict) -> EncoderProcessorDecoder:
         n_steps_output=stats["n_steps_output"],
     )
 
-    loss_func = instantiate(getattr(config.model, "loss_func", None)) or nn.MSELoss()
+    loss_func = instantiate(getattr(config.model, "loss_func", None)) or nn.MSELoss()  # type: ignore TODO
 
     is_ensemble = getattr(config.model, "n_members", 1) > 1
     cls = EncoderProcessorDecoderEnsemble if is_ensemble else EncoderProcessorDecoder
@@ -208,25 +222,25 @@ def setup_epd_model(config: Config, stats: dict) -> EncoderProcessorDecoder:
         # "input_noise_injector": ... (omitted for brevity, can add back if needed)
     }
     if is_ensemble:
-        kwargs["n_members"] = config.model.n_members
+        kwargs["n_members"] = config.model.n_members  # type: ignore TODO
 
     return cls(**kwargs)
 
 
 def run_training(
-    cfg: Any,  # Unused, compat
+    cfg: Any,  # Unused, compat  # noqa: ARG001
     pydantic_config: Config,
     model: L.LightningModule,
     datamodule: L.LightningDataModule,
     work_dir: Path,
     skip_test: bool = False,
-    output_checkpoint_path: Optional[Path] = None,
+    output_checkpoint_path: Path | None = None,
     job_type: str = "train",
 ):
     """Standardized training loop."""
     work_dir = Path(work_dir)
 
-    wandb_logger, watch_cfg = create_wandb_logger(
+    wandb_logger, _watch_cfg = create_wandb_logger(
         pydantic_config.logging.model_dump(),
         experiment_name=pydantic_config.experiment_name,
         job_type=job_type,
