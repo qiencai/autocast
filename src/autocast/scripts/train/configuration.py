@@ -14,7 +14,7 @@ from typing import Any
 
 import torch
 from hydra import compose, initialize_config_dir
-from hydra.utils import instantiate
+from hydra.utils import get_class, instantiate
 from omegaconf import DictConfig, OmegaConf
 
 from autocast.data.datamodule import SpatioTemporalDataModule
@@ -84,9 +84,16 @@ def build_datamodule(config: DictConfig) -> SpatioTemporalDataModule:
         raise TypeError(msg)
 
     data_path = dm_container.get("data_path")
+    target = dm_container.get("_target_")
+    allow_simulator = True
+    if target:
+        try:
+            allow_simulator = issubclass(get_class(target), SpatioTemporalDataModule)
+        except Exception:
+            allow_simulator = True
 
     sim_cfg = config.get("simulator")
-    if data_path is None and sim_cfg is not None:
+    if allow_simulator and data_path is None and sim_cfg is not None:
         sim_container = OmegaConf.to_container(sim_cfg, resolve=True)
         if not isinstance(sim_container, dict):
             msg = (

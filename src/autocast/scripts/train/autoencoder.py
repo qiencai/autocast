@@ -183,14 +183,13 @@ def train_autoencoder(config: DictConfig, work_dir: Path) -> Path:
         else {}
     )
     wandb_logger, watch_cfg = create_wandb_logger(
-        logging_cfg,
+        logging_cfg,  # type: ignore  # noqa: PGH003
         experiment_name=config.get("experiment_name"),
         job_type="train-autoencoder",
         work_dir=work_dir,
         config={"hydra": resolved_cfg},
     )
 
-    # Data params can be in config.data (Pydantic)
     datamodule = build_datamodule(config)
 
     model = build_model(config)

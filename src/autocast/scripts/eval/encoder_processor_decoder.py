@@ -1,7 +1,5 @@
 """Evaluation CLI for encoder-processor-decoder checkpoints."""
 
-from __future__ import annotations
-
 import argparse
 import csv
 import logging
@@ -11,6 +9,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import torch
+from omegaconf import OmegaConf
 from torch import nn
 
 from autocast.logging import create_wandb_logger, log_metrics
@@ -403,10 +402,16 @@ def main() -> None:
         raise RuntimeError(msg)
 
     # Setup WandB (if enabled by config)
-    resolved_cfg = cfg.model_dump()
+    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
+    logging_cfg = cfg.get("logging")
+    logging_cfg = (
+        OmegaConf.to_container(logging_cfg, resolve=True)
+        if logging_cfg is not None
+        else {}
+    )
     wandb_logger, _ = create_wandb_logger(
-        cfg.logging.model_dump(),
-        experiment_name=cfg.experiment_name,
+        logging_cfg,  # type: ignore  # noqa: PGH003
+        experiment_name=cfg.get("experiment_name"),
         job_type="evaluate-encoder-processor-decoder",
         work_dir=work_dir,
         config={
@@ -421,7 +426,8 @@ def main() -> None:
 
     metrics = _build_metrics(args.metrics or ("mse", "rmse"))
 
-    n_members = getattr(cfg.model, "n_members", 1)
+    model_cfg = cfg.get("model", {})
+    n_members = model_cfg.get("n_members", 1)
 
     device = _resolve_device(args.device)
     model.to(device)
@@ -444,17 +450,15 @@ def main() -> None:
     if args.batch_indices:
         rollout_loader = datamodule.rollout_test_dataloader(batch_size=1)
         # Check explicit eval config or assume defaults
-        eval_cfg = getattr(cfg, "eval", {}) if hasattr(cfg, "eval") else {}
-        if isinstance(eval_cfg, dict):
-            max_rollout_steps = eval_cfg.get("max_rollout_steps", 10)
-        else:
-            max_rollout_steps = getattr(eval_cfg, "max_rollout_steps", 10)
+        eval_cfg = cfg.get("eval", {})
+        max_rollout_steps = eval_cfg.get("max_rollout_steps", 10)
 
         # Use stride from args, or config, or fallback to n_steps_output (from stats)
+        training_cfg = cfg.get("training") or cfg.get("datamodule", {})
         rollout_stride = (
             args.stride
             if args.stride is not None
-            else (cfg.training.stride or stats["n_steps_output"])
+            else (training_cfg.get("stride") or stats["n_steps_output"])
         )
 
         _render_rollouts(
