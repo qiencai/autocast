@@ -10,8 +10,8 @@ class DataParams(BaseModel):
     """Parameters used to configure the data module/dataset."""
 
     n_channels: AutoInt = "auto"
-    simulator: Simulator | None = None
-    split: float = 0.8
+    simulator: dict[str, Any] | Any | None = None
+    split: float | dict[str, int] = 0.8
     # Add other data params as needed, allowing extra fields for now
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 

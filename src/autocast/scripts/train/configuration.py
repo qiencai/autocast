@@ -154,6 +154,11 @@ def build_datamodule(data_config: dict[str, Any]) -> SpatioTemporalDataModule:
         msg = "Either 'data_path' or 'use_simulator' must be provided."
         raise ValueError(msg)
 
+    # Normalize "auto" values so DataModule defaults apply.
+    for key in ("batch_size", "n_steps_input", "n_steps_output", "stride"):
+        if dm_cfg.get(key) == "auto":
+            dm_cfg.pop(key)
+
     # Process kwargs
     batch_size = dm_cfg.pop("batch_size", 4)
     dtype = _as_dtype(dm_cfg.pop("dtype", "float32"))

@@ -1,13 +1,14 @@
 """High-level setup utilities for Autocast experiments."""
 
 import logging
+import inspect
 from pathlib import Path
 from typing import Any
 
 import lightning as L
 import torch
 import yaml
-from hydra.utils import instantiate
+from hydra.utils import instantiate, get_class
 from torch import nn
 
 from autocast.config.base import Config
@@ -29,6 +30,28 @@ from autocast.scripts.train.configuration import (
 from autocast.types.batch import Batch, EncodedBatch
 
 log = logging.getLogger(__name__)
+
+
+def _filter_kwargs_for_target(
+    target: str | None, kwargs: dict[str, Any]
+) -> dict[str, Any]:
+    if target is None:
+        return kwargs
+    try:
+        cls = get_class(target)
+    except Exception:
+        return kwargs
+    try:
+        sig = inspect.signature(cls.__init__)
+    except (TypeError, ValueError):
+        return kwargs
+    if any(
+        param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()
+    ):
+        return kwargs
+    allowed = set(sig.parameters.keys())
+    allowed.discard("self")
+    return {k: v for k, v in kwargs.items() if k in allowed}
 
 
 def setup_datamodule(config: Config):
@@ -78,14 +101,47 @@ def setup_encoded_datamodule(config: Config):
 def setup_autoencoder_components(config: Config) -> tuple[EncoderWithCond, Decoder]:
     """Build or load the autoencoder (Encoder and Decoder)."""
     model_cfg = config.model
-    # Convert Pydantic models to dicts for Hydra instantiation
-    encoder_cfg = model_cfg.encoder  # type: ignore TODO
+    encoder_cfg = model_cfg.encoder  # type: ignore[attr-defined]
+    decoder_cfg = model_cfg.decoder  # type: ignore[attr-defined]
+
     if hasattr(encoder_cfg, "model_dump"):
         encoder_cfg = encoder_cfg.model_dump()
-
-    decoder_cfg = model_cfg.decoder  # type: ignore TODO
     if hasattr(decoder_cfg, "model_dump"):
         decoder_cfg = decoder_cfg.model_dump()
+
+    if isinstance(encoder_cfg, dict):
+        if (
+            "in_channels" in encoder_cfg
+            and isinstance(config.data.n_channels, int)
+            and encoder_cfg.get("in_channels") in (None, "auto")
+        ):
+            encoder_cfg["in_channels"] = config.data.n_channels
+        if (
+            "time_steps" in encoder_cfg
+            and isinstance(config.training.n_steps_input, int)
+            and encoder_cfg.get("time_steps") in (None, "auto")
+        ):
+            encoder_cfg["time_steps"] = config.training.n_steps_input
+
+    if isinstance(decoder_cfg, dict):
+        if (
+            "out_channels" in decoder_cfg
+            and isinstance(config.data.n_channels, int)
+            and decoder_cfg.get("out_channels") in (None, "auto")
+        ):
+            decoder_cfg["out_channels"] = config.data.n_channels
+        if (
+            "output_channels" in decoder_cfg
+            and isinstance(config.data.n_channels, int)
+            and decoder_cfg.get("output_channels") in (None, "auto")
+        ):
+            decoder_cfg["output_channels"] = config.data.n_channels
+        if (
+            "time_steps" in decoder_cfg
+            and isinstance(config.training.n_steps_output, int)
+            and decoder_cfg.get("time_steps") in (None, "auto")
+        ):
+            decoder_cfg["time_steps"] = config.training.n_steps_output
 
     encoder = instantiate(encoder_cfg)
     decoder = instantiate(decoder_cfg)
@@ -149,13 +205,15 @@ def setup_processor_model(config: Config, stats: dict) -> ProcessorModel:
     # Hydra instantiate uses the dict.
 
     # We can use 'instantiate' with extra kwargs to override config
-    processor = instantiate(
-        proc_cfg,
-        in_channels=stats["channel_count"] * stats["n_steps_input"],
-        out_channels=stats["channel_count"] * stats["n_steps_output"],
-        n_steps_output=stats["n_steps_output"],
-        n_channels_out=stats["channel_count"],
-    )
+    proc_kwargs = {
+        "in_channels": stats["channel_count"] * stats["n_steps_input"],
+        "out_channels": stats["channel_count"] * stats["n_steps_output"],
+        "n_steps_output": stats["n_steps_output"],
+        "n_channels_out": stats["channel_count"],
+    }
+    target = proc_cfg.get("_target_") if isinstance(proc_cfg, dict) else None
+    proc_kwargs = _filter_kwargs_for_target(target, proc_kwargs)
+    processor = instantiate(proc_cfg, **proc_kwargs)
 
     loss_func = instantiate(getattr(model_cfg, "loss_func", None)) or nn.MSELoss()
 
@@ -199,13 +257,15 @@ def setup_epd_model(config: Config, stats: dict) -> EncoderProcessorDecoder:
     # Note: Logic for 'n_channels_out' vs 'out_channels' depends on the specific
     # processor (UNet vs ViT)
     # Generic approach:
-    processor = instantiate(
-        proc_cfg,
-        in_channels=latent_channels * stats["n_steps_input"],
-        out_channels=latent_channels * stats["n_steps_output"],
-        n_channels_out=latent_channels,
-        n_steps_output=stats["n_steps_output"],
-    )
+    proc_kwargs = {
+        "in_channels": latent_channels * stats["n_steps_input"],
+        "out_channels": latent_channels * stats["n_steps_output"],
+        "n_channels_out": latent_channels,
+        "n_steps_output": stats["n_steps_output"],
+    }
+    target = proc_cfg.get("_target_") if isinstance(proc_cfg, dict) else None
+    proc_kwargs = _filter_kwargs_for_target(target, proc_kwargs)
+    processor = instantiate(proc_cfg, **proc_kwargs)
 
     loss_func = instantiate(getattr(config.model, "loss_func", None)) or nn.MSELoss()  # type: ignore TODO
 
