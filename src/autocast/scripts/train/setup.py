@@ -44,58 +44,53 @@ def _get_training_cfg(config: DictConfig) -> dict[str, Any]:
     training_cfg = config.get("training")
     if training_cfg is None:
         training_cfg = config.get("datamodule")
-from typing import DictConfig
     if training_cfg is None:
         return {}
     cfg = OmegaConf.to_container(training_cfg, resolve=True)
     return cfg if isinstance(cfg, dict) else {}  # type: ignore  # noqa: PGH003
 
 
-def _normalize_encoder_cfg(
-    cfg: dict[str, Any], n_channels: int | None, n_steps_input: int | None
-) -> dict[str, Any]:
-    if n_channels is not None:
-        if cfg.get("in_channels") in (None, "auto"):
-            cfg["in_channels"] = cfg.get("input_channels", cfg.get("n_channels_in"))
-        if cfg.get("in_channels") in (None, "auto"):
-            cfg["in_channels"] = n_channels
-    if n_steps_input is not None:
-        if cfg.get("time_steps") in (None, "auto"):
-            cfg["time_steps"] = cfg.get("n_steps_input")
-        if cfg.get("time_steps") in (None, "auto"):
-            cfg["time_steps"] = n_steps_input
-    return cfg
-
-
-def _normalize_decoder_cfg(
-    cfg: dict[str, Any], n_channels: int | None, n_steps_output: int | None
-) -> dict[str, Any]:
-    if n_channels is not None:
-        if cfg.get("out_channels") in (None, "auto"):
-            cfg["out_channels"] = cfg.get("output_channels", cfg.get("n_channels_out"))
-        if cfg.get("out_channels") in (None, "auto"):
-            cfg["out_channels"] = n_channels
-        if cfg.get("output_channels") in (None, "auto"):
-            cfg["output_channels"] = cfg.get("out_channels")
-    if n_steps_output is not None:
-        if cfg.get("time_steps") in (None, "auto"):
-            cfg["time_steps"] = cfg.get("n_steps_output")
-        if cfg.get("time_steps") in (None, "auto"):
-            cfg["time_steps"] = n_steps_output
-    return cfg
-
-
 def _filter_kwargs_for_target(
     target: str | None, kwargs: dict[str, Any]
 ) -> dict[str, Any]:
+    if target is None:
+        return kwargs
+    try:
+        cls = get_class(target)
+    except Exception:
+        return kwargs
+    try:
+        sig = inspect.signature(cls.__init__)
+    except (TypeError, ValueError):
+        return kwargs
+    if any(
+        param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()
+    ):
+        return kwargs
+    allowed = set(sig.parameters.keys())
+    allowed.discard("self")
+    return {k: v for k, v in kwargs.items() if k in allowed}
+
+
+def setup_datamodule(config: DictConfig):
+    """Create the datamodule and infer data shapes."""
+    datamodule = build_datamodule(config)
+
+    datamodule.setup(stage="fit")
+    batch = next(iter(datamodule.train_dataloader()))
+
+    if isinstance(batch, Batch):
+        train_inputs = batch.input_fields
+        train_outputs = batch.output_fields
+    elif isinstance(batch, EncodedBatch):
+        train_inputs = batch.encoded_inputs
+        train_outputs = batch.encoded_output_fields
     else:
         raise TypeError(f"Unsupported batch type: {type(batch)}")
 
-    # Get shapes
     input_shape = train_inputs.shape
     output_shape = train_outputs.shape
 
-    # Resolve 'auto' params in config
     config = resolve_auto_params(config, input_shape, output_shape)
     training_cfg = _get_training_cfg(config)
 
@@ -105,6 +100,33 @@ def _filter_kwargs_for_target(
         "n_steps_output": training_cfg.get("n_steps_output", output_shape[1]),
         "input_shape": input_shape,
         "output_shape": output_shape,
+        "example_batch": batch,
+    }
+
+    return datamodule, config, logic_stats
+
+
+def setup_encoded_datamodule(config: DictConfig):
+    """Alias for setup_datamodule, generic enough to handle both."""
+    return setup_datamodule(config)
+
+
+def setup_autoencoder_components(
+    config: DictConfig, stats: dict
+) -> tuple[EncoderWithCond, Decoder]:
+    """Build or load the autoencoder (Encoder and Decoder)."""
+    model_cfg = config.get("model", {})
+    encoder_cfg = model_cfg.get("encoder")
+    decoder_cfg = model_cfg.get("decoder")
+
+    training_cfg = _get_training_cfg(config)
+    n_channels = stats.get("channel_count")
+    n_steps_input = training_cfg.get("n_steps_input")
+    n_steps_output = training_cfg.get("n_steps_output")
+
+    if isinstance(encoder_cfg, DictConfig):
+        encoder_cfg = OmegaConf.to_container(encoder_cfg, resolve=True)
+    if isinstance(encoder_cfg, dict):
         if (
             "in_channels" in encoder_cfg
             and isinstance(n_channels, int)
@@ -118,9 +140,9 @@ def _filter_kwargs_for_target(
         ):
             encoder_cfg["time_steps"] = n_steps_input
 
-def setup_encoded_datamodule(config: DictConfig):
-    """Alias for setup_datamodule, generic enough to handle both."""
-    return setup_datamodule(config)
+    if isinstance(decoder_cfg, DictConfig):
+        decoder_cfg = OmegaConf.to_container(decoder_cfg, resolve=True)
+    if isinstance(decoder_cfg, dict):
         if (
             "out_channels" in decoder_cfg
             and isinstance(n_channels, int)
@@ -139,33 +161,6 @@ def setup_encoded_datamodule(config: DictConfig):
             and decoder_cfg.get("time_steps") in (None, "auto")
         ):
             decoder_cfg["time_steps"] = n_steps_output
-    """Build or load the autoencoder (Encoder and Decoder)."""
-    model_cfg = config.get("model", {})
-    encoder_cfg = model_cfg.get("encoder")
-    decoder_cfg = model_cfg.get("decoder")
-
-    training_cfg = _get_training_cfg(config)
-    n_channels = stats.get("channel_count")
-    n_steps_input = training_cfg.get("n_steps_input")
-    n_steps_output = training_cfg.get("n_steps_output")
-
-    if isinstance(encoder_cfg, DictConfig):
-        encoder_cfg = OmegaConf.to_container(encoder_cfg, resolve=True)
-    if isinstance(encoder_cfg, dict):
-        encoder_cfg = _normalize_encoder_cfg(
-            encoder_cfg,
-            n_channels if isinstance(n_channels, int) else None,
-            n_steps_input if isinstance(n_steps_input, int) else None,
-        )
-
-    if isinstance(decoder_cfg, DictConfig):
-        decoder_cfg = OmegaConf.to_container(decoder_cfg, resolve=True)
-    if isinstance(decoder_cfg, dict):
-        decoder_cfg = _normalize_decoder_cfg(
-            decoder_cfg,
-            n_channels if isinstance(n_channels, int) else None,
-            n_steps_output if isinstance(n_steps_output, int) else None,
-        )
 
     encoder = instantiate(encoder_cfg)
     decoder = instantiate(decoder_cfg)
@@ -181,12 +176,11 @@ def setup_encoded_datamodule(config: DictConfig):
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
     log.info("Loading autoencoder weights from %s", checkpoint_path)
-    # Load into AE wrapper to handle loading logic correctly
     AE.load_from_checkpoint(
         checkpoint_path=checkpoint_path,
         encoder=encoder,
         decoder=decoder,
-        loss_func=AELoss(),  # Dummy loss for loading
+        loss_func=AELoss(),
         strict=False,
     )
     return encoder, decoder
@@ -203,7 +197,6 @@ def _infer_latent_channels(encoder: Encoder, batch: Any) -> int:
             else:
                 encoded = encoder(batch.input_fields)
 
-            # Assuming channel dim is last or typical
             channel_dim = getattr(encoder, "channel_dim", -1)
             return encoded.shape[channel_dim]
     except Exception as e:
@@ -218,17 +211,10 @@ def setup_processor_model(config: DictConfig, stats: dict) -> ProcessorModel:
     """Set up just the processor model for training on latents."""
     model_cfg = config.get("model", {})
 
-    # Update processor config with inferred dimensions
-    # We edit the Pydantic object directly
     proc_cfg = model_cfg.get("processor")
     if isinstance(proc_cfg, DictConfig):
         proc_cfg = OmegaConf.to_container(proc_cfg, resolve=True)
 
-    # If using 'auto' or not set, we might need manual overrides.
-    # Ideally, we pass these as kwargs or instantiate does it?
-    # Hydra instantiate uses the dict.
-
-    # We can use 'instantiate' with extra kwargs to override config
     proc_kwargs = {
         "in_channels": stats["channel_count"] * stats["n_steps_input"],
         "out_channels": stats["channel_count"] * stats["n_steps_output"],
@@ -272,23 +258,15 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         for p in decoder.parameters():
             p.requires_grad = False
 
-    # Infer Latent Dimensions to configure Processor
     latent_channels = _infer_latent_channels(encoder, stats["example_batch"])  # type: ignore TODO
     stats["latent_channels"] = latent_channels
-    msg = f"Inferred latent channel count: {latent_channels}"
-    log.info(msg)
+    log.info("Inferred latent channel count: %s", latent_channels)
 
-    # Build Processor
-    # Pass inferred dimensions as kwargs to instantiate to ensure correctness
-    # regardless of config defaults
     model_cfg = config.get("model", {})
     proc_cfg = model_cfg.get("processor")
     if isinstance(proc_cfg, DictConfig):
         proc_cfg = OmegaConf.to_container(proc_cfg, resolve=True)
 
-    # Note: Logic for 'n_channels_out' vs 'out_channels' depends on the specific
-    # processor (UNet vs ViT)
-    # Generic approach:
     proc_kwargs = {
         "in_channels": latent_channels * stats["n_steps_input"],
         "out_channels": latent_channels * stats["n_steps_output"],
@@ -319,7 +297,6 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         "stride": training_cfg.get("stride", stats["n_steps_output"]),
         "optimizer_config": _get_optimizer_config(config),
         "loss_func": loss_func,
-        # "input_noise_injector": ... (omitted for brevity, can add back if needed)
     }
     if is_ensemble:
         kwargs["n_members"] = model_cfg.get("n_members")
@@ -368,15 +345,13 @@ def run_training(
     if not skip_test:
         trainer.test(model=model, dataloaders=datamodule.test_dataloader())
 
-    # Checkpointing
     output_cfg = pydantic_config.get("output", {})
     ckpt_name = output_checkpoint_path or output_cfg.get(
         "checkpoint_name", "model.ckpt"
     )
     ckpt_path = work_dir / ckpt_name
     trainer.save_checkpoint(ckpt_path)
-    msg = f"Saved checkpoint to {ckpt_path}"
-    log.info(msg)
+    log.info("Saved checkpoint to %s", ckpt_path)
 
     if output_cfg.get("save_config"):
         with open(work_dir / "resolved_config.yaml", "w") as f:
