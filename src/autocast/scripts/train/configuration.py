@@ -2,25 +2,22 @@
 
 This module handles:
 1. CLI Argument Parsing
-2. Hydra Config Loading & Conversion to Pydantic
+2. Hydra Config Loading
 3. DataModule Instantiation
 4. Dynamic Parameter Resolution (handling 'auto' values)
 """
 
 import argparse
 import logging
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
-from autocast.config.base import Config
 from autocast.data.datamodule import SpatioTemporalDataModule
-from autocast.data.dataset import SpatioTemporalDataset
 
 log = logging.getLogger(__name__)
 
@@ -69,34 +66,45 @@ def parse_common_args(description: str, default_config_name: str) -> argparse.Na
     return parser.parse_args()
 
 
-def load_config(args: argparse.Namespace) -> Config:
-    """Load Hydra config, apply overrides, and convert to Pydantic Config."""
+def load_config(args: argparse.Namespace) -> DictConfig:
+    """Load and resolve the Hydra configuration based on CLI arguments."""
     config_dir = args.config_dir.resolve()
-    overrides: Sequence[str] = args.overrides or []
-
+    overrides = args.overrides or []
     with initialize_config_dir(version_base=None, config_dir=str(config_dir)):
         hydra_cfg = compose(config_name=args.config_name, overrides=list(overrides))
+    return hydra_cfg
 
-    # Resolve strings like ${oc.env:DATA_PATH}
-    resolved_container = OmegaConf.to_container(hydra_cfg, resolve=True)
 
-    # Validation occurs here
-    config = Config(**resolved_container)  # type: ignore TODO: confirm handling
+def build_datamodule(config: DictConfig) -> SpatioTemporalDataModule:
+    """Build the DataModule from the Hydra configuration."""
+    dm_cfg = config.get("datamodule", config)
+    dm_container = OmegaConf.to_container(dm_cfg, resolve=True)
+    if not isinstance(dm_container, dict):
+        msg = f"datamodule config must be a mapping, got {type(dm_container).__name__}"
+        raise TypeError(msg)
 
-    # Apply CLI args that override config values
-    if hasattr(args, "n_steps_input") and args.n_steps_input is not None:
-        config.training.n_steps_input = args.n_steps_input
-    if hasattr(args, "n_steps_output") and args.n_steps_output is not None:
-        config.training.n_steps_output = args.n_steps_output
-    if hasattr(args, "stride") and args.stride is not None:
-        config.training.stride = args.stride
-    if (
-        hasattr(args, "autoencoder_checkpoint")
-        and args.autoencoder_checkpoint is not None
-    ):
-        config.training.autoencoder_checkpoint = str(args.autoencoder_checkpoint)
+    data_path = dm_container.get("data_path")
 
-    return config
+    sim_cfg = config.get("simulator")
+    if data_path is None and sim_cfg is not None:
+        sim_container = OmegaConf.to_container(sim_cfg, resolve=True)
+        if not isinstance(sim_container, dict):
+            msg = (
+                "simulator config must be a mapping containing 'simulator' and "
+                "optional 'split' keys"
+            )
+            raise TypeError(msg)
+        simulator_cfg = sim_container.get("simulator", sim_container)
+        if not isinstance(simulator_cfg, dict):
+            msg = "simulator config missing 'simulator' mapping"
+            raise ValueError(msg)
+        simulator = instantiate(simulator_cfg)
+        dm_container["data"] = _generate_split(
+            simulator, sim_container.get("split", {})
+        )
+    if "dtype" in dm_container:
+        dm_container["dtype"] = _as_dtype(dm_container["dtype"])
+    return instantiate(dm_container)
 
 
 def _as_dtype(name: str | None) -> torch.dtype:
@@ -130,69 +138,25 @@ def _generate_split(simulator: Any, split_cfg: dict) -> dict[str, Any]:
     }
 
 
-def build_datamodule(data_config: dict[str, Any]) -> SpatioTemporalDataModule:
-    """Instantiate the DataModule from a config dictionary (from Pydantic)."""
-    # 1. Direct Instantiation (e.g. Encoded Datasets)
-    if data_config.get("_target_"):
-        log.info("Instantiating datamodule from target: %s", data_config["_target_"])
-        return instantiate(data_config)
-
-    # 2. Standard SpatioTemporalDataModule construction
-    dm_cfg = data_config.get("datamodule", {})
-    if dm_cfg is None:
-        dm_cfg = {}
-
-    # Extract params that go into constructor vs kwargs
-    data_path = data_config.get("data_path")
-
-    data = None
-    if data_config.get("use_simulator"):
-        simulator = instantiate(data_config.get("simulator"))
-        data = _generate_split(simulator, data_config.get("split", {}))
-
-    if data_path is None and data is None:
-        msg = "Either 'data_path' or 'use_simulator' must be provided."
-        raise ValueError(msg)
-
-    # Normalize "auto" values so DataModule defaults apply.
-    for key in ("batch_size", "n_steps_input", "n_steps_output", "stride"):
-        if dm_cfg.get(key) == "auto":
-            dm_cfg.pop(key)
-
-    # Process kwargs
-    batch_size = dm_cfg.pop("batch_size", 4)
-    dtype = _as_dtype(dm_cfg.pop("dtype", "float32"))
-    ftype = dm_cfg.pop("ftype", "torch")
-    dataset_cls = dm_cfg.pop("dataset_cls", SpatioTemporalDataset)
-
-    return SpatioTemporalDataModule(
-        data_path=data_path,
-        data=data,
-        dataset_cls=dataset_cls,
-        batch_size=batch_size,
-        dtype=dtype,
-        ftype=ftype,
-        **dm_cfg,
-    )
-
-
 def resolve_auto_params(
-    config: Config, input_shape: tuple, output_shape: tuple
-) -> Config:
+    config: DictConfig, input_shape: tuple, output_shape: tuple
+) -> DictConfig:
     """Resolve 'auto' values in the configuration using inferred data shapes."""
-    # Resolve Steps
-    if config.training.n_steps_input == "auto":
-        config.training.n_steps_input = input_shape[1]
+    training_cfg = config.get("training")
+    if training_cfg is None:
+        training_cfg = config.get("datamodule")
+    if training_cfg is None:
+        return config
 
-    if config.training.n_steps_output == "auto":
-        config.training.n_steps_output = output_shape[1]
+    if training_cfg.get("n_steps_input") == "auto":
+        training_cfg["n_steps_input"] = input_shape[1]
+    if training_cfg.get("n_steps_output") == "auto":
+        training_cfg["n_steps_output"] = output_shape[1]
 
-    # Resolve Stride
-    if config.training.stride == "auto":
-        config.training.stride = config.training.n_steps_output
+    if training_cfg.get("stride") == "auto":
+        training_cfg["stride"] = training_cfg.get("n_steps_output", output_shape[1])
 
-    # Resolve Rollout Stride
-    if config.training.rollout_stride == "auto":
-        config.training.rollout_stride = config.training.stride
+    if training_cfg.get("rollout_stride") == "auto":
+        training_cfg["rollout_stride"] = training_cfg.get("stride")
 
     return config

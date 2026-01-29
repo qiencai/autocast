@@ -39,7 +39,7 @@ def main():
     datamodule, cfg, stats = setup_encoded_datamodule(cfg)
 
     # Seed
-    L.seed_everything(cfg.seed, workers=True)
+    L.seed_everything(cfg.get("seed", 42), workers=True)
 
     # Setup Model
     model = setup_processor_model(cfg, stats)

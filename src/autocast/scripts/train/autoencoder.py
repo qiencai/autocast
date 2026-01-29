@@ -12,9 +12,8 @@ import matplotlib.pyplot as plt
 import torch
 import yaml
 from hydra.utils import instantiate
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
-from autocast.config.base import Config
 from autocast.data.datamodule import SpatioTemporalDataModule
 from autocast.logging import create_wandb_logger, maybe_watch_model
 from autocast.models.autoencoder import AE
@@ -79,13 +78,12 @@ def _resolve_work_dir(args: argparse.Namespace, cfg: DictConfig) -> Path:
     return (Path.cwd() / "outputs" / str(experiment) / timestamp).resolve()
 
 
-def build_model(cfg: Config) -> AE:
+def build_model(cfg: DictConfig) -> AE:
     """Create an autoencoder model (encoder, decoder, loss) from config."""
-    model_cfg = cfg.model
-    # Handle Pydantic extra fields or DictConfig
-    encoder_cfg = getattr(model_cfg, "encoder", None) or model_cfg.get("encoder")
-    decoder_cfg = getattr(model_cfg, "decoder", None) or model_cfg.get("decoder")
-    loss_cfg = getattr(model_cfg, "loss", None) or model_cfg.get("loss")
+    model_cfg = cfg.get("model", {})
+    encoder_cfg = model_cfg.get("encoder")
+    decoder_cfg = model_cfg.get("decoder")
+    loss_cfg = model_cfg.get("loss")
 
     encoder = instantiate(encoder_cfg)
     decoder = instantiate(decoder_cfg)
@@ -93,7 +91,7 @@ def build_model(cfg: Config) -> AE:
 
     model = AE(encoder=encoder, decoder=decoder, loss_func=loss)
 
-    lr = getattr(model_cfg, "learning_rate", None)
+    lr = model_cfg.get("learning_rate")
     if lr is not None:
         model.learning_rate = lr
     return model
@@ -171,34 +169,42 @@ def _save_reconstructions(
                 break
 
 
-def train_autoencoder(config: Config, work_dir: Path) -> Path:
+def train_autoencoder(config: DictConfig, work_dir: Path) -> Path:
     """Train the autoencoder defined in `cfg` and return the checkpoint path."""
-    log.info("Starting autoencoder experiment: %s", config.experiment_name)
-    L.seed_everything(config.seed, workers=True)
+    log.info("Starting autoencoder experiment: %s", config.get("experiment_name"))
+    L.seed_everything(config.get("seed", 42), workers=True)
 
-    # We use model_dump for instantiation which supports resolving references
-    resolved_cfg = config.model_dump()
+    resolved_cfg = OmegaConf.to_container(config, resolve=True)
 
+    logging_cfg = config.get("logging")
+    logging_cfg = (
+        OmegaConf.to_container(logging_cfg, resolve=True)
+        if logging_cfg is not None
+        else {}
+    )
     wandb_logger, watch_cfg = create_wandb_logger(
-        config.logging.model_dump(),
-        experiment_name=config.experiment_name,
+        logging_cfg,
+        experiment_name=config.get("experiment_name"),
         job_type="train-autoencoder",
         work_dir=work_dir,
         config={"hydra": resolved_cfg},
     )
 
     # Data params can be in config.data (Pydantic)
-    datamodule = build_datamodule(config.data.model_dump())
+    datamodule = build_datamodule(config)
 
     model = build_model(config)
     maybe_watch_model(wandb_logger, model, watch_cfg)
 
+    trainer_cfg = config.get("trainer")
+    trainer_cfg = OmegaConf.to_container(trainer_cfg, resolve=True)
     trainer = instantiate(
-        config.trainer.model_dump(), logger=wandb_logger, default_root_dir=str(work_dir)
+        trainer_cfg, logger=wandb_logger, default_root_dir=str(work_dir)
     )
     trainer.fit(model=model, datamodule=datamodule)
 
-    checkpoint_name = config.output.get("checkpoint_name", "autoencoder.ckpt")
+    output_cfg = config.get("output", {})
+    checkpoint_name = output_cfg.get("checkpoint_name", "autoencoder.ckpt")
     checkpoint_target = Path(checkpoint_name)
     checkpoint_path = (
         checkpoint_target
@@ -210,7 +216,7 @@ def train_autoencoder(config: Config, work_dir: Path) -> Path:
 
     _save_reconstructions(model, datamodule, work_dir)
 
-    if config.output.get("save_config", False):
+    if output_cfg.get("save_config", False):
         resolved_cfg_path = work_dir / "resolved_autoencoder_config.yaml"
         with open(resolved_cfg_path, "w") as f:
             yaml.dump(resolved_cfg, f)
@@ -223,18 +229,10 @@ def main() -> None:
     """CLI entrypoint for autoencoder training."""
     args = parse_args()
     logging.basicConfig(level=logging.INFO)
-    cfg = compose_training_config(args)
+    cfg = load_config(args)
     work_dir = _resolve_work_dir(args, cfg)
     work_dir.mkdir(parents=True, exist_ok=True)
-    log.inload_config(args)
-    # work_dir logic might need update if it depends on DictConfig
-    # But let's check _resolve_work_dir
-    if args.work_dir is not None:
-        work_dir = args.work_dir.expanduser().resolve()
-    else:
-        experiment = cfg.experiment_name  # Access as attr
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        work_dir = (Path.cwd() / "outputs" / str(experiment) / timestamp).resolve()
+    train_autoencoder(cfg, work_dir)
 
 
 if __name__ == "__main__":

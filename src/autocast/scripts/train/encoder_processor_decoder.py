@@ -1,20 +1,11 @@
 """Train an encoder-processor-decoder with optional autoencoder warm-start."""
 
-from __future__ import annotations
-
 import logging
 
 import lightning as L
 
-from autocast.scripts.train.configuration import (
-    load_config,
-    parse_common_args,
-)
-from autocast.scripts.train.setup import (
-    run_training,
-    setup_datamodule,
-    setup_epd_model,
-)
+from autocast.scripts.train.configuration import load_config, parse_common_args
+from autocast.scripts.train.setup import run_training, setup_datamodule, setup_epd_model
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +32,7 @@ def main():
     datamodule, cfg, stats = setup_datamodule(cfg)
 
     # Seed
-    L.seed_everything(cfg.seed, workers=True)
+    L.seed_everything(cfg.get("seed", 42), workers=True)
 
     # Setup Model (includes AE loading, processor creation, ensemble logic)
     model = setup_epd_model(cfg, stats)

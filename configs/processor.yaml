@@ -1,5 +1,6 @@
 defaults:
-  - data: miniwell
+  - datamodule: miniwell
+  - optional simulator: null
   - model: processor
   - trainer: default
   - logging: wandb
