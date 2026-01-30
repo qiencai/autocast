@@ -48,16 +48,16 @@ def _get_optimizer_config(config: DictConfig) -> dict[str, Any] | None:
     opt_cfg = config.get("optimizer")
     if opt_cfg is None:
         return None
-    cfg = OmegaConf.to_container(opt_cfg, resolve=True)
-    return cfg if isinstance(cfg, dict) else None  # type: ignore  # noqa: PGH003
+    config_dict = OmegaConf.to_container(opt_cfg, resolve=True)
+    return config_dict if isinstance(config_dict, dict) else None  # type: ignore  # noqa: PGH003
 
 
 def _get_data_config(config: DictConfig) -> dict[str, Any]:
     data_cfg = config.get("datamodule")
     if data_cfg is None:
         return {}
-    cfg = OmegaConf.to_container(data_cfg, resolve=True)
-    return cfg if isinstance(cfg, dict) else {}  # type: ignore  # noqa: PGH003
+    config_dict = OmegaConf.to_container(data_cfg, resolve=True)
+    return config_dict if isinstance(config_dict, dict) else {}  # type: ignore  # noqa: PGH003
 
 
 def _filter_kwargs_for_target(
@@ -102,11 +102,11 @@ def setup_datamodule(config: DictConfig):
     output_shape = train_outputs.shape
 
     config = resolve_auto_params(config, input_shape, output_shape)
-    data_cfg = _get_data_config(config)
+    data_config = _get_data_config(config)
     logic_stats = {
         "channel_count": input_shape[-1],
-        "n_steps_input": data_cfg.get("n_steps_input", input_shape[1]),
-        "n_steps_output": data_cfg.get("n_steps_output", output_shape[1]),
+        "n_steps_input": data_config.get("n_steps_input", input_shape[1]),
+        "n_steps_output": data_config.get("n_steps_output", output_shape[1]),
         "input_shape": input_shape,
         "output_shape": output_shape,
         "example_batch": batch,
