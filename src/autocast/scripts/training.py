@@ -16,7 +16,6 @@ from autocast.models.autoencoder import AE
 from autocast.scripts.config import save_resolved_config
 from autocast.scripts.data import batch_to_device
 from autocast.scripts.setup import setup_autoencoder_model, setup_datamodule
-from autocast.types.batch import Batch
 
 log = logging.getLogger(__name__)
 
@@ -147,7 +146,7 @@ def train_autoencoder(config: DictConfig, work_dir: Path) -> Path:
         else {}
     )
     wandb_logger, watch_cfg = create_wandb_logger(
-        logging_cfg,  # type: ignore  # noqa: PGH003
+        logging_cfg,  # type: ignore TODO: fix
         experiment_name=config.get("experiment_name"),
         job_type="train-autoencoder",
         work_dir=work_dir,

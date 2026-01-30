@@ -29,7 +29,6 @@ from autocast.scripts.cli import add_common_config_args, add_work_dir_arg
 from autocast.scripts.config import load_config
 from autocast.scripts.data import batch_to_device
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
-from autocast.types import Batch
 from autocast.utils import plot_spatiotemporal_video
 
 log = logging.getLogger(__name__)

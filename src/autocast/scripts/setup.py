@@ -349,7 +349,7 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
 
     global_cond_channels = None
     if hasattr(encoder, "encode_cond"):
-        cond = encoder.encode_cond(stats["example_batch"])  # type: ignore[arg-type]
+        cond = encoder.encode_cond(stats["example_batch"])
         if cond is not None:
             global_cond_channels = cond.shape[-1]
 
@@ -411,7 +411,7 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
 
 
 def _resolve_input_noise_injector(
-    model_config: dict | DictConfig | None,
+    model_config: dict | DictConfig,
 ) -> tuple[Any | None, int]:
     noise_config = model_config.get("input_noise_injector") if model_config else None
     if not noise_config or "_target_" not in noise_config:
@@ -421,7 +421,7 @@ def _resolve_input_noise_injector(
     if "ConcatenatedNoiseInjector" in str(noise_config.get("_target_")):
         n_channels = noise_config.get("n_channels")
         if n_channels in (None, "auto"):
-            proc_config = model_config.get("processor") or {}  # type: ignore is not None
+            proc_config = model_config.get("processor") or {}
             n_channels = proc_config.get("n_noise_channels")
         extra_channels = int(n_channels) if n_channels else 0
 
