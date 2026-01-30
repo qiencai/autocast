@@ -45,18 +45,18 @@ def resolve_auto_params(
 
 
 def _get_optimizer_config(config: DictConfig) -> dict[str, Any] | None:
-    opt_cfg = config.get("optimizer")
-    if opt_cfg is None:
+    optimizer_config = config.get("optimizer")
+    if optimizer_config is None:
         return None
-    config_dict = OmegaConf.to_container(opt_cfg, resolve=True)
+    config_dict = OmegaConf.to_container(optimizer_config, resolve=True)
     return config_dict if isinstance(config_dict, dict) else None  # type: ignore  # noqa: PGH003
 
 
 def _get_data_config(config: DictConfig) -> dict[str, Any]:
-    data_cfg = config.get("datamodule")
-    if data_cfg is None:
+    data_config = config.get("datamodule")
+    if data_config is None:
         return {}
-    config_dict = OmegaConf.to_container(data_cfg, resolve=True)
+    config_dict = OmegaConf.to_container(data_config, resolve=True)
     return config_dict if isinstance(config_dict, dict) else {}  # type: ignore  # noqa: PGH003
 
 
@@ -124,9 +124,9 @@ def setup_autoencoder_components(
     config: DictConfig, stats: dict, extra_input_channels: int = 0
 ) -> tuple[EncoderWithCond, Decoder]:
     """Build or load the autoencoder (Encoder and Decoder)."""
-    model_cfg = config.get("model", {})
-    encoder_cfg = model_cfg.get("encoder")
-    decoder_cfg = model_cfg.get("decoder")
+    model_config = config.get("model", {})
+    encoder_config = model_config.get("encoder")
+    decoder_config = model_config.get("decoder")
 
     base_channels = stats.get("channel_count")
     input_channels = (
@@ -135,33 +135,33 @@ def setup_autoencoder_components(
         else base_channels
     )
 
-    if isinstance(encoder_cfg, DictConfig):
-        encoder_cfg = OmegaConf.to_container(encoder_cfg, resolve=True)
-    if isinstance(encoder_cfg, dict) and (
-        "in_channels" in encoder_cfg
+    if isinstance(encoder_config, DictConfig):
+        encoder_config = OmegaConf.to_container(encoder_config, resolve=True)
+    if isinstance(encoder_config, dict) and (
+        "in_channels" in encoder_config
         and isinstance(input_channels, int)
-        and encoder_cfg.get("in_channels") in (None, "auto")
+        and encoder_config.get("in_channels") in (None, "auto")
     ):
-        encoder_cfg["in_channels"] = input_channels
+        encoder_config["in_channels"] = input_channels
 
-    if isinstance(decoder_cfg, DictConfig):
-        decoder_cfg = OmegaConf.to_container(decoder_cfg, resolve=True)
-    if isinstance(decoder_cfg, dict):
+    if isinstance(decoder_config, DictConfig):
+        decoder_config = OmegaConf.to_container(decoder_config, resolve=True)
+    if isinstance(decoder_config, dict):
         if (
-            "out_channels" in decoder_cfg
+            "out_channels" in decoder_config
             and isinstance(base_channels, int)
-            and decoder_cfg.get("out_channels") in (None, "auto")
+            and decoder_config.get("out_channels") in (None, "auto")
         ):
-            decoder_cfg["out_channels"] = base_channels
+            decoder_config["out_channels"] = base_channels
         if (
-            "output_channels" in decoder_cfg
+            "output_channels" in decoder_config
             and isinstance(base_channels, int)
-            and decoder_cfg.get("output_channels") in (None, "auto")
+            and decoder_config.get("output_channels") in (None, "auto")
         ):
-            decoder_cfg["output_channels"] = base_channels
+            decoder_config["output_channels"] = base_channels
 
-    encoder = instantiate(encoder_cfg)
-    decoder = instantiate(decoder_cfg)
+    encoder = instantiate(encoder_config)
+    decoder = instantiate(decoder_config)
 
     checkpoint = config.get("training", {}).get("autoencoder_checkpoint")
 
@@ -187,11 +187,11 @@ def setup_autoencoder_components(
 def setup_autoencoder_model(config: DictConfig, stats: dict) -> AE:
     """Build the full autoencoder model (encoder, decoder, loss)."""
     encoder, decoder = setup_autoencoder_components(config, stats)
-    model_cfg = config.get("model", {})
-    loss_cfg = model_cfg.get("loss")
-    loss = instantiate(loss_cfg) if loss_cfg is not None else None
+    model_config = config.get("model", {})
+    loss_config = model_config.get("loss")
+    loss = instantiate(loss_config) if loss_config is not None else None
     model = AE(encoder=encoder, decoder=decoder, loss_func=loss)
-    lr = model_cfg.get("learning_rate")
+    lr = model_config.get("learning_rate")
     if lr is not None:
         model.learning_rate = lr
     return model
@@ -220,12 +220,12 @@ def _infer_latent_channels(encoder: Encoder, batch: Any) -> int:
 
 def setup_processor_model(config: DictConfig, stats: dict) -> ProcessorModel:
     """Set up just the processor model for training on latents."""
-    model_cfg = config.get("model", {})
-    noise_injector, extra_input_channels = _resolve_input_noise_injector(model_cfg)
+    model_config = config.get("model", {})
+    noise_injector, extra_input_channels = _resolve_input_noise_injector(model_config)
 
-    proc_cfg = model_cfg.get("processor")
-    if isinstance(proc_cfg, DictConfig):
-        proc_cfg = OmegaConf.to_container(proc_cfg, resolve=True)
+    processor_config = model_config.get("processor")
+    if isinstance(processor_config, DictConfig):
+        processor_config = OmegaConf.to_container(processor_config, resolve=True)
 
     proc_kwargs = {
         "in_channels": (stats["channel_count"] + extra_input_channels)
@@ -234,16 +234,18 @@ def setup_processor_model(config: DictConfig, stats: dict) -> ProcessorModel:
         "n_steps_output": stats["n_steps_output"],
         "n_channels_out": stats["channel_count"],
     }
-    target = proc_cfg.get("_target_") if isinstance(proc_cfg, dict) else None
+    target = (
+        processor_config.get("_target_") if isinstance(processor_config, dict) else None
+    )
     proc_kwargs = _filter_kwargs_for_target(target, proc_kwargs)
-    processor = instantiate(proc_cfg, **proc_kwargs)
+    processor = instantiate(processor_config, **proc_kwargs)
 
-    loss_func_cfg = model_cfg.get("loss_func")
+    loss_func_config = model_config.get("loss_func")
     loss_func = (
-        instantiate(loss_func_cfg) if loss_func_cfg is not None else nn.MSELoss()
+        instantiate(loss_func_config) if loss_func_config is not None else nn.MSELoss()
     )
 
-    is_ensemble = model_cfg.get("n_members", 1) > 1
+    is_ensemble = model_config.get("n_members", 1) > 1
     cls = ProcessorModelEnsemble if is_ensemble else ProcessorModel
 
     data_config = _get_data_config(config)
@@ -251,20 +253,20 @@ def setup_processor_model(config: DictConfig, stats: dict) -> ProcessorModel:
         "processor": processor,
         "stride": data_config.get("stride", stats["n_steps_output"]),
         "loss_func": loss_func,
-        "learning_rate": model_cfg.get("learning_rate", 1e-3),
+        "learning_rate": model_config.get("learning_rate", 1e-3),
         "optimizer_config": _get_optimizer_config(config),
         "noise_injector": noise_injector,
     }
     if is_ensemble:
-        kwargs["n_members"] = model_cfg.get("n_members")
+        kwargs["n_members"] = model_config.get("n_members")
 
     return cls(**kwargs)
 
 
 def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
     """Orchestrate the creation of the full Encoder-Processor-Decoder model."""
-    model_cfg = config.get("model", {})
-    noise_injector, extra_input_channels = _resolve_input_noise_injector(model_cfg)
+    model_config = config.get("model", {})
+    noise_injector, extra_input_channels = _resolve_input_noise_injector(model_config)
 
     encoder, decoder = setup_autoencoder_components(
         config, stats, extra_input_channels=extra_input_channels
@@ -281,9 +283,9 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
     stats["latent_channels"] = latent_channels
     log.info("Inferred latent channel count: %s", latent_channels)
 
-    proc_cfg = model_cfg.get("processor")
-    if isinstance(proc_cfg, DictConfig):
-        proc_cfg = OmegaConf.to_container(proc_cfg, resolve=True)
+    proc_config = model_config.get("processor")
+    if isinstance(proc_config, DictConfig):
+        proc_config = OmegaConf.to_container(proc_config, resolve=True)
 
     proc_kwargs = {
         "in_channels": (latent_channels + extra_input_channels)
@@ -292,16 +294,16 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         "n_channels_out": latent_channels,
         "n_steps_output": stats["n_steps_output"],
     }
-    target = proc_cfg.get("_target_") if isinstance(proc_cfg, dict) else None
+    target = proc_config.get("_target_") if isinstance(proc_config, dict) else None
     proc_kwargs = _filter_kwargs_for_target(target, proc_kwargs)
-    processor = instantiate(proc_cfg, **proc_kwargs)
+    processor = instantiate(proc_config, **proc_kwargs)
 
-    loss_func_cfg = model_cfg.get("loss_func")
+    loss_func_config = model_config.get("loss_func")
     loss_func = (
-        instantiate(loss_func_cfg) if loss_func_cfg is not None else nn.MSELoss()
+        instantiate(loss_func_config) if loss_func_config is not None else nn.MSELoss()
     )
 
-    is_ensemble = model_cfg.get("n_members", 1) > 1
+    is_ensemble = model_config.get("n_members", 1) > 1
     cls = EncoderProcessorDecoderEnsemble if is_ensemble else EncoderProcessorDecoder
 
     kwargs = {
@@ -311,32 +313,32 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
             optimizer_config=_get_optimizer_config(config),
         ),
         "processor": processor,
-        "learning_rate": model_cfg.get("learning_rate", 1e-3),
-        "train_in_latent_space": model_cfg.get("train_in_latent_space", False),
+        "learning_rate": model_config.get("learning_rate", 1e-3),
+        "train_in_latent_space": model_config.get("train_in_latent_space", False),
         "stride": data_config.get("stride", stats["n_steps_output"]),
         "optimizer_config": _get_optimizer_config(config),
         "loss_func": loss_func,
         "input_noise_injector": noise_injector,
     }
     if is_ensemble:
-        kwargs["n_members"] = model_cfg.get("n_members")
+        kwargs["n_members"] = model_config.get("n_members")
 
     return cls(**kwargs)
 
 
 def _resolve_input_noise_injector(
-    model_cfg: dict | DictConfig | None,
+    model_config: dict | DictConfig | None,
 ) -> tuple[Any | None, int]:
-    noise_cfg = model_cfg.get("input_noise_injector") if model_cfg else None
-    if not noise_cfg or "_target_" not in noise_cfg:
+    noise_config = model_config.get("input_noise_injector") if model_config else None
+    if not noise_config or "_target_" not in noise_config:
         return None, 0
 
     extra_channels = 0
-    if "ConcatenatedNoiseInjector" in str(noise_cfg.get("_target_")):
-        n_channels = noise_cfg.get("n_channels")
+    if "ConcatenatedNoiseInjector" in str(noise_config.get("_target_")):
+        n_channels = noise_config.get("n_channels")
         if n_channels in (None, "auto"):
-            proc = model_cfg.get("processor") or {}  # type: ignore is not None
-            n_channels = proc.get("n_noise_channels")
+            proc_config = model_config.get("processor") or {}  # type: ignore is not None
+            n_channels = proc_config.get("n_noise_channels")
         extra_channels = int(n_channels) if n_channels else 0
 
-    return instantiate(noise_cfg), extra_channels
+    return instantiate(noise_config), extra_channels
