@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import argparse
 import logging
-from datetime import datetime
 from pathlib import Path
 
 import lightning as L
@@ -17,6 +15,7 @@ from omegaconf import DictConfig, OmegaConf
 from autocast.data.datamodule import SpatioTemporalDataModule
 from autocast.logging import create_wandb_logger, maybe_watch_model
 from autocast.models.autoencoder import AE
+from autocast.scripts.cli import parse_common_args
 from autocast.scripts.config import load_config
 from autocast.scripts.data import build_datamodule
 from autocast.types import Batch
@@ -24,56 +23,14 @@ from autocast.types import Batch
 log = logging.getLogger(__name__)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args():
     """Parse CLI arguments for the autoencoder training utility."""
-    parser = argparse.ArgumentParser(
+    return parse_common_args(
         description=(
-            "Train the autoencoder stack defined by the Hydra config under configs/."
-        )
-    )
-    repo_root = Path(__file__).resolve().parents[3]
-    parser.add_argument(
-        "--config-dir",
-        "--config-path",
-        dest="config_dir",
-        type=Path,
-        default=repo_root / "configs",
-        help=(
-            "Path to the Hydra config directory (accepts --config-path as an "
-            "alias; defaults to <repo>/configs)."
+            "Train the AutoEncoder stack defined by the Hydra config under configs/."
         ),
+        default_config_name="autoencoder",
     )
-    parser.add_argument(
-        "--config-name",
-        default="autoencoder",
-        help="Hydra config name to compose (defaults to 'autoencoder').",
-    )
-    parser.add_argument(
-        "overrides",
-        nargs="*",
-        help=(
-            "Hydra config overrides (e.g. trainer.max_epochs=5 "
-            "logging.wandb.enabled=true)"
-        ),
-    )
-    parser.add_argument(
-        "--work-dir",
-        type=Path,
-        default=None,
-        help=(
-            "Directory Lightning should use as default_root_dir and where artifacts "
-            "are written (defaults to outputs/<experiment>/<timestamp>)."
-        ),
-    )
-    return parser.parse_args()
-
-
-def _resolve_work_dir(args: argparse.Namespace, cfg: DictConfig) -> Path:
-    if args.work_dir is not None:
-        return args.work_dir.expanduser().resolve()
-    experiment = cfg.get("experiment_name", "autoencoder")
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    return (Path.cwd() / "outputs" / str(experiment) / timestamp).resolve()
 
 
 def build_model(cfg: DictConfig) -> AE:
@@ -227,7 +184,7 @@ def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO)
     cfg = load_config(args)
-    work_dir = _resolve_work_dir(args, cfg)
+    work_dir = args.work_dir.resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
     train_autoencoder(cfg, work_dir)
 
