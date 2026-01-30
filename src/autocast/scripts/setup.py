@@ -23,7 +23,7 @@ from autocast.models.encoder_processor_decoder_ensemble import (
 )
 from autocast.models.processor import ProcessorModel
 from autocast.models.processor_ensemble import ProcessorModelEnsemble
-from autocast.scripts.configuration import build_datamodule
+from autocast.scripts.data import build_datamodule
 from autocast.types.batch import Batch, EncodedBatch
 
 log = logging.getLogger(__name__)

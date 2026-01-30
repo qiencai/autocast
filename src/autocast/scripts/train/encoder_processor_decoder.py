@@ -5,7 +5,7 @@ import logging
 import lightning as L
 
 from autocast.scripts.cli import parse_common_args
-from autocast.scripts.configuration import load_config
+from autocast.scripts.config import load_config
 from autocast.scripts.setup import run_training, setup_datamodule, setup_epd_model
 
 log = logging.getLogger(__name__)

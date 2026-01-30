@@ -17,10 +17,8 @@ from omegaconf import DictConfig, OmegaConf
 from autocast.data.datamodule import SpatioTemporalDataModule
 from autocast.logging import create_wandb_logger, maybe_watch_model
 from autocast.models.autoencoder import AE
-from autocast.scripts.configuration import (
-    build_datamodule,
-    load_config,
-)
+from autocast.scripts.config import load_config
+from autocast.scripts.data import build_datamodule
 from autocast.types import Batch
 
 log = logging.getLogger(__name__)
