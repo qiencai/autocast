@@ -1,4 +1,4 @@
-"""High-level setup utilities for Autocast experiments."""
+"""Setup utilities for AutoCast experiments."""
 
 import inspect
 import logging
