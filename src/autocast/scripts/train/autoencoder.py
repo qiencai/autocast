@@ -1,166 +1,20 @@
-"""Train an autoencoder stack defined by the Hydra config."""
-
-from __future__ import annotations
+"""Train autoencoder defined by Hydra config."""
 
 import logging
-from pathlib import Path
 
-import lightning as L
-import matplotlib.pyplot as plt
-import torch
-from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
-
-from autocast.data.datamodule import SpatioTemporalDataModule
-from autocast.logging import create_wandb_logger, maybe_watch_model
-from autocast.models.autoencoder import AE
 from autocast.scripts.cli import parse_common_args
-from autocast.scripts.config import load_config, save_resolved_config
-from autocast.scripts.setup import setup_autoencoder_model, setup_datamodule
-from autocast.types import Batch
+from autocast.scripts.config import load_config
+from autocast.scripts.training import train_autoencoder
 
 log = logging.getLogger(__name__)
 
 
-def parse_args():
-    """Parse CLI arguments for the autoencoder training utility."""
-    return parse_common_args(
-        description=(
-            "Train the AutoEncoder stack defined by the Hydra config under configs/."
-        ),
-        default_config_name="autoencoder",
-    )
-
-
-def _batch_to_device(batch: Batch, device: torch.device) -> Batch:
-    return Batch(
-        input_fields=batch.input_fields.to(device),
-        output_fields=batch.output_fields.to(device),
-        constant_scalars=(
-            batch.constant_scalars.to(device)
-            if batch.constant_scalars is not None
-            else None
-        ),
-        constant_fields=(
-            batch.constant_fields.to(device)
-            if batch.constant_fields is not None
-            else None
-        ),
-    )
-
-
-def _heatmap_slice(tensor: torch.Tensor) -> torch.Tensor:
-    data = tensor.detach().cpu()
-    while data.ndim > 2:
-        data = data[0]
-    if data.ndim == 1:
-        data = data.unsqueeze(0)
-    return data
-
-
-def _save_reconstructions(
-    model: AE,
-    datamodule: SpatioTemporalDataModule,
-    work_dir: Path,
-    max_batches: int = 4,
-    cmap: str = "viridis",
-) -> None:
-    output_dir = work_dir / "reconstructions"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    device = next(model.parameters()).device
-    model.eval()
-    loader = datamodule.test_dataloader()
-
-    with torch.no_grad():
-        for idx, batch in enumerate(loader):
-            batch_on_device = _batch_to_device(batch, device)
-            outputs, latents = model.forward_with_latent(batch_on_device)
-            inputs = batch_on_device.input_fields  # B, T, W, H, C
-
-            x = inputs[0, 0, ..., 0].clone().cpu()
-            y = outputs[0, 0, ..., 0].clone().cpu()
-            z = latents[0, 0, ..., 0].clone().cpu()
-            fig, axs = plt.subplots(1, 4, figsize=(12, 4))
-            for ax in axs:
-                ax.axis("off")
-
-            axs[0].imshow(_heatmap_slice(x), cmap=cmap)
-            axs[0].set_title("Input")
-            axs[1].imshow(_heatmap_slice(y), cmap=cmap)
-            axs[1].set_title("Reconstruction")
-            difference = y - x
-            axs[2].imshow(_heatmap_slice(difference), cmap=cmap)
-            axs[2].set_title("Difference")
-            axs[3].imshow(_heatmap_slice(z), cmap=cmap)
-            axs[3].set_title("Latent")
-
-            fig_path = output_dir / f"batch_{idx:02d}.png"
-            fig.tight_layout()
-            fig.savefig(fig_path)
-            plt.close(fig)
-            log.info("Saved reconstruction preview to %s", fig_path)
-
-            if idx + 1 >= max_batches:
-                break
-
-
-def train_autoencoder(config: DictConfig, work_dir: Path) -> Path:
-    """Train the autoencoder defined in `cfg` and return the checkpoint path."""
-    log.info("Starting autoencoder experiment: %s", config.get("experiment_name"))
-    L.seed_everything(config.get("seed", 42), workers=True)
-
-    resolved_cfg = OmegaConf.to_container(config, resolve=True)
-
-    logging_cfg = config.get("logging")
-    logging_cfg = (
-        OmegaConf.to_container(logging_cfg, resolve=True)
-        if logging_cfg is not None
-        else {}
-    )
-    wandb_logger, watch_cfg = create_wandb_logger(
-        logging_cfg,  # type: ignore  # noqa: PGH003
-        experiment_name=config.get("experiment_name"),
-        job_type="train-autoencoder",
-        work_dir=work_dir,
-        config={"hydra": resolved_cfg},
-    )
-
-    datamodule, config, stats = setup_datamodule(config)
-
-    model = setup_autoencoder_model(config, stats)
-    maybe_watch_model(wandb_logger, model, watch_cfg)
-
-    trainer_cfg = config.get("trainer")
-    trainer_cfg = OmegaConf.to_container(trainer_cfg, resolve=True)
-    trainer = instantiate(
-        trainer_cfg, logger=wandb_logger, default_root_dir=str(work_dir)
-    )
-    trainer.fit(model=model, datamodule=datamodule)
-
-    output_cfg = config.get("output", {})
-    checkpoint_name = output_cfg.get("checkpoint_name", "autoencoder.ckpt")
-    checkpoint_target = Path(checkpoint_name)
-    checkpoint_path = (
-        checkpoint_target
-        if checkpoint_target.is_absolute()
-        else (work_dir / checkpoint_target)
-    )
-    trainer.save_checkpoint(checkpoint_path)
-    log.info("Saved checkpoint to %s", checkpoint_path.resolve())
-
-    _save_reconstructions(model, datamodule, work_dir)
-
-    if output_cfg.get("save_config", False):
-        save_resolved_config(
-            config, work_dir, filename="resolved_autoencoder_config.yaml"
-        )
-
-    return checkpoint_path
-
-
 def main() -> None:
     """CLI entrypoint for autoencoder training."""
-    args = parse_args()
+    args = parse_common_args(
+        description=("Train autoencoder defined by Hydra config under configs/."),
+        default_config_name="autoencoder",
+    )
     logging.basicConfig(level=logging.INFO)
     cfg = load_config(args)
     work_dir = args.work_dir.resolve()
