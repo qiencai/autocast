@@ -23,9 +23,7 @@ class RolloutMixin(ABC, Generic[BatchT]):
         free_running_only: bool = False,
         return_windows: bool = False,
         detach: bool = True,
-        n_members: (
-            int | None
-        ) = None,  # noqa: ARG002 not used in default implementation but potentially in overrides
+        n_members: (int | None) = None,
     ) -> RolloutOutput:
         """Perform rollout over multiple time steps.
 
@@ -129,4 +127,4 @@ class RolloutMixin(ABC, Generic[BatchT]):
     ) -> BatchT: ...
 
     @abstractmethod
-    def denormalize_tensor(self, tensor: Tensor, delta=False) -> Tensor
+    def denormalize_tensor(self, tensor: Tensor, delta=False) -> Tensor: ...
