@@ -137,34 +137,37 @@ def setup_autoencoder_components(
     encoder_cfg = model_cfg.get("encoder")
     decoder_cfg = model_cfg.get("decoder")
 
-    n_channels = stats.get("channel_count")
-    if isinstance(n_channels, int) and extra_input_channels:
-        n_channels = n_channels + extra_input_channels
+    base_channels = stats.get("channel_count")
+    input_channels = (
+        (base_channels + extra_input_channels)
+        if isinstance(base_channels, int) and extra_input_channels
+        else base_channels
+    )
 
     if isinstance(encoder_cfg, DictConfig):
         encoder_cfg = OmegaConf.to_container(encoder_cfg, resolve=True)
     if isinstance(encoder_cfg, dict) and (
         "in_channels" in encoder_cfg
-        and isinstance(n_channels, int)
+        and isinstance(input_channels, int)
         and encoder_cfg.get("in_channels") in (None, "auto")
     ):
-        encoder_cfg["in_channels"] = n_channels
+        encoder_cfg["in_channels"] = input_channels
 
     if isinstance(decoder_cfg, DictConfig):
         decoder_cfg = OmegaConf.to_container(decoder_cfg, resolve=True)
     if isinstance(decoder_cfg, dict):
         if (
             "out_channels" in decoder_cfg
-            and isinstance(n_channels, int)
+            and isinstance(base_channels, int)
             and decoder_cfg.get("out_channels") in (None, "auto")
         ):
-            decoder_cfg["out_channels"] = n_channels
+            decoder_cfg["out_channels"] = base_channels
         if (
             "output_channels" in decoder_cfg
-            and isinstance(n_channels, int)
+            and isinstance(base_channels, int)
             and decoder_cfg.get("output_channels") in (None, "auto")
         ):
-            decoder_cfg["output_channels"] = n_channels
+            decoder_cfg["output_channels"] = base_channels
 
     encoder = instantiate(encoder_cfg)
     decoder = instantiate(decoder_cfg)
