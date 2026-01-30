@@ -73,8 +73,6 @@ class EncoderDecoder(DenormMixin, OptimizerMixin, L.LightningModule, MetricsMixi
     def validation_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
         y_pred = self(batch)
         y_true = batch.output_fields
-        y_pred = self.denormalize_tensor(y_pred)
-        y_true = self.denormalize_tensor(y_true)
         if self.loss_func is None:
             msg = "Loss function not defined for EncoderDecoder model."
             raise ValueError(msg)
@@ -82,16 +80,21 @@ class EncoderDecoder(DenormMixin, OptimizerMixin, L.LightningModule, MetricsMixi
         self.log(
             "val_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
+        # Denormalize for metrics computation
+        y_pred_denorm = self.denormalize_tensor(y_pred)
+        y_true_denorm = self.denormalize_tensor(y_true)
         self._update_and_log_metrics(
-            self, self.val_metrics, y_pred, y_true, batch.input_fields.shape[0]
+            self,
+            self.val_metrics,
+            y_pred_denorm,
+            y_true_denorm,
+            batch.input_fields.shape[0],
         )
         return loss
 
     def test_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
         y_pred = self(batch)
         y_true = batch.output_fields
-        y_pred = self.denormalize_tensor(y_pred)
-        y_true = self.denormalize_tensor(y_true)
         if self.loss_func is None:
             msg = "Loss function not defined for EncoderDecoder model."
             raise ValueError(msg)
@@ -99,8 +102,15 @@ class EncoderDecoder(DenormMixin, OptimizerMixin, L.LightningModule, MetricsMixi
         self.log(
             "test_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
         )
+        # Denormalize for metrics computation
+        y_pred_denorm = self.denormalize_tensor(y_pred)
+        y_true_denorm = self.denormalize_tensor(y_true)
         self._update_and_log_metrics(
-            self, self.test_metrics, y_pred, y_true, batch.input_fields.shape[0]
+            self,
+            self.test_metrics,
+            y_pred_denorm,
+            y_true_denorm,
+            batch.input_fields.shape[0],
         )
         return loss
 
