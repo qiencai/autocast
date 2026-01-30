@@ -30,8 +30,7 @@ class DenormMixin(L.LightningModule):
         super().on_predict_start()
 
     def _connect_normalizer(self):
-        """
-        Helper to connect to datamodule's normalizer.
+        """Connect to datamodule's normalizer if available.
 
         Looks for the normalizer in trainer.datamodule.train_dataset.norm
         and sets self.normalizer if found.
@@ -44,7 +43,7 @@ class DenormMixin(L.LightningModule):
             return
 
         if hasattr(trainer, "datamodule"):
-            datamodule = trainer.datamodule
+            datamodule = trainer.datamodule  # type: ignore[union-attr]
             if hasattr(datamodule, "train_dataset") and hasattr(
                 datamodule.train_dataset, "norm"
             ):
@@ -85,7 +84,7 @@ class DenormMixin(L.LightningModule):
     def predict_step(
         self,
         batch: Batch,
-        batch_idx: int,
+        batch_idx: int,  # noqa: ARG002
     ) -> Tensor:
         """
         Override predict_step to include denormalization.

@@ -1,5 +1,7 @@
 """Tests for DenormMixin functionality."""
 
+import contextlib
+
 import lightning as L
 import pytest
 import torch
@@ -168,7 +170,7 @@ def test_connect_normalizer_from_datamodule(mock_normalizer):
             self.datamodule = MockDataModule()
 
     # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()
+    model._trainer = MockTrainer()  # type: ignore[assignment]
     model._connect_normalizer()
 
     assert model.norm is mock_normalizer
@@ -179,11 +181,8 @@ def test_connect_normalizer_no_trainer():
     model = SimpleDenormModel()
     # Lightning raises error when accessing trainer property if not attached
     # _connect_normalizer should handle this gracefully with hasattr check
-    try:
+    with contextlib.suppress(RuntimeError):
         model._connect_normalizer()
-    except RuntimeError:
-        # Expected - _connect_normalizer will trigger trainer property access
-        pass
     # Should still have no normalizer set
     assert model.norm is None
 
@@ -196,7 +195,7 @@ def test_connect_normalizer_no_datamodule():
         pass
 
     # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()
+    model._trainer = MockTrainer()  # type: ignore[assignment]
     model._connect_normalizer()
     assert model.norm is None
 
@@ -217,7 +216,7 @@ def test_connect_normalizer_no_norm_attribute():
             self.datamodule = MockDataModule()
 
     # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()
+    model._trainer = MockTrainer()  # type: ignore[assignment]
     model._connect_normalizer()
     assert model.norm is None
 
@@ -239,7 +238,7 @@ def test_on_fit_start_connects_normalizer(mock_normalizer):
             self.datamodule = MockDataModule()
 
     # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()
+    model._trainer = MockTrainer()  # type: ignore[assignment]
     model.on_fit_start()
 
     assert model.norm is mock_normalizer
@@ -262,7 +261,7 @@ def test_on_predict_start_connects_normalizer(mock_normalizer):
             self.datamodule = MockDataModule()
 
     # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()
+    model._trainer = MockTrainer()  # type: ignore[assignment]
     model.on_predict_start()
 
     assert model.norm is mock_normalizer
