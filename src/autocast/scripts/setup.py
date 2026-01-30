@@ -44,20 +44,17 @@ def resolve_auto_params(
     return config
 
 
-def _get_optimizer_config(config: DictConfig) -> dict[str, Any] | None:
-    optimizer_config = config.get("optimizer")
-    if optimizer_config is None:
-        return None
-    config_dict = OmegaConf.to_container(optimizer_config, resolve=True)
-    return config_dict if isinstance(config_dict, dict) else None  # type: ignore since checked if dict
-
-
-def _get_data_config(config: DictConfig) -> dict[str, Any]:
-    data_config = config.get("datamodule")
-    if data_config is None:
-        return {}
-    config_dict = OmegaConf.to_container(data_config, resolve=True)
-    return config_dict if isinstance(config_dict, dict) else {}  # type: ignore since checked if dict
+def _extract_config_dict(
+    config: DictConfig, key: str, default: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Extract a sub-config as a resolved dict, or return default."""
+    sub_config = config.get(key)
+    if sub_config is None:
+        return default if default is not None else {}
+    resolved = OmegaConf.to_container(sub_config, resolve=True)
+    if isinstance(resolved, dict):
+        return resolved  # type: ignore[return-value]
+    return default if default is not None else {}
 
 
 def _filter_kwargs_for_target(
@@ -82,6 +79,12 @@ def _filter_kwargs_for_target(
     return {k: v for k, v in kwargs.items() if k in allowed}
 
 
+def _set_if_auto(cfg: dict[str, Any], key: str, value: int | None) -> None:
+    """Set config key to value if current value is None or 'auto'."""
+    if key in cfg and cfg.get(key) in (None, "auto"):
+        cfg[key] = value
+
+
 def _apply_processor_channel_defaults(
     processor_config: dict[str, Any] | None,
     *,
@@ -92,34 +95,27 @@ def _apply_processor_channel_defaults(
     n_channels_out: int,
     global_cond_channels: int | None = None,
 ) -> None:
+    """Apply inferred channel/step defaults to processor and backbone configs."""
     if not isinstance(processor_config, dict):
         return
 
-    def _set_if_auto(key: str, value: int) -> None:
-        if key in processor_config and processor_config.get(key) in (None, "auto"):
-            processor_config[key] = value
-
-    _set_if_auto("in_channels", in_channels)
-    _set_if_auto("out_channels", out_channels)
-    _set_if_auto("n_steps_input", n_steps_input)
-    _set_if_auto("n_steps_output", n_steps_output)
-    _set_if_auto("n_channels_out", n_channels_out)
+    _set_if_auto(processor_config, "in_channels", in_channels)
+    _set_if_auto(processor_config, "out_channels", out_channels)
+    _set_if_auto(processor_config, "n_steps_input", n_steps_input)
+    _set_if_auto(processor_config, "n_steps_output", n_steps_output)
+    _set_if_auto(processor_config, "n_channels_out", n_channels_out)
 
     backbone_config = processor_config.get("backbone")
     if not isinstance(backbone_config, dict):
         return
 
-    def _set_backbone_if_auto(key: str, value: int | None) -> None:
-        if key in backbone_config and backbone_config.get(key) in (None, "auto"):
-            backbone_config[key] = value
-
-    _set_backbone_if_auto("in_channels", out_channels)
-    _set_backbone_if_auto("out_channels", out_channels)
-    _set_backbone_if_auto("cond_channels", in_channels)
-    _set_backbone_if_auto("n_steps_input", n_steps_input)
-    _set_backbone_if_auto("n_steps_output", n_steps_output)
+    _set_if_auto(backbone_config, "in_channels", out_channels)
+    _set_if_auto(backbone_config, "out_channels", out_channels)
+    _set_if_auto(backbone_config, "cond_channels", in_channels)
+    _set_if_auto(backbone_config, "n_steps_input", n_steps_input)
+    _set_if_auto(backbone_config, "n_steps_output", n_steps_output)
     if global_cond_channels is not None:
-        _set_backbone_if_auto("global_cond_channels", global_cond_channels)
+        _set_if_auto(backbone_config, "global_cond_channels", global_cond_channels)
 
 
 def setup_datamodule(config: DictConfig):
@@ -142,7 +138,7 @@ def setup_datamodule(config: DictConfig):
     output_shape = train_outputs.shape
 
     config = resolve_auto_params(config, input_shape, output_shape)
-    data_config = _get_data_config(config)
+    data_config = _extract_config_dict(config, "datamodule", {})
     logic_stats = {
         "channel_count": input_shape[-1],
         "n_steps_input": data_config.get("n_steps_input", input_shape[1]),
@@ -153,11 +149,6 @@ def setup_datamodule(config: DictConfig):
     }
 
     return datamodule, config, logic_stats
-
-
-def setup_encoded_datamodule(config: DictConfig):
-    """Alias for setup_datamodule, generic enough to handle both."""
-    return setup_datamodule(config)
 
 
 def setup_autoencoder_components(
@@ -237,13 +228,16 @@ def setup_autoencoder_model(config: DictConfig, stats: dict) -> AE:
     return model
 
 
-def _infer_latent_channels(encoder: Encoder, batch: Any) -> tuple[int, bool]:
+def _infer_latent_channels(encoder: Encoder, batch: Batch) -> tuple[int, bool]:
     """Run a forward pass to determine latent channel count and time layout."""
     prev_training = encoder.training
     encoder.eval()
     try:
         with torch.no_grad():
-            encoded = encoder(batch)
+            if hasattr(encoder, "encode"):
+                encoded = encoder.encode(batch)
+            else:
+                encoded = encoder(batch)
             if isinstance(encoded, tuple):
                 encoded = encoded[0]
             channel_dim = getattr(encoder, "channel_dim", -1)
@@ -257,7 +251,7 @@ def _infer_latent_channels(encoder: Encoder, batch: Any) -> tuple[int, bool]:
         encoder.train(prev_training)
 
 
-def _get_normalized_processor_config(model_config: DictConfig) -> dict | None:
+def _get_normalized_processor_config(model_config: dict | DictConfig) -> dict | None:
     """Ensure processor config is dict or None."""
     processor_config = model_config.get("processor")
     if isinstance(processor_config, DictConfig):
@@ -267,12 +261,41 @@ def _get_normalized_processor_config(model_config: DictConfig) -> dict | None:
     return processor_config
 
 
+def _build_processor(
+    model_config: dict | DictConfig,
+    proc_kwargs: dict[str, Any],
+    global_cond_channels: int | None = None,
+) -> nn.Module:
+    """Build processor from config with channel defaults applied."""
+    processor_config = _get_normalized_processor_config(model_config)
+    _apply_processor_channel_defaults(
+        processor_config,
+        in_channels=proc_kwargs["in_channels"],
+        out_channels=proc_kwargs["out_channels"],
+        n_steps_input=proc_kwargs["n_steps_input"],
+        n_steps_output=proc_kwargs["n_steps_output"],
+        n_channels_out=proc_kwargs["n_channels_out"],
+        global_cond_channels=global_cond_channels,
+    )
+    target = (
+        processor_config.get("_target_") if isinstance(processor_config, dict) else None
+    )
+    filtered_kwargs = _filter_kwargs_for_target(target, proc_kwargs)
+    return instantiate(processor_config, **filtered_kwargs)
+
+
+def _build_loss_func(model_config: dict | DictConfig) -> nn.Module:
+    """Build loss function from config, defaulting to MSELoss."""
+    loss_func_config = model_config.get("loss_func")
+    if loss_func_config is not None:
+        return instantiate(loss_func_config)
+    return nn.MSELoss()
+
+
 def setup_processor_model(config: DictConfig, stats: dict) -> ProcessorModel:
     """Set up just the processor model for training on latents."""
     model_config = config.get("model", {})
     noise_injector, extra_input_channels = _resolve_input_noise_injector(model_config)
-
-    processor_config = _get_normalized_processor_config(model_config)
 
     proc_kwargs = {
         "in_channels": stats["channel_count"] + extra_input_channels,
@@ -281,35 +304,19 @@ def setup_processor_model(config: DictConfig, stats: dict) -> ProcessorModel:
         "n_steps_output": stats["n_steps_output"],
         "n_channels_out": stats["channel_count"],
     }
-    _apply_processor_channel_defaults(
-        processor_config,
-        in_channels=proc_kwargs["in_channels"],
-        out_channels=proc_kwargs["out_channels"],
-        n_steps_input=proc_kwargs["n_steps_input"],
-        n_steps_output=proc_kwargs["n_steps_output"],
-        n_channels_out=proc_kwargs["n_channels_out"],
-    )
-    target = (
-        processor_config.get("_target_") if isinstance(processor_config, dict) else None
-    )
-    proc_kwargs = _filter_kwargs_for_target(target, proc_kwargs)
-    processor = instantiate(processor_config, **proc_kwargs)
-
-    loss_func_config = model_config.get("loss_func")
-    loss_func = (
-        instantiate(loss_func_config) if loss_func_config is not None else nn.MSELoss()
-    )
+    processor = _build_processor(model_config, proc_kwargs)
+    loss_func = _build_loss_func(model_config)
 
     is_ensemble = model_config.get("n_members", 1) > 1
     cls = ProcessorModelEnsemble if is_ensemble else ProcessorModel
 
-    data_config = _get_data_config(config)
+    data_config = _extract_config_dict(config, "datamodule", {})
     kwargs = {
         "processor": processor,
         "stride": data_config.get("stride", stats["n_steps_output"]),
         "loss_func": loss_func,
         "learning_rate": model_config.get("learning_rate", 1e-3),
-        "optimizer_config": _get_optimizer_config(config),
+        "optimizer_config": _extract_config_dict(config, "optimizer"),
         "noise_injector": noise_injector,
     }
     if is_ensemble:
@@ -327,7 +334,7 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         config, stats, extra_input_channels=extra_input_channels
     )
 
-    data_config = _get_data_config(config)
+    data_config = _extract_config_dict(config, "datamodule", {})
     if data_config.get("freeze_autoencoder"):
         for p in encoder.parameters():
             p.requires_grad = False
@@ -345,8 +352,6 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         cond = encoder.encode_cond(stats["example_batch"])  # type: ignore[arg-type]
         if cond is not None:
             global_cond_channels = cond.shape[-1]
-
-    processor_config = _get_normalized_processor_config(model_config)
 
     steps_in = stats["n_steps_input"]
     steps_out = stats["n_steps_output"]
@@ -379,25 +384,8 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         "n_steps_input": steps_in,
         "n_steps_output": steps_out,
     }
-    _apply_processor_channel_defaults(
-        processor_config,
-        in_channels=proc_kwargs["in_channels"],
-        out_channels=proc_kwargs["out_channels"],
-        n_steps_input=proc_kwargs["n_steps_input"],
-        n_steps_output=proc_kwargs["n_steps_output"],
-        n_channels_out=proc_kwargs["n_channels_out"],
-        global_cond_channels=global_cond_channels,
-    )
-    target = (
-        processor_config.get("_target_") if isinstance(processor_config, dict) else None
-    )
-    proc_kwargs = _filter_kwargs_for_target(target, proc_kwargs)
-    processor = instantiate(processor_config, **proc_kwargs)
-
-    loss_func_config = model_config.get("loss_func")
-    loss_func = (
-        instantiate(loss_func_config) if loss_func_config is not None else nn.MSELoss()
-    )
+    processor = _build_processor(model_config, proc_kwargs, global_cond_channels)
+    loss_func = _build_loss_func(model_config)
 
     is_ensemble = model_config.get("n_members", 1) > 1
     cls = EncoderProcessorDecoderEnsemble if is_ensemble else EncoderProcessorDecoder
@@ -406,13 +394,13 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         "encoder_decoder": EncoderDecoder(
             encoder,
             decoder,
-            optimizer_config=_get_optimizer_config(config),
+            optimizer_config=_extract_config_dict(config, "optimizer"),
         ),
         "processor": processor,
         "learning_rate": model_config.get("learning_rate", 1e-3),
         "train_in_latent_space": model_config.get("train_in_latent_space", False),
         "stride": data_config.get("stride", stats["n_steps_output"]),
-        "optimizer_config": _get_optimizer_config(config),
+        "optimizer_config": _extract_config_dict(config, "optimizer"),
         "loss_func": loss_func,
         "input_noise_injector": noise_injector,
     }

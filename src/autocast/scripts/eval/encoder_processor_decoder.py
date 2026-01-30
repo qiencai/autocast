@@ -27,6 +27,7 @@ from autocast.metrics import (
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
 from autocast.scripts.cli import add_common_config_args, add_work_dir_arg
 from autocast.scripts.config import load_config
+from autocast.scripts.data import batch_to_device
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
 from autocast.types import Batch
 from autocast.utils import plot_spatiotemporal_video
@@ -154,23 +155,6 @@ def _resolve_device(arg: str) -> torch.device:
     return torch.device("cpu")
 
 
-def _batch_to_device(batch: Batch, device: torch.device) -> Batch:
-    return Batch(
-        input_fields=batch.input_fields.to(device),
-        output_fields=batch.output_fields.to(device),
-        constant_scalars=(
-            batch.constant_scalars.to(device)
-            if batch.constant_scalars is not None
-            else None
-        ),
-        constant_fields=(
-            batch.constant_fields.to(device)
-            if batch.constant_fields is not None
-            else None
-        ),
-    )
-
-
 def _build_metrics(metric_names: Sequence[str]):
     names = metric_names or ("mse", "rmse", "vrmse")
     metrics = {}
@@ -193,7 +177,7 @@ def _evaluate_metrics(
     model.eval()
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
-            batch_on_device = _batch_to_device(batch, device)
+            batch_on_device = batch_to_device(batch, device)
             preds = model(batch_on_device)
             trues = batch_on_device.output_fields
             batch_size = preds.shape[0]
@@ -250,7 +234,7 @@ def _render_rollouts(
         for batch_idx, batch in enumerate(dataloader):
             if batch_idx not in targets:
                 continue
-            batch_on_device = _batch_to_device(batch, device)
+            batch_on_device = batch_to_device(batch, device)
             preds, trues = model.rollout(
                 batch_on_device,
                 stride=stride,

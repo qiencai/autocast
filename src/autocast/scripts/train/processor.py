@@ -6,7 +6,7 @@ import lightning as L
 
 from autocast.scripts.cli import parse_common_args
 from autocast.scripts.config import load_config
-from autocast.scripts.setup import setup_encoded_datamodule, setup_processor_model
+from autocast.scripts.setup import setup_datamodule, setup_processor_model
 from autocast.scripts.training import run_training
 
 log = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ def main():
     cfg = load_config(args)
 
     # Setup datamodule and resolve config
-    datamodule, cfg, stats = setup_encoded_datamodule(cfg)
+    datamodule, cfg, stats = setup_datamodule(cfg)
 
     # Seed
     L.seed_everything(cfg.get("seed", 42), workers=True)

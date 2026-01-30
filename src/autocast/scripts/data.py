@@ -8,6 +8,7 @@ from hydra.utils import get_class, instantiate
 from omegaconf import DictConfig, OmegaConf
 
 from autocast.data.datamodule import SpatioTemporalDataModule
+from autocast.types import Batch
 
 log = logging.getLogger(__name__)
 
@@ -98,3 +99,21 @@ def _generate_split(simulator: Any, split_cfg: dict) -> dict[str, Any]:
         "valid": simulator.forward_samples_spatiotemporal(n_valid),
         "test": simulator.forward_samples_spatiotemporal(n_test),
     }
+
+
+def batch_to_device(batch: Batch, device: torch.device) -> Batch:
+    """Move a Batch to the specified device."""
+    return Batch(
+        input_fields=batch.input_fields.to(device),
+        output_fields=batch.output_fields.to(device),
+        constant_scalars=(
+            batch.constant_scalars.to(device)
+            if batch.constant_scalars is not None
+            else None
+        ),
+        constant_fields=(
+            batch.constant_fields.to(device)
+            if batch.constant_fields is not None
+            else None
+        ),
+    )

@@ -14,6 +14,7 @@ from autocast.logging import create_wandb_logger
 from autocast.logging.wandb import maybe_watch_model
 from autocast.models.autoencoder import AE
 from autocast.scripts.config import save_resolved_config
+from autocast.scripts.data import batch_to_device
 from autocast.scripts.setup import setup_autoencoder_model, setup_datamodule
 from autocast.types.batch import Batch
 
@@ -100,24 +101,8 @@ def _save_reconstructions(
             data = data.unsqueeze(0)
         return data
 
-    def _batch_to_device(batch: Batch, device: torch.device) -> Batch:
-        return Batch(
-            input_fields=batch.input_fields.to(device),
-            output_fields=batch.output_fields.to(device),
-            constant_scalars=(
-                batch.constant_scalars.to(device)
-                if batch.constant_scalars is not None
-                else None
-            ),
-            constant_fields=(
-                batch.constant_fields.to(device)
-                if batch.constant_fields is not None
-                else None
-            ),
-        )
-
     for idx, batch in enumerate(loader):
-        batch_on_device = _batch_to_device(batch, device)
+        batch_on_device = batch_to_device(batch, device)
         outputs, latents = model.forward_with_latent(batch_on_device)
         inputs = batch_on_device.input_fields  # B, T, W, H, C
 
