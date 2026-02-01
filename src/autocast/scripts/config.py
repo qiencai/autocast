@@ -33,16 +33,25 @@ def save_resolved_config(
     return output_path
 
 
-def resolve_work_dir(config: DictConfig) -> Path:
-    """Resolve the output directory from Hydra config (hydra.run.dir)."""
-    resolved = OmegaConf.to_container(config, resolve=True)
-    hydra_cfg = resolved.get("hydra", {}) if isinstance(resolved, dict) else {}
-    run_dir = None
-    if isinstance(hydra_cfg, dict):
-        run_dir = hydra_cfg.get("run", {}).get("dir")
+def _find_override(overrides: list[str] | None, key: str) -> str | None:
+    if not overrides:
+        return None
+    prefix = f"{key}="
+    for item in overrides:
+        if item.startswith(prefix):
+            return item[len(prefix) :]
+    return None
+
+
+def resolve_work_dir(overrides: list[str] | None = None) -> Path:
+    """Resolve the output directory from Hydra overrides (hydra.run.dir)."""
+    run_dir = _find_override(overrides, "hydra.run.dir")
+    chdir_value = _find_override(overrides, "hydra.job.chdir")
+    should_chdir = True if chdir_value is None else chdir_value.lower() == "true"
 
     work_dir = Path(run_dir) if run_dir else Path.cwd()
-    if isinstance(hydra_cfg, dict) and hydra_cfg.get("job", {}).get("chdir"):
-        os.chdir(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
+    if run_dir and should_chdir:
+        os.chdir(work_dir)
+    log.info("Using work_dir=%s (hydra.run.dir=%s)", work_dir.resolve(), run_dir)
     return work_dir

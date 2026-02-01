@@ -325,7 +325,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
 
     cfg = load_config(args)
-    work_dir = resolve_work_dir(cfg)
+    work_dir = resolve_work_dir(args.overrides)
     csv_path = _resolve_csv_path(args, work_dir)
     video_dir = _resolve_video_dir(args, work_dir)
 

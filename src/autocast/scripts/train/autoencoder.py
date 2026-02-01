@@ -17,7 +17,7 @@ def main() -> None:
     )
     logging.basicConfig(level=logging.INFO)
     cfg = load_config(args)
-    work_dir = resolve_work_dir(cfg)
+    work_dir = resolve_work_dir(args.overrides)
     train_autoencoder(cfg, work_dir)
 
 

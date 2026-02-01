@@ -27,7 +27,7 @@ def main():
 
     # Compose config
     cfg = load_config(args)
-    work_dir = resolve_work_dir(cfg)
+    work_dir = resolve_work_dir(args.overrides)
 
     # Setup datamodule and resolve config
     datamodule, cfg, stats = setup_datamodule(cfg)
