@@ -351,6 +351,20 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         cond = encoder.encode_cond(stats["example_batch"])
         if cond is not None:
             global_cond_channels = cond.shape[-1]
+    log.info(
+        (
+            "Global cond inference: constant_scalars=%s, "
+            "boundary_conditions=%s, "
+            "inferred_global_cond_channels=%s",
+        ),
+        None
+        if getattr(stats["example_batch"], "constant_scalars", None) is None
+        else tuple(stats["example_batch"].constant_scalars.shape),
+        None
+        if getattr(stats["example_batch"], "boundary_conditions", None) is None
+        else tuple(stats["example_batch"].boundary_conditions.shape),
+        global_cond_channels,
+    )
 
     steps_in = stats["n_steps_input"]
     steps_out = stats["n_steps_output"]
