@@ -1,7 +1,7 @@
 defaults:
   - datamodule: reaction_diffusion
   - optional simulator: null
-  - optional optimizer: null
+  - optimizer: adamw
   # Or set to TheWell dataset:
   # - datamodule: the_well
   - model: autoencoder
