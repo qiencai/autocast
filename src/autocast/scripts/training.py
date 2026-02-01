@@ -163,9 +163,14 @@ def train_autoencoder(config: DictConfig, work_dir: Path) -> Path:
     trainer = instantiate(
         trainer_cfg, logger=wandb_logger, default_root_dir=str(work_dir)
     )
+    output_cfg = config.get("output", {})
+    if output_cfg.get("save_config", False):
+        save_resolved_config(
+            config, work_dir, filename="resolved_autoencoder_config.yaml"
+        )
+
     trainer.fit(model=model, datamodule=datamodule)
 
-    output_cfg = config.get("output", {})
     checkpoint_name = output_cfg.get("checkpoint_name", "autoencoder.ckpt")
     checkpoint_target = Path(checkpoint_name)
     checkpoint_path = (
@@ -177,10 +182,5 @@ def train_autoencoder(config: DictConfig, work_dir: Path) -> Path:
     log.info("Saved checkpoint to %s", checkpoint_path.resolve())
 
     _save_reconstructions(model, datamodule, work_dir)
-
-    if output_cfg.get("save_config", False):
-        save_resolved_config(
-            config, work_dir, filename="resolved_autoencoder_config.yaml"
-        )
 
     return checkpoint_path

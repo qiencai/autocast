@@ -26,7 +26,7 @@ from autocast.metrics import (
 )
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
 from autocast.scripts.cli import add_common_config_args
-from autocast.scripts.config import load_config, resolve_work_dir
+from autocast.scripts.config import load_config, resolve_work_dir, save_resolved_config
 from autocast.scripts.data import batch_to_device
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
 from autocast.utils import plot_spatiotemporal_video
@@ -326,6 +326,8 @@ def main() -> None:
 
     cfg = load_config(args)
     work_dir = resolve_work_dir(args.overrides)
+    if cfg.get("output", {}).get("save_config"):
+        save_resolved_config(cfg, work_dir, filename="resolved_eval_config.yaml")
     csv_path = _resolve_csv_path(args, work_dir)
     video_dir = _resolve_video_dir(args, work_dir)
 
