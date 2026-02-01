@@ -5,7 +5,7 @@ import logging
 import lightning as L
 
 from autocast.scripts.cli import parse_common_args
-from autocast.scripts.config import load_config
+from autocast.scripts.config import load_config, resolve_work_dir
 from autocast.scripts.setup import setup_datamodule, setup_processor_model
 from autocast.scripts.training import run_training
 
@@ -22,13 +22,12 @@ def main():
         config_name="processor",
     )
 
-    # Setup logging and working directory
+    # Setup logging
     logging.basicConfig(level=logging.INFO)
-    work_dir = args.work_dir.resolve()
-    work_dir.mkdir(parents=True, exist_ok=True)
 
     # Compose config
     cfg = load_config(args)
+    work_dir = resolve_work_dir(cfg)
 
     # Setup datamodule and resolve config
     datamodule, cfg, stats = setup_datamodule(cfg)

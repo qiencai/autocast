@@ -25,8 +25,8 @@ from autocast.metrics import (
     LInfinity,
 )
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
-from autocast.scripts.cli import add_common_config_args, add_work_dir_arg
-from autocast.scripts.config import load_config
+from autocast.scripts.cli import add_common_config_args
+from autocast.scripts.config import load_config, resolve_work_dir
 from autocast.scripts.data import batch_to_device
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
 from autocast.utils import plot_spatiotemporal_video
@@ -59,8 +59,6 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Path to the encoder-processor-decoder checkpoint to evaluate.",
     )
-    add_work_dir_arg(parser)
-
     # Evaluation specific
     parser.add_argument(
         "--csv-path",
@@ -326,12 +324,10 @@ def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO)
 
-    work_dir = args.work_dir.expanduser().resolve()
-    work_dir.mkdir(parents=True, exist_ok=True)
+    cfg = load_config(args)
+    work_dir = resolve_work_dir(cfg)
     csv_path = _resolve_csv_path(args, work_dir)
     video_dir = _resolve_video_dir(args, work_dir)
-
-    cfg = load_config(args)
 
     # Setup datamodule and resolve config
     datamodule, cfg, stats = setup_datamodule(cfg)

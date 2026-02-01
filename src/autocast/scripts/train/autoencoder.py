@@ -3,7 +3,7 @@
 import logging
 
 from autocast.scripts.cli import parse_common_args
-from autocast.scripts.config import load_config
+from autocast.scripts.config import load_config, resolve_work_dir
 from autocast.scripts.training import train_autoencoder
 
 log = logging.getLogger(__name__)
@@ -17,8 +17,7 @@ def main() -> None:
     )
     logging.basicConfig(level=logging.INFO)
     cfg = load_config(args)
-    work_dir = args.work_dir.resolve()
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = resolve_work_dir(cfg)
     train_autoencoder(cfg, work_dir)
 
 

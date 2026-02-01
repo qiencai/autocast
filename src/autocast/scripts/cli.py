@@ -33,24 +33,10 @@ def add_common_config_args(
     return parser
 
 
-def add_work_dir_arg(
-    parser: argparse.ArgumentParser, default: Path | None = None
-) -> argparse.ArgumentParser:
-    """Add a shared --work-dir argument to an argparse parser."""
-    parser.add_argument(
-        "--work-dir",
-        type=Path,
-        default=default if default is not None else Path.cwd(),
-        help="Directory for artifacts and checkpoints (default: CWD).",
-    )
-    return parser
-
-
 def parse_common_args(description: str, config_name: str) -> argparse.Namespace:
     """Parse common CLI arguments for training scripts."""
     parser = argparse.ArgumentParser(description=description)
     add_common_config_args(parser, config_name)
-    add_work_dir_arg(parser)
     parser.add_argument(
         "--output-checkpoint",
         type=Path,

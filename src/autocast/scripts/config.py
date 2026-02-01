@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 from pathlib import Path
 
 import yaml
@@ -30,3 +31,18 @@ def save_resolved_config(
         yaml.dump(resolved_cfg, f)
     log.info("Wrote resolved config to %s", output_path.resolve())
     return output_path
+
+
+def resolve_work_dir(config: DictConfig) -> Path:
+    """Resolve the output directory from Hydra config (hydra.run.dir)."""
+    resolved = OmegaConf.to_container(config, resolve=True)
+    hydra_cfg = resolved.get("hydra", {}) if isinstance(resolved, dict) else {}
+    run_dir = None
+    if isinstance(hydra_cfg, dict):
+        run_dir = hydra_cfg.get("run", {}).get("dir")
+
+    work_dir = Path(run_dir) if run_dir else Path.cwd()
+    if isinstance(hydra_cfg, dict) and hydra_cfg.get("job", {}).get("chdir"):
+        os.chdir(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    return work_dir
