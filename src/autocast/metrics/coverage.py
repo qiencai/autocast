@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 import torch
+from torch.nn import ModuleList
 from torchmetrics import Metric
 
 from autocast.metrics.ensemble import BTSCMMetric
@@ -86,25 +87,22 @@ class MultiCoverage(Metric):
 
         self.coverage_levels = coverage_levels
         # Create a list of Coverage metrics
-        self.metrics = torch.nn.ModuleList(
+        self.metrics = ModuleList(
             [Coverage(coverage_level=cl) for cl in coverage_levels]
         )
 
-    def _cast_coverage_metrics(self) -> list[Coverage]:
-        return cast(list[Coverage], self.metrics)
-
     def update(self, y_pred, y_true):
-        for metric in self._cast_coverage_metrics():
+        for metric in self.metrics:
+            assert isinstance(metric, Coverage)
             metric.update(y_pred, y_true)
 
     def compute(self) -> dict[str, Tensor]:
         """Return a dict of results, keys formatted as 'coverage_{coverage_level}'."""
-        return {
-            f"coverage_{cl}": metric.compute()
-            for cl, metric in zip(
-                self.coverage_levels, self._cast_coverage_metrics(), strict=True
-            )
-        }
+        results = {}
+        for cl, metric in zip(self.coverage_levels, self.metrics, strict=True):
+            assert isinstance(metric, Coverage)
+            results[f"coverage_{cl}"] = metric.compute()
+        return results
 
     def plot(self) -> Any:
         try:
@@ -113,7 +111,10 @@ class MultiCoverage(Metric):
             return None
 
         # Gather computed values from sub-metrics
-        results = [metric.compute().item() for metric in self._cast_coverage_metrics()]
+        results = []
+        for metric in self.metrics:
+            assert isinstance(metric, Coverage)
+            results.append(metric.compute().item())
 
         # Create a table for the calibration curve
         table = wandb.Table(
@@ -135,5 +136,6 @@ class MultiCoverage(Metric):
 
     def reset(self):
         # Reset all sub-metrics
-        for metric in self._cast_coverage_metrics():
+        for metric in self.metrics:
+            assert isinstance(metric, Coverage)
             metric.reset()
