@@ -356,14 +356,13 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
 
     # For time-concat encoders, latent_channels is already C*T
     # For regular encoders, it's just the channel count (C)
-    input_depends_on_channels = not isinstance(encoder.latent_channels, int)
     input_noise_channels = (
         (
             extra_input_channels * steps_in
             if encoder.outputs_time_channel_concat
             else extra_input_channels
         )
-        if extra_input_channels and input_depends_on_channels
+        if extra_input_channels
         else 0
     )
 
@@ -407,7 +406,7 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
 
 
 def _resolve_input_noise_injector(model_config: DictConfig) -> tuple[Any | None, int]:
-    noise_config = model_config.get("input_noise_injector") if model_config else None
+    noise_config = model_config.get("input_noise_injector", None)
     if not noise_config or "_target_" not in noise_config:
         return None, 0
 
@@ -415,8 +414,11 @@ def _resolve_input_noise_injector(model_config: DictConfig) -> tuple[Any | None,
     if "ConcatenatedNoiseInjector" in str(noise_config.get("_target_")):
         n_channels = noise_config.get("n_channels")
         if n_channels in (None, "auto"):
-            proc_config = model_config.get("processor") or {}
-            n_channels = proc_config.get("n_noise_channels")
-        extra_channels = int(n_channels) if n_channels else 0
+            msg = (
+                "ConcatenatedNoiseInjector requires explicit n_channels in config. "
+                "Set input_noise_injector.n_channels to an integer value."
+            )
+            raise ValueError(msg)
+        extra_channels = int(n_channels)
 
     return instantiate(noise_config), extra_channels
