@@ -172,6 +172,10 @@ def setup_autoencoder_components(
     ):
         encoder_config["in_channels"] = input_channels
 
+    # Update n_steps_input for encoders that need it
+    if encoder_config and encoder_config.get("n_steps_input") in (None, "auto"):
+        encoder_config["n_steps_input"] = stats.get("n_steps_input")
+
     if decoder_config:
         if (
             "out_channels" in decoder_config
@@ -350,11 +354,8 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
     steps_in = stats["n_steps_input"]
     steps_out = stats["n_steps_output"]
 
-    # Determine if latent channels are concatenated over time dimension
-    channels_per_timestep = (
-        latent_channels // steps_in if encoder.outputs_time_channel_concat else None
-    )
-
+    # For time-concat encoders, latent_channels is already C*T
+    # For regular encoders, it's just the channel count (C)
     input_depends_on_channels = not isinstance(encoder.latent_channels, int)
     input_noise_channels = (
         (
@@ -366,12 +367,15 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         else 0
     )
 
-    n_channels_out = channels_per_timestep or latent_channels
+    # For time-concat: latent_channels is C*T, divide by steps_in to get C
+    n_channels_out = (
+        latent_channels // steps_in
+        if encoder.outputs_time_channel_concat
+        else latent_channels
+    )
     proc_kwargs = {
         "in_channels": latent_channels + input_noise_channels,
-        "out_channels": n_channels_out * steps_out
-        if channels_per_timestep
-        else n_channels_out,
+        "out_channels": n_channels_out * steps_out,
         "n_channels_out": n_channels_out,
         "n_steps_input": steps_in,
         "n_steps_output": steps_out,
