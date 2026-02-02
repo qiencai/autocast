@@ -21,7 +21,6 @@ class ProcessorModel(
     """Processor Base Class."""
 
     processor: Processor
-    learning_rate: float
     optimizer_config: dict[str, Any] | None
 
     def __init__(
@@ -29,7 +28,6 @@ class ProcessorModel(
         processor: Processor,
         stride: int = 1,
         loss_func: nn.Module | None = None,
-        learning_rate: float | None = None,
         optimizer_config: dict[str, Any] | None = None,
         train_metrics: Sequence[Metric] | None = [],
         val_metrics: Sequence[Metric] | None = None,
@@ -41,12 +39,6 @@ class ProcessorModel(
         self.processor = processor  # Register nn.Module parameters
         self.stride = stride
         self.loss_func = loss_func or nn.MSELoss()
-        # Use processor's learning_rate if not explicitly provided
-        self.learning_rate = (
-            learning_rate
-            if learning_rate is not None
-            else getattr(processor, "learning_rate", 1e-3)
-        )
         self.optimizer_config = optimizer_config
         self.train_metrics = self._build_metrics(train_metrics, "train_")
         self.val_metrics = self._build_metrics(val_metrics, "val_")

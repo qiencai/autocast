@@ -3,6 +3,7 @@ import itertools
 import lightning as L
 import pytest
 import torch
+from conftest import get_optimizer_config
 from torch.utils.data import DataLoader, Dataset
 
 from autocast.models.processor import ProcessorModel
@@ -134,7 +135,7 @@ def test_flow_matching_processor(
         n_channels_out=n_channels_out,
         flow_ode_steps=1,
     )
-    model = ProcessorModel(processor)
+    model = ProcessorModel(processor, optimizer_config=get_optimizer_config())
     output = model.map(encoded_batch.encoded_inputs, None)
     assert output.shape == encoded_batch.encoded_output_fields.shape
 

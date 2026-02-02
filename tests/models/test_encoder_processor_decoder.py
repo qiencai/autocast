@@ -1,7 +1,7 @@
 import lightning as L
 import pytest
 import torch
-from conftest import CondCaptureProcessor
+from conftest import CondCaptureProcessor, get_optimizer_config
 from torch import nn
 
 from autocast.decoders.channels_last import ChannelsLast
@@ -51,6 +51,7 @@ def test_encoder_processor_decoder_training_step_runs(make_toy_batch, dummy_load
         encoder_decoder=encoder_decoder,
         processor=processor,
         loss_func=loss,
+        optimizer_config=get_optimizer_config(),
     )
 
     train_loss = model.training_step(batch, 0)
@@ -92,7 +93,9 @@ def test_global_cond_passes_from_encoder_to_processor():
 
     processor = CondCaptureProcessor()
     model = EncoderProcessorDecoder(
-        encoder_decoder=encoder_decoder, processor=processor
+        encoder_decoder=encoder_decoder,
+        processor=processor,
+        optimizer_config=get_optimizer_config(),
     )
 
     _ = model(batch)
@@ -142,6 +145,7 @@ def test_encoder_processor_decoder_rollout_handles_batches(
         encoder_decoder=encoder_decoder,
         processor=processor,
         loss_func=loss,
+        optimizer_config=get_optimizer_config(),
         stride=stride,
         max_rollout_steps=max_rollout_steps,
     )
@@ -211,6 +215,7 @@ def test_encoder_processor_decoder_rollout_handles_short_trajectory(
         encoder_decoder=encoder_decoder,
         processor=processor,
         loss_func=loss,
+        optimizer_config=get_optimizer_config(),
         stride=stride,
         max_rollout_steps=max_rollout_steps,
         teacher_forcing_ratio=0.0,

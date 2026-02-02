@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from autocast.processors.base import Processor
 from autocast.types import Batch, EncodedBatch
+from autocast.utils import get_optimizer_config  # noqa: F401 as imported in tests
 
 
 @pytest.fixture

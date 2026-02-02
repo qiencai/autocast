@@ -5,6 +5,7 @@ from pathlib import Path
 import lightning as L
 import pytest
 import torch
+from conftest import get_optimizer_config
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig, OmegaConf, open_dict
 
@@ -62,6 +63,7 @@ def test_autoencoder_config_trainer_fit_smoke(
     model_cfg = _load_config(config_dir, "model/autoencoder")
     cfg = _wrap_model_config(model_cfg)
     with open_dict(cfg):
+        cfg.optimizer = get_optimizer_config()
         cfg.datamodule = {
             "n_steps_input": toy_batch.input_fields.shape[1],
             "n_steps_output": toy_batch.output_fields.shape[1],
@@ -95,9 +97,9 @@ def test_processor_config_training_step_smoke(config_dir: str):
         {
             "model": {
                 "processor": processor_cfg,
-                "learning_rate": 1e-3,
                 "loss_func": {"_target_": "torch.nn.MSELoss"},
             },
+            "optimizer": get_optimizer_config(learning_rate=1e-3),
             "datamodule": {
                 "stride": 1,
                 "n_steps_input": encoded_inputs.shape[1],
@@ -131,6 +133,7 @@ def test_epd_config_forward_smoke(config_dir: str, toy_batch: Batch):
     )
     cfg = _wrap_model_config(model_cfg)
     with open_dict(cfg):
+        cfg.optimizer = get_optimizer_config()
         cfg.datamodule = {
             "stride": 1,
             "n_steps_input": toy_batch.input_fields.shape[1],

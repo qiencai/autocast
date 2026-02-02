@@ -13,19 +13,27 @@ class OptimizerMixin(nn.Module):
 
     Inherits from nn.Module to ensure parameters() method is available.
     Requires the class to have:
-        - self.learning_rate: float
         - self.optimizer_config: dict[str, Any] | None
         - self.trainer: Lightning Trainer instance (optional, for scheduler)
     """
 
     # Type hints for attributes expected from the concrete class
-    learning_rate: float
     optimizer_config: dict[str, Any] | None
 
     def _create_optimizer(self, cfg: dict[str, Any]) -> torch.optim.Optimizer:
         """Create optimizer from config."""
-        optimizer_name = str(cfg.get("optimizer", "adam")).lower()
-        lr = cfg.get("learning_rate", self.learning_rate)
+        if not cfg.get("optimizer"):
+            msg = "Optimizer name is required in optimizer_config."
+            raise ValueError(msg)
+        if cfg.get("learning_rate") is None:
+            msg = "learning_rate is required in optimizer_config."
+            raise ValueError(msg)
+        optimizer_name = str(cfg.get("optimizer")).lower()
+        lr = cfg.get("learning_rate")
+        if not isinstance(lr, (float, int)):
+            msg = "learning_rate must be a number in optimizer_config."
+            raise TypeError(msg)
+        lr = float(lr)
         weight_decay = cfg.get("weight_decay", 0.0)
 
         if optimizer_name == "adamw":
@@ -75,9 +83,9 @@ class OptimizerMixin(nn.Module):
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Configure optimizers for training."""
-        # Backwards compatibility: if no optimizer_config, use simple Adam
         if self.optimizer_config is None:
-            return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+            msg = "optimizer_config is required for training."
+            raise ValueError(msg)
 
         # Accept both plain dict and Hydra DictConfig
         cfg_any: Any = self.optimizer_config
@@ -90,6 +98,9 @@ class OptimizerMixin(nn.Module):
             )
             raise TypeError(msg)
         cfg = cfg_any
+        if not cfg:
+            msg = "optimizer_config cannot be empty."
+            raise ValueError(msg)
 
         optimizer = self._create_optimizer(cfg)
         scheduler_name = cfg.get("scheduler", None)

@@ -57,6 +57,15 @@ def _extract_config_dict(
     return default if default is not None else {}
 
 
+def _get_optimizer_config(config: DictConfig) -> dict[str, Any]:
+    """Return optimizer config."""
+    optimizer_config = _extract_config_dict(config, "optimizer")
+    if optimizer_config:
+        return optimizer_config
+    msg = "Optimizer config is required for training."
+    raise ValueError(msg)
+
+
 def _filter_kwargs_for_target(
     target: str | None, kwargs: dict[str, Any]
 ) -> dict[str, Any]:
@@ -220,10 +229,13 @@ def setup_autoencoder_model(config: DictConfig, stats: dict) -> AE:
     model_config = config.get("model", {})
     loss_config = model_config.get("loss")
     loss = instantiate(loss_config) if loss_config is not None else None
-    model = AE(encoder=encoder, decoder=decoder, loss_func=loss)
-    lr = model_config.get("learning_rate")
-    if lr is not None:
-        model.learning_rate = lr
+    optimizer_config = _get_optimizer_config(config)
+    model = AE(
+        encoder=encoder,
+        decoder=decoder,
+        loss_func=loss,
+        optimizer_config=optimizer_config,
+    )
     return model
 
 
@@ -310,12 +322,12 @@ def setup_processor_model(config: DictConfig, stats: dict) -> ProcessorModel:
     cls = ProcessorModelEnsemble if is_ensemble else ProcessorModel
 
     data_config = _extract_config_dict(config, "datamodule", {})
+    optimizer_config = _get_optimizer_config(config)
     kwargs = {
         "processor": processor,
         "stride": data_config.get("stride", stats["n_steps_output"]),
         "loss_func": loss_func,
-        "learning_rate": model_config.get("learning_rate", 1e-3),
-        "optimizer_config": _extract_config_dict(config, "optimizer"),
+        "optimizer_config": optimizer_config,
         "noise_injector": noise_injector,
     }
     if is_ensemble:
@@ -403,17 +415,17 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
     is_ensemble = model_config.get("n_members", 1) > 1
     cls = EncoderProcessorDecoderEnsemble if is_ensemble else EncoderProcessorDecoder
 
+    optimizer_config = _get_optimizer_config(config)
     kwargs = {
         "encoder_decoder": EncoderDecoder(
             encoder,
             decoder,
-            optimizer_config=_extract_config_dict(config, "optimizer"),
+            optimizer_config=optimizer_config,
         ),
         "processor": processor,
-        "learning_rate": model_config.get("learning_rate", 1e-3),
         "train_in_latent_space": model_config.get("train_in_latent_space", False),
         "stride": data_config.get("stride", stats["n_steps_output"]),
-        "optimizer_config": _extract_config_dict(config, "optimizer"),
+        "optimizer_config": optimizer_config,
         "loss_func": loss_func,
         "input_noise_injector": noise_injector,
     }

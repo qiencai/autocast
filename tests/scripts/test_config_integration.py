@@ -107,8 +107,8 @@ def test_extract_datamodule_from_epd_config(config_dir: str):
 def test_extract_optimizer_returns_empty_when_missing(config_dir: str):
     cfg = _load_config(config_dir, "autoencoder")
     opt_config = _extract_config_dict(cfg, "optimizer")
-    # optimizer is optional null in ae config
-    assert opt_config == {}
+    # optimizer is required in ae config
+    assert opt_config != {}
 
 
 def test_get_normalized_processor_config_from_epd(config_dir: str):

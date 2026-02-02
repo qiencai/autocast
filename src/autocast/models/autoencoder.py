@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Any
 
 from torch import nn
 from torchmetrics import Metric
@@ -48,7 +49,7 @@ class AE(EncoderDecoder):
         encoder: EncoderWithCond,
         decoder: Decoder,
         loss_func: AELoss | None = None,
-        learning_rate: float = 1e-3,
+        optimizer_config: dict[str, Any] | None = None,
         train_metrics: Sequence[Metric] | None = [],
         val_metrics: Sequence[Metric] | None = None,
         test_metrics: Sequence[Metric] | None = None,
@@ -57,7 +58,7 @@ class AE(EncoderDecoder):
             encoder=encoder,
             decoder=decoder,
             loss_func=loss_func or AELoss(),
-            learning_rate=learning_rate,
+            optimizer_config=optimizer_config,
             train_metrics=train_metrics,
             val_metrics=val_metrics,
             test_metrics=test_metrics,

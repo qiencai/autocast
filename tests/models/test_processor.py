@@ -4,7 +4,7 @@ import lightning as L
 import pytest
 import torch
 from azula.noise import VPSchedule
-from conftest import CondCaptureProcessor
+from conftest import CondCaptureProcessor, get_optimizer_config
 from torch.utils.data import DataLoader, Dataset
 
 from autocast.models.processor import ProcessorModel
@@ -186,7 +186,7 @@ def _make_encoded_batch(
 def test_processor_model_forward():
     """Test that ProcessorModel forward pass works with encoded inputs."""
     processor = _build_diffusion_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     batch = _make_encoded_batch()
     output = model(batch.encoded_inputs, batch.global_cond)
@@ -197,7 +197,7 @@ def test_processor_model_forward():
 def test_processor_model_training_step():
     """Test that training_step computes loss correctly with EncodedBatch."""
     processor = _build_diffusion_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     batch = _make_encoded_batch()
     loss = model.training_step(batch, batch_idx=0)
@@ -211,7 +211,7 @@ def test_processor_model_training_step():
 def test_processor_model_validation_step():
     """Test that validation_step computes loss correctly with EncodedBatch."""
     processor = _build_diffusion_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     batch = _make_encoded_batch()
     loss = model.validation_step(batch, batch_idx=0)
@@ -224,7 +224,7 @@ def test_processor_model_validation_step():
 def test_processor_model_test_step():
     """Test that test_step computes loss correctly with EncodedBatch."""
     processor = _build_diffusion_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     batch = _make_encoded_batch()
     loss = model.test_step(batch, batch_idx=0)
@@ -237,7 +237,10 @@ def test_processor_model_test_step():
 def test_processor_model_diffusion_trainer_fit():
     """Test full training loop with Lightning Trainer and DiffusionProcessor."""
     processor = _build_diffusion_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-3)
+    model = ProcessorModel(
+        processor=processor,
+        optimizer_config=get_optimizer_config(learning_rate=1e-3),
+    )
 
     train_loader = _build_dataloader()
     val_loader = _build_dataloader()
@@ -256,7 +259,10 @@ def test_processor_model_diffusion_trainer_fit():
 def test_processor_model_flow_matching_trainer_fit():
     """Test full training loop with Lightning Trainer and FlowMatchingProcessor."""
     processor = _build_flow_matching_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-3)
+    model = ProcessorModel(
+        processor=processor,
+        optimizer_config=get_optimizer_config(learning_rate=1e-3),
+    )
 
     train_loader = _build_dataloader()
     val_loader = _build_dataloader()
@@ -275,7 +281,7 @@ def test_processor_model_flow_matching_trainer_fit():
 def test_processor_model_clone_batch():
     """Test that _clone_batch creates independent copy of EncodedBatch."""
     processor = _build_diffusion_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     original = _make_encoded_batch(encoded_info={"key": torch.tensor([1.0, 2.0])})
     cloned = model._clone_batch(original)
@@ -292,7 +298,11 @@ def test_processor_model_clone_batch():
 def test_processor_model_advance_batch():
     """Test that _advance_batch correctly advances the batch for rollout."""
     processor = _build_diffusion_processor(n_steps_input=2, n_steps_output=4)
-    model = ProcessorModel(processor=processor, learning_rate=1e-4, stride=2)
+    model = ProcessorModel(
+        processor=processor,
+        optimizer_config=get_optimizer_config(),
+        stride=2,
+    )
 
     batch = EncodedBatch(
         encoded_inputs=torch.randn(2, 2, 8, 8, 8),  # n_steps_input=2
@@ -314,7 +324,10 @@ def test_processor_model_configure_optimizers():
     """Test that configure_optimizers returns Adam optimizer."""
     processor = _build_diffusion_processor()
     lr = 5e-4
-    model = ProcessorModel(processor=processor, learning_rate=lr)
+    model = ProcessorModel(
+        processor=processor,
+        optimizer_config=get_optimizer_config(learning_rate=lr),
+    )
 
     optimizer = model.configure_optimizers()
 
@@ -325,7 +338,7 @@ def test_processor_model_configure_optimizers():
 def test_processor_model_map():
     """Test that map method works correctly."""
     processor = _build_diffusion_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     x = torch.randn(2, 1, 8, 8, 8)
     output = model.map(x, None)
@@ -348,7 +361,7 @@ def test_varying_temporal_steps(n_steps_input: int, n_steps_output: int):
         n_channels_in=n_channels,
         n_channels_out=n_channels,
     )
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     batch = _make_encoded_batch(
         n_steps_input=n_steps_input,
@@ -370,7 +383,7 @@ def test_varying_channels(n_channels_in: int, n_channels_out: int):
         n_channels_in=n_channels_in,
         n_channels_out=n_channels_out,
     )
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     batch = _make_encoded_batch(
         n_channels_in=n_channels_in,
@@ -389,7 +402,7 @@ def test_varying_channels(n_channels_in: int, n_channels_out: int):
 def test_encoded_batch_with_global_conds():
     """Test that ProcessorModel works when global_conds are present."""
     processor = _build_diffusion_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     batch = _make_encoded_batch(global_cond=torch.randn(2, 1, 3))
     loss = model.training_step(batch, batch_idx=0)
@@ -399,7 +412,7 @@ def test_encoded_batch_with_global_conds():
 
 def test_global_cond_passed_to_processor_predict():
     processor = CondCaptureProcessor()
-    model = ProcessorModel(processor=processor)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
     global_cond = torch.randn(2, 1, 3)
     batch = _make_encoded_batch(global_cond=global_cond)
 
@@ -412,7 +425,7 @@ def test_global_cond_passed_to_processor_predict():
 def test_clone_batch_preserves_global_conds():
     """Test that _clone_batch preserves global_cond correctly."""
     processor = _build_diffusion_processor()
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     batch = _make_encoded_batch(global_cond=torch.randn(2, 1, 3))
     cloned = model._clone_batch(batch)
@@ -432,7 +445,7 @@ def test_processor_model_enforces_global_cond_usage():
         include_global_cond=True,
         global_cond_channels=global_cond_dim,
     )
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     # Test success with valid global_cond
     batch_with_cond = _make_encoded_batch(global_cond=torch.randn(2, global_cond_dim))
@@ -455,7 +468,7 @@ def test_processor_ignores_global_cond_when_disabled():
         include_global_cond=False,
         global_cond_channels=None,
     )
-    model = ProcessorModel(processor=processor, learning_rate=1e-4)
+    model = ProcessorModel(processor=processor, optimizer_config=get_optimizer_config())
 
     # Create dummy input
     batch_size = 2

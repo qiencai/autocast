@@ -19,7 +19,7 @@ from autocast.types.types import TensorBTSCM
 class EncoderProcessorDecoder(
     OptimizerMixin, RolloutMixin[Batch], L.LightningModule, MetricsMixin
 ):
-    """Encoder-Processor-Decoder Model.""" ""
+    """Encoder-Processor-Decoder Model."""
 
     encoder_decoder: EncoderDecoder
     processor: Processor
@@ -31,7 +31,6 @@ class EncoderProcessorDecoder(
         self,
         encoder_decoder: EncoderDecoder,
         processor: Processor,
-        learning_rate: float = 1e-3,
         optimizer_config: dict[str, Any] | None = None,
         stride: int = 1,
         rollout_stride: int | None = None,
@@ -48,7 +47,6 @@ class EncoderProcessorDecoder(
         super().__init__()
         self.encoder_decoder = encoder_decoder
         self.processor = processor
-        self.learning_rate = learning_rate
         self.optimizer_config = optimizer_config
         self.stride = stride
         self.rollout_stride = rollout_stride if rollout_stride is not None else stride

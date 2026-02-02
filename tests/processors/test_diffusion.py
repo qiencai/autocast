@@ -4,6 +4,7 @@ import lightning as L
 import pytest
 import torch
 from azula.noise import VPSchedule
+from conftest import get_optimizer_config
 from torch.utils.data import DataLoader, Dataset
 
 from autocast.models.processor import ProcessorModel
@@ -150,7 +151,12 @@ def test_diffusion_processor(
         n_channels_out=n_channels_out,
         sampler_steps=5,
     )
-    model = ProcessorModel(processor=processor, sampler_steps=5, stride=n_steps_output)
+    model = ProcessorModel(
+        processor=processor,
+        optimizer_config=get_optimizer_config(),
+        sampler_steps=5,
+        stride=n_steps_output,
+    )
     output = model.map(encoded_batch.encoded_inputs, encoded_batch.global_cond)
     assert output.shape == encoded_batch.encoded_output_fields.shape
 

@@ -1,6 +1,7 @@
 defaults:
   - datamodule: miniwell
   - optional simulator: null
+  - optimizer: adamw
   - model: processor
   - trainer: default
   - logging: wandb
