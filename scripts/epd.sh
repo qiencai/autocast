@@ -24,7 +24,7 @@ fi
 # Run script
 # Optional overrides you can add via CLI:
 #   logging.wandb.enabled=true
-uv run python -m autocast.scripts.train.encoder_processor_decoder "${OVERRIDES[@]}" "$@"
+uv run train_encoder_processor_decoder "${OVERRIDES[@]}" "$@"
 
 # Example Usage for Ensemble via CLI Args:
 # ./scripts/epd.sh my_label my_run reaction_diffusion \
@@ -36,5 +36,5 @@ uv run python -m autocast.scripts.train.encoder_processor_decoder "${OVERRIDES[@
 #     model.loss_func._target_=autocast.losses.ensemble.CRPSLoss \
 #     +model.train_metrics.crps._target_=autocast.metrics.ensemble.CRPS \
 #     logging.wandb.enabled=true \
-#     model.learning_rate=0.0002 \
+#     optimizer.learning_rate=0.0002 \
 #     trainer.max_epochs=5

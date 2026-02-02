@@ -18,4 +18,4 @@ OVERRIDES=(
 # Run script
 # Optional overrides you can add via CLI:
 #   logging.wandb.enabled=true
-uv run python -m autocast.scripts.train.autoencoder "${OVERRIDES[@]}" "$@"
+uv run train_autoencoder "${OVERRIDES[@]}" "$@"

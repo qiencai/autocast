@@ -9,12 +9,15 @@ from omegaconf import DictConfig
 
 from autocast.scripts.setup import setup_datamodule, setup_processor_model
 from autocast.scripts.training import run_training
+from autocast.scripts.utils import get_default_config_path
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
-    version_base=None, config_path="../../../../configs", config_name="processor"
+    version_base=None,
+    config_path=get_default_config_path(),
+    config_name="processor",
 )
 def main(cfg: DictConfig) -> None:
     """CLI entrypoint for training the processor."""

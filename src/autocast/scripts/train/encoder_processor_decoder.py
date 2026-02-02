@@ -9,13 +9,14 @@ from omegaconf import DictConfig
 
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
 from autocast.scripts.training import run_training
+from autocast.scripts.utils import get_default_config_path
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../../../configs",
+    config_path=get_default_config_path(),
     config_name="encoder_processor_decoder",
 )
 def main(cfg: DictConfig) -> None:

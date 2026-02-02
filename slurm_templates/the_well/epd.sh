@@ -54,32 +54,29 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Train
 uv run train_encoder_processor_decoder \
-	--config-path=configs/ \
-    --config-name=encoder_processor_decoder \
-	--work-dir=${WORKING_DIR} \
+    hydra.run.dir=${WORKING_DIR} \
     model=encoder_processor_decoder \
     encoder@model.encoder=dc_f32c64_small \
     decoder@model.decoder=dc_f32c64_small \
     processor@model.processor=flow_matching_large \
+    datamodule=the_well \
+    datamodule.well_dataset_name=rayleigh_benard \
+    datamodule.num_workers=0 \
+    datamodule.batch_size=8 \
+    datamodule.cache_small=false \
+    datamodule.max_cache_size=0.0 \
+    optimizer=adamw \
     logging.wandb.enabled=true \
     trainer.max_epochs=5 \
     trainer.gradient_clip_val=1.0 \
-    data=the_well \
-    data.well_dataset_name=rayleigh_benard \
-    data.num_workers=0 \
-    data.batch_size=8 \
-    data.cache_small=false \
-    data.max_cache_size=0.0 \
-    optimizer=adamw \
     trainer.callbacks.0.every_n_train_steps=5000 \
-    "training.autoencoder_checkpoint='outputs/autoencoder_run/20251217_121300/autocast/0nttzj9a/checkpoints/step-step=7900.ckpt'"
+    "autoencoder_checkpoint='outputs/autoencoder_run/20251217_121300/autocast/0nttzj9a/checkpoints/step-step=7900.ckpt'"
 	# trainer.enable_checkpointing=false \
     
 # Evaluate
 uv run evaluate_encoder_processor_decoder \
-	--config-path=configs/ \
-	--work-dir=${WORKING_DIR} \
-	--checkpoint=${WORKING_DIR}/encoder_processor_decoder.ckpt \
-	--batch-index=0 \
-    --batch-index=1 \
-	--video-dir=${WORKING_DIR}/videos
+    hydra.run.dir=${WORKING_DIR} \
+    eval=encoder_processor_decoder \
+	eval.checkpoint=${WORKING_DIR}/autocast/*/checkpoints/last.ckpt \
+	eval.batch_indices=[0,1] \
+	eval.video_dir=${WORKING_DIR}/videos

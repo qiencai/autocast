@@ -10,8 +10,6 @@ shift 3
 WORKDIR="${PWD}/outputs/${LABEL}/${OUTPATH}"
 
 OVERRIDES=(
-	--config-path=configs
-	--config-name=processor
 	"hydra.run.dir=${WORKDIR}"
 	"datamodule=${DATAPATH}"
 	"datamodule.data_path=${AUTOCAST_DATASETS}/${DATAPATH}"
@@ -20,5 +18,5 @@ OVERRIDES=(
 # Run script
 # Optional overrides you can add via CLI:
 #   logging.wandb.enabled=true
-uv run python -m autocast.scripts.train.processor "${OVERRIDES[@]}" "$@"
+uv run train_processor "${OVERRIDES[@]}" "$@"
     
