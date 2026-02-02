@@ -15,13 +15,13 @@ VIDEO_DIR="${RUN_DIR}/videos"
 uv run python -m autocast.scripts.eval.encoder_processor_decoder \
 	--config-path=configs/ \
 	--config-name=encoder_processor_decoder \
-	hydra.run.dir=${RUN_DIR} \
 	--checkpoint=${CKPT_PATH} \
 	--batch-index=0 \
 	--batch-index=1 \
 	--batch-index=2 \
 	--batch-index=3 \
 	--video-dir=${VIDEO_DIR} \
+	hydra.run.dir=${RUN_DIR} \
 	datamodule=${DATAPATH} \
-	datamodule.data_path=$AUTOCAST_DATASETS/${DATAPATH} \
+	datamodule.data_path=${AUTOCAST_DATASETS}/${DATAPATH} \
 	"$@"
