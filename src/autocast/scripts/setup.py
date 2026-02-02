@@ -354,8 +354,7 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
     steps_in = stats["n_steps_input"]
     steps_out = stats["n_steps_output"]
 
-    # For time-concat encoders, latent_channels is already C*T
-    # For regular encoders, it's just the channel count (C)
+    # For time-concat encoders, latent_channels is C*T, otherwise it's C
     input_noise_channels = (
         (
             extra_input_channels * steps_in
