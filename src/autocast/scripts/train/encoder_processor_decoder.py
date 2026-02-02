@@ -1,33 +1,30 @@
 """Train an encoder-processor-decoder with optional pretrained autoencoder."""
 
 import logging
+from pathlib import Path
 
+import hydra
 import lightning as L
+from omegaconf import DictConfig
 
-from autocast.scripts.cli import parse_common_args
-from autocast.scripts.config import load_config, resolve_work_dir
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
 from autocast.scripts.training import run_training
 
 log = logging.getLogger(__name__)
 
 
-def main():
-    """CLI entrypoint for training the processor."""
-    args = parse_common_args(
-        description=(
-            "Train an encoder-processor-decoder model with Hydra-configured "
-            "encoder, decoder, and processor components."
-        ),
-        config_name="encoder_processor_decoder",
-    )
-
+@hydra.main(
+    version_base=None,
+    config_path="../../../configs",
+    config_name="encoder_processor_decoder",
+)
+def main(cfg: DictConfig) -> None:
+    """CLI entrypoint for training the encoder-processor-decoder."""
     # Setup logging
     logging.basicConfig(level=logging.INFO)
 
-    # Compose config
-    cfg = load_config(args)
-    work_dir = resolve_work_dir(args.overrides)
+    # Work directory is managed by Hydra
+    work_dir = Path.cwd()
 
     # Setup datamodule and resolve config
     datamodule, cfg, stats = setup_datamodule(cfg)
@@ -38,14 +35,19 @@ def main():
     # Setup Model (includes AE loading, processor creation, ensemble logic)
     model = setup_epd_model(cfg, stats)
 
+    # Get output config
+    output_cfg = cfg.get("output", {})
+    skip_test = output_cfg.get("skip_test", False)
+    output_checkpoint = output_cfg.get("checkpoint_path")
+
     # Run Training
     run_training(
         cfg,
         model,
         datamodule,
         work_dir,
-        skip_test=args.skip_test,
-        output_checkpoint_path=args.output_checkpoint,
+        skip_test=skip_test,
+        output_checkpoint_path=output_checkpoint,
         job_type="train-encoder-processor-decoder",
     )
 

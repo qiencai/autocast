@@ -17,7 +17,9 @@ datamodule:
 
 output:
   checkpoint_name: autoencoder.ckpt
+  checkpoint_path: null  # Override checkpoint path (defaults to work_dir/checkpoint_name)
   save_config: true
+  skip_test: false  # Skip running trainer.test() after training
 
 hydra:
   run:

@@ -12,10 +12,32 @@ experiment_name: epd
 
 output:
   checkpoint_name: encoder_processor_decoder.ckpt
+  checkpoint_path: null  # Override checkpoint path (defaults to work_dir/checkpoint_name)
   save_config: true
+  skip_test: false  # Skip running trainer.test() after training
 
 eval:
+  # Path to checkpoint for evaluation (required for eval)
+  checkpoint: null
+  # Evaluation metrics to compute
+  metrics:
+    - mse
+    - rmse
+    - vrmse
+  # Output paths (default to work_dir if not specified)
+  csv_path: null
+  video_dir: null
+  # Batch indices to visualize
+  batch_indices: []
+  # Video generation settings
+  video_format: mp4  # gif or mp4
+  video_sample_index: 0
+  fps: 5
+  # Device for evaluation
+  device: auto  # auto, cpu, cuda, or mps
+  # Rollout settings
   max_rollout_steps: 25
+  free_running_only: true
 
 hydra:
   run:

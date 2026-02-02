@@ -10,8 +10,6 @@ shift 3
 WORKDIR="${PWD}/outputs/${LABEL}/${OUTPATH}"
 
 OVERRIDES=(
-	--config-path=configs
-	--config-name=autoencoder
 	"hydra.run.dir=${WORKDIR}"
 	"datamodule=${DATAPATH}"
 	"datamodule.data_path=${AUTOCAST_DATASETS}/${DATAPATH}"

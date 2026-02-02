@@ -1,15 +1,14 @@
 """Evaluation CLI for encoder-processor-decoder checkpoints."""
 
-import argparse
 import csv
 import logging
-from argparse import BooleanOptionalAction
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+import hydra
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
 from autocast.logging import create_wandb_logger, log_metrics
@@ -25,8 +24,7 @@ from autocast.metrics import (
     LInfinity,
 )
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
-from autocast.scripts.cli import add_common_config_args
-from autocast.scripts.config import load_config, resolve_work_dir, save_resolved_config
+from autocast.scripts.config import save_resolved_config
 from autocast.scripts.data import batch_to_device
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
 from autocast.utils import plot_spatiotemporal_video
@@ -46,96 +44,23 @@ AVAILABLE_METRICS = {
 }
 
 
-def parse_args() -> argparse.Namespace:
-    """Parse CLI arguments for the evaluation utility."""
-    parser = argparse.ArgumentParser(
-        description="Evaluate a trained encoder-processor-decoder checkpoint."
-    )
-    add_common_config_args(parser, "encoder_processor_decoder")
-    # Required for evaluation
-    parser.add_argument(
-        "--checkpoint",
-        type=Path,
-        required=True,
-        help="Path to the encoder-processor-decoder checkpoint to evaluate.",
-    )
-    # Evaluation specific
-    parser.add_argument(
-        "--csv-path",
-        type=Path,
-        default=None,
-        help="Optional explicit path for the metrics CSV (defaults to work-dir).",
-    )
-    parser.add_argument(
-        "--metric",
-        dest="metrics",
-        action="append",
-        choices=sorted(AVAILABLE_METRICS.keys()),
-        default=None,
-        help="Metrics to compute (defaults to mse and rmse).",
-    )
-    parser.add_argument(
-        "--batch-index",
-        dest="batch_indices",
-        type=int,
-        action="append",
-        default=[],
-        help="Batch indices from rollout_test_dataloader() to visualize.",
-    )
-    parser.add_argument(
-        "--video-dir",
-        type=Path,
-        default=None,
-        help="Directory to save rollout videos (defaults to <work-dir>/videos).",
-    )
-    parser.add_argument(
-        "--video-format",
-        choices=("gif", "mp4"),
-        default="mp4",
-        help="File extension used for saved rollout animations.",
-    )
-    parser.add_argument(
-        "--video-sample-index",
-        type=int,
-        default=0,
-        help="Sample index within the batch to visualize (default: 0).",
-    )
-    parser.add_argument(
-        "--fps",
-        type=int,
-        default=5,
-        help="Frames per second for the generated videos.",
-    )
-    parser.add_argument(
-        "--device",
-        choices=("auto", "cpu", "cuda", "mps"),
-        default="auto",
-        help="Device to run evaluation on (default tries CUDA/MPS before CPU).",
-    )
-    parser.add_argument(
-        "--free-running-only",
-        action=BooleanOptionalAction,
-        default=True,
-        help="Whether to disable teacher forcing during rollouts (default: True).",
-    )
-    return parser.parse_args()
-
-
-def _resolve_csv_path(args: argparse.Namespace, work_dir: Path) -> Path:
-    if args.csv_path is not None:
-        return args.csv_path.expanduser().resolve()
+def _resolve_csv_path(eval_cfg: dict, work_dir: Path) -> Path:
+    csv_path = eval_cfg.get("csv_path")
+    if csv_path is not None:
+        return Path(csv_path).expanduser().resolve()
     return (work_dir / "evaluation_metrics.csv").resolve()
 
 
-def _resolve_video_dir(args: argparse.Namespace, work_dir: Path) -> Path:
-    if args.video_dir is not None:
-        return args.video_dir.expanduser().resolve()
+def _resolve_video_dir(eval_cfg: dict, work_dir: Path) -> Path:
+    video_dir = eval_cfg.get("video_dir")
+    if video_dir is not None:
+        return Path(video_dir).expanduser().resolve()
     return (work_dir / "videos").resolve()
 
 
-def _resolve_device(arg: str) -> torch.device:
-    if arg != "auto":
-        return torch.device(arg)
+def _resolve_device(device_str: str) -> torch.device:
+    if device_str != "auto":
+        return torch.device(device_str)
     if torch.cuda.is_available():
         return torch.device("cuda")
     mps_available = getattr(torch.backends, "mps", None)
@@ -319,17 +244,37 @@ def _load_state_dict(checkpoint_path: Path) -> OrderedDict[str, torch.Tensor]:
     return state_dict
 
 
-def main() -> None:
+@hydra.main(
+    version_base=None,
+    config_path="../../../configs",
+    config_name="encoder_processor_decoder",
+)
+def main(cfg: DictConfig) -> None:
     """Entry point for CLI-based evaluation."""
-    args = parse_args()
     logging.basicConfig(level=logging.INFO)
 
-    cfg = load_config(args)
-    work_dir = resolve_work_dir(args.overrides)
+    # Work directory is managed by Hydra
+    work_dir = Path.cwd()
+
+    # Get eval config
+    eval_cfg = cfg.get("eval", {})
+
+    # Validate that checkpoint is provided
+    checkpoint_path = eval_cfg.get("checkpoint")
+    if checkpoint_path is None:
+        msg = (
+            "No checkpoint specified. Please provide a checkpoint path via:\n"
+            "  eval.checkpoint=/path/to/checkpoint.ckpt\n"
+            "Or add it to your config file."
+        )
+        raise ValueError(msg)
+    checkpoint_path = Path(checkpoint_path)
+
     if cfg.get("output", {}).get("save_config"):
         save_resolved_config(cfg, work_dir, filename="resolved_eval_config.yaml")
-    csv_path = _resolve_csv_path(args, work_dir)
-    video_dir = _resolve_video_dir(args, work_dir)
+
+    csv_path = _resolve_csv_path(eval_cfg, work_dir)
+    video_dir = _resolve_video_dir(eval_cfg, work_dir)
 
     # Setup datamodule and resolve config
     datamodule, cfg, stats = setup_datamodule(cfg)
@@ -338,8 +283,8 @@ def main() -> None:
     model = setup_epd_model(cfg, stats)
 
     # Load checkpoint
-    log.info("Loading checkpoint from %s", args.checkpoint)
-    state_dict = _load_state_dict(args.checkpoint)
+    log.info("Loading checkpoint from %s", checkpoint_path)
+    state_dict = _load_state_dict(checkpoint_path)
     load_result = model.load_state_dict(state_dict, strict=True)
     if load_result.missing_keys or load_result.unexpected_keys:
         msg = (
@@ -357,6 +302,11 @@ def main() -> None:
         if logging_cfg is not None
         else {}
     )
+
+    # Get eval parameters from config
+    metrics_list = eval_cfg.get("metrics", ["mse", "rmse"])
+    batch_indices = eval_cfg.get("batch_indices", [])
+
     wandb_logger, _ = create_wandb_logger(
         logging_cfg,  # type: ignore  # noqa: PGH003
         experiment_name=cfg.get("experiment_name"),
@@ -365,19 +315,19 @@ def main() -> None:
         config={
             "hydra": resolved_cfg,
             "evaluation": {
-                "checkpoint": str(args.checkpoint),
-                "metrics": args.metrics or ("mse", "rmse"),
-                "batch_indices": args.batch_indices,
+                "checkpoint": str(checkpoint_path),
+                "metrics": metrics_list,
+                "batch_indices": batch_indices,
             },
         },
     )
 
-    metrics = _build_metrics(args.metrics or ("mse", "rmse"))
+    metrics = _build_metrics(metrics_list)
 
     model_cfg = cfg.get("model", {})
     n_members = model_cfg.get("n_members", 1)
 
-    device = _resolve_device(args.device)
+    device = _resolve_device(eval_cfg.get("device", "auto"))
     model.to(device)
 
     # Evaluation
@@ -395,10 +345,8 @@ def main() -> None:
         log_metrics(wandb_logger, payload)
 
     # Rollouts
-    if args.batch_indices:
+    if batch_indices:
         rollout_loader = datamodule.rollout_test_dataloader(batch_size=1)
-        # Check explicit eval config or assume defaults
-        eval_cfg = cfg.get("eval", {})
         max_rollout_steps = eval_cfg.get("max_rollout_steps", 10)
 
         # Use rollout_stride config or fallback to n_steps_output (from stats)
@@ -408,15 +356,15 @@ def main() -> None:
         _render_rollouts(
             model,
             rollout_loader,
-            args.batch_indices,
+            batch_indices,
             video_dir,
-            args.video_sample_index,
-            args.video_format,
-            args.fps,
+            eval_cfg.get("video_sample_index", 0),
+            eval_cfg.get("video_format", "mp4"),
+            eval_cfg.get("fps", 5),
             device,
             stride=rollout_stride,
             max_rollout_steps=max_rollout_steps,
-            free_running_only=args.free_running_only,
+            free_running_only=eval_cfg.get("free_running_only", True),
             n_members=n_members,
         )
 

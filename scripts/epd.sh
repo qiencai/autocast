@@ -11,8 +11,6 @@ WORKDIR="${PWD}/outputs/${LABEL}/${OUTPATH}"
 
 # Build overrides and include the autoencoder checkpoint only if present
 OVERRIDES=(
-	--config-path=configs
-	--config-name=encoder_processor_decoder
 	"hydra.run.dir=${WORKDIR}"
 	"datamodule=${DATAPATH}"
 	"datamodule.data_path=${AUTOCAST_DATASETS}/${DATAPATH}"
