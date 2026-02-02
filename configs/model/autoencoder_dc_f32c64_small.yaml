@@ -3,9 +3,6 @@ defaults:
   - /decoder: dc_f32c64_small
   - _self_
 
-learning_rate: 0.0005
-optimizer_config: ${oc.select:optimizer, null}
-
 loss:
   _target_: autocast.models.autoencoder.AELoss
   losses:

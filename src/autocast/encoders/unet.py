@@ -30,7 +30,7 @@ class UNetEncoder(Encoder):
         super().__init__()
 
         attention_heads = attention_heads or {}
-        self.latent_dim = out_channels
+        self.latent_channels = out_channels
         self.input_channels = in_channels
 
         self.encoder_model = UNet(

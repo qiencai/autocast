@@ -47,14 +47,13 @@ exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
 
 # Train
 uv run train_encoder_processor_decoder \
-    --config-path=configs/ \
-	--work-dir=${WORKING_DIR}
+    hydra.run.dir=${WORKING_DIR}
 	
 # Evaluate
 uv run evaluate_encoder_processor_decoder \
-	--config-path=configs/ \
-	--work-dir=${WORKING_DIR} \
-	--checkpoint=${WORKING_DIR}/encoder_processor_decoder.ckpt \
-	--batch-index=0 --batch-index=3 \
-	--video-dir=${WORKING_DIR}/videos
+	hydra.run.dir=${WORKING_DIR} \
+	eval=encoder_processor_decoder \
+	eval.checkpoint=${WORKING_DIR}/autocast/*/checkpoints/last.ckpt \
+	eval.batch_indices=[0,3] \
+	eval.video_dir=${WORKING_DIR}/videos
 

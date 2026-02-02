@@ -1,4 +1,5 @@
 import lightning as L
+from conftest import get_optimizer_config
 
 from autocast.models.processor import ProcessorModel
 from autocast.processors.fno import FNOProcessor
@@ -14,6 +15,7 @@ def test_fno_processor(encoded_batch, encoded_dummy_loader):
     )
     model = ProcessorModel(
         processor=processor,
+        optimizer_config=get_optimizer_config(),
     )
 
     output = model.map(encoded_batch.encoded_inputs, None)

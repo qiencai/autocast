@@ -64,7 +64,7 @@ class DCEncoder(EncoderWithCond):
     """
 
     encoder_model: nn.Module
-    channel_dim: int = -1
+    channel_axis: int = -1
 
     def __init__(
         self,
@@ -106,7 +106,7 @@ class DCEncoder(EncoderWithCond):
         }
 
         self.patch = Patchify(patch_shape=tuple(patch_size))
-        self.latent_dim = out_channels
+        self.latent_channels = out_channels
         self.input_channels = in_channels
 
         # Build encoder from shallowest to deepest
@@ -207,4 +207,6 @@ class DCEncoder(EncoderWithCond):
         for blocks in self.descent:
             for block in cast(nn.ModuleList, blocks):  # ModuleList in construction
                 x = block(x)
-        return rearrange(x, "(B T) C ... -> B T ... C", B=b, T=t, C=self.latent_dim)
+        return rearrange(
+            x, "(B T) C ... -> B T ... C", B=b, T=t, C=self.latent_channels
+        )

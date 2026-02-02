@@ -1,7 +1,7 @@
 import lightning as L
 import pytest
 import torch
-from conftest import CondCaptureProcessor
+from conftest import CondCaptureProcessor, get_optimizer_config
 from torch import nn
 
 from autocast.decoders.channels_last import ChannelsLast
@@ -41,7 +41,9 @@ def test_encoder_processor_decoder_training_step_runs(make_toy_batch, dummy_load
     # Encoder merges C*T into single dimension
     merged_channels = output_channels * time_steps
 
-    encoder = PermuteConcat(with_constants=False)
+    encoder = PermuteConcat(
+        in_channels=output_channels, n_steps_input=time_steps, with_constants=False
+    )
     decoder = ChannelsLast(output_channels=output_channels, time_steps=time_steps)
     loss = nn.MSELoss()
     encoder_decoder = EncoderDecoder(encoder=encoder, decoder=decoder, loss_func=loss)
@@ -51,6 +53,7 @@ def test_encoder_processor_decoder_training_step_runs(make_toy_batch, dummy_load
         encoder_decoder=encoder_decoder,
         processor=processor,
         loss_func=loss,
+        optimizer_config=get_optimizer_config(),
     )
 
     train_loss = model.training_step(batch, 0)
@@ -86,13 +89,17 @@ def test_global_cond_passes_from_encoder_to_processor():
         constant_fields=None,
     )
 
-    encoder = PermuteConcat(with_constants=False)
+    encoder = PermuteConcat(
+        in_channels=channels, n_steps_input=t_steps, with_constants=False
+    )
     decoder = ChannelsLast(output_channels=channels, time_steps=t_steps)
     encoder_decoder = EncoderDecoder(encoder=encoder, decoder=decoder)
 
     processor = CondCaptureProcessor()
     model = EncoderProcessorDecoder(
-        encoder_decoder=encoder_decoder, processor=processor
+        encoder_decoder=encoder_decoder,
+        processor=processor,
+        optimizer_config=get_optimizer_config(),
     )
 
     _ = model(batch)
@@ -131,7 +138,9 @@ def test_encoder_processor_decoder_rollout_handles_batches(
     merged_input_channels = output_channels * n_steps_input
     merged_output_channels = output_channels * n_steps_output
 
-    encoder = PermuteConcat(with_constants=False)
+    encoder = PermuteConcat(
+        in_channels=output_channels, n_steps_input=n_steps_input, with_constants=False
+    )
     decoder = ChannelsLast(output_channels=output_channels, time_steps=n_steps_output)
     loss = nn.MSELoss()
     encoder_decoder = EncoderDecoder(encoder=encoder, decoder=decoder, loss_func=loss)
@@ -142,6 +151,7 @@ def test_encoder_processor_decoder_rollout_handles_batches(
         encoder_decoder=encoder_decoder,
         processor=processor,
         loss_func=loss,
+        optimizer_config=get_optimizer_config(),
         stride=stride,
         max_rollout_steps=max_rollout_steps,
     )
@@ -200,7 +210,9 @@ def test_encoder_processor_decoder_rollout_handles_short_trajectory(
     merged_input_channels = output_channels * n_steps_input
     merged_output_channels = output_channels * n_steps_output
 
-    encoder = PermuteConcat(with_constants=False)
+    encoder = PermuteConcat(
+        in_channels=output_channels, n_steps_input=n_steps_input, with_constants=False
+    )
     decoder = ChannelsLast(output_channels=output_channels, time_steps=n_steps_output)
     loss = nn.MSELoss()
     encoder_decoder = EncoderDecoder(encoder=encoder, decoder=decoder, loss_func=loss)
@@ -211,6 +223,7 @@ def test_encoder_processor_decoder_rollout_handles_short_trajectory(
         encoder_decoder=encoder_decoder,
         processor=processor,
         loss_func=loss,
+        optimizer_config=get_optimizer_config(),
         stride=stride,
         max_rollout_steps=max_rollout_steps,
         teacher_forcing_ratio=0.0,

@@ -8,17 +8,16 @@ export DATAPATH=$3
 shift 3
 
 # Run script
+RUN_DIR="${PWD}/outputs/${LABEL}/${OUTPATH}/eval"
+CKPT_PATH="${PWD}/outputs/${LABEL}/${OUTPATH}/encoder_processor_decoder.ckpt"
+VIDEO_DIR="${RUN_DIR}/videos"
+
 uv run evaluate_encoder_processor_decoder \
-	--config-path=configs/ \
-	--config-name=encoder_processor_decoder \
-	--work-dir=outputs/${LABEL}/${OUTPATH}/eval \
-	--checkpoint=outputs/${LABEL}/${OUTPATH}/encoder_processor_decoder.ckpt \
-	--batch-index=0 \
-	--batch-index=1 \
-	--batch-index=2 \
-	--batch-index=3 \
-	--video-dir=outputs/${LABEL}/${OUTPATH}/eval/videos \
-	data=$DATAPATH \
-	data.data_path=$AUTOCAST_DATASETS/${DATAPATH} \
-	data.use_simulator=false \
+	hydra.run.dir=${RUN_DIR} \
+	eval=encoder_processor_decoder \
+	datamodule=${DATAPATH} \
+	datamodule.data_path=${AUTOCAST_DATASETS}/${DATAPATH} \
+	eval.checkpoint=${CKPT_PATH} \
+	eval.batch_indices=[0,1,2,3] \
+	eval.video_dir=${VIDEO_DIR} \
 	"$@"

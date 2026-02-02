@@ -6,13 +6,21 @@ from autocast.types import Batch, TensorBNC
 
 
 class PermuteConcat(EncoderWithCond):
-    """Permute and concatenate Encoder."""
+    """Permute and concatenate Encoder.
 
-    channel_dim: int = 1
+    Concatenates channels and time dimensions into a single channel dimension.
+    Output shape: (B, C*T, H, W) where C is in_channels and T is n_steps_input.
+    """
 
-    def __init__(self, with_constants: bool = False) -> None:
+    channel_axis: int = 1
+    outputs_time_channel_concat: bool = True
+
+    def __init__(
+        self, in_channels: int, n_steps_input: int, with_constants: bool = False
+    ) -> None:
         super().__init__()
         self.with_constants = with_constants
+        self.latent_channels = in_channels * n_steps_input
 
     def encode(self, batch: Batch) -> TensorBNC:
         # Destructure batch, time, space, channels

@@ -1,4 +1,5 @@
 import lightning as L
+from conftest import get_optimizer_config
 
 from autocast.models.processor import ProcessorModel
 from autocast.processors.vit import AViTProcessor
@@ -20,6 +21,7 @@ def test_vit_processor(encoded_batch, encoded_dummy_loader):
     )
     model = ProcessorModel(
         processor=processor,
+        optimizer_config=get_optimizer_config(),
     )
 
     output = model.map(encoded_batch.encoded_inputs, encoded_batch.global_cond)

@@ -48,7 +48,6 @@ exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
 
 # Train
 uv run train_autoencoder \
-    --config-path=configs/ \
-	--work-dir=${WORKING_DIR}
+    hydra.run.dir=${WORKING_DIR}
 	
 
