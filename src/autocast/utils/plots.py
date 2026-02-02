@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Literal
 
 import matplotlib.pyplot as plt
@@ -229,9 +230,10 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     return anim
 
 
-def compute_coverage_scores_from_dataloader(
+def compute_coverage_scores_from_dataloader(  # noqa: PLR0912 TODO: refactor
     dataloader: torch.utils.data.DataLoader,
-    model: torch.nn.Module,
+    model: torch.nn.Module | None = None,
+    predict_fn: Callable | None = None,
     coverage_levels: list[float] | None = None,
     windows: list[tuple[int, int] | None] | None = None,
     return_tensors: bool = False,
@@ -243,8 +245,12 @@ def compute_coverage_scores_from_dataloader(
     ----------
     dataloader: DataLoader
         DataLoader that yields batches.
-    model: nn.Module
+    model: nn.Module, optional
         Model with forward(batch) that returns predictions with ensemble dimension.
+        Either model or predict_fn must be provided.
+    predict_fn: Callable, optional
+        Custom function (batch) -> (preds, trues) for cases like rollout.
+        Either model or predict_fn must be provided.
     coverage_levels: list[float], optional
         Coverage levels to evaluate (default: 0.05 to 0.95).
     windows: list[tuple[int, int] | None], optional
@@ -258,6 +264,10 @@ def compute_coverage_scores_from_dataloader(
     tuple[MultiCoverage, tuple[TensorBTSCM, TensorBTSC] | None]
         The populated MultiCoverage metric and optionally the tensors.
     """
+    if model is None and predict_fn is None:
+        msg = "Either model or predict_fn must be provided"
+        raise ValueError(msg)
+
     coverage_levels_ = (
         coverage_levels or np.linspace(0.05, 0.95, 10, endpoint=True).tolist()
     )
@@ -266,12 +276,21 @@ def compute_coverage_scores_from_dataloader(
     all_preds = [] if return_tensors else None
     all_trues = [] if return_tensors else None
 
-    model.eval()
+    if model is not None:
+        model.eval()
+
     with torch.no_grad():
         for batch in dataloader:
-            # Forward pass (assumes model(batch) returns ensemble predictions)
-            preds = model(batch)  # Shape: (B, T, ..., M) or similar
-            trues = batch.output_fields  # Shape: (B, T, ...)
+            # Get predictions and ground truth
+            if predict_fn is not None:
+                result = predict_fn(batch)
+                if result is None or result[0] is None or result[1] is None:
+                    continue
+                preds, trues = result
+            else:
+                # Standard forward pass
+                preds = model(batch)  # type: ignore  # noqa: PGH003
+                trues = batch.output_fields
 
             # Apply windows if specified
             if windows is not None:
@@ -285,13 +304,13 @@ def compute_coverage_scores_from_dataloader(
                         t = trues[:, t_start:t_end]
                     metric.update(p, t)
                     if return_tensors:
-                        all_preds.append(p)  # type: ignore as all_preds is here
-                        all_trues.append(t)  # type: ignore as all_trues is here
+                        all_preds.append(p)  # type: ignore  # noqa: PGH003
+                        all_trues.append(t)  # type: ignore  # noqa: PGH003
             else:
                 metric.update(preds, trues)
                 if return_tensors:
-                    all_preds.append(preds)  # type: ignore as all_preds is here
-                    all_trues.append(trues)  # type: ignore as all_trues is here
+                    all_preds.append(preds)  # type: ignore  # noqa: PGH003
+                    all_trues.append(trues)  # type: ignore  # noqa: PGH003
 
     tensors = None
     if return_tensors:
