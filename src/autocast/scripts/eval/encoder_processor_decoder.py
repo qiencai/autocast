@@ -27,6 +27,7 @@ from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
 from autocast.scripts.config import save_resolved_config
 from autocast.scripts.data import batch_to_device
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
+from autocast.scripts.utils import get_default_config_path
 from autocast.utils import plot_spatiotemporal_video
 
 log = logging.getLogger(__name__)

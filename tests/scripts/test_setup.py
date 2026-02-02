@@ -1,5 +1,6 @@
 """Unit tests for autocast.scripts.setup module."""
 
+import pytest
 import torch
 from omegaconf import OmegaConf
 
@@ -7,9 +8,8 @@ from autocast.encoders.base import Encoder
 from autocast.scripts.setup import (
     _apply_processor_channel_defaults,
     _build_loss_func,
-    _extract_config_dict,
     _filter_kwargs_for_target,
-    _infer_latent_channels,
+    _get_latent_channels,
     _set_if_auto,
     resolve_auto_params,
 )
@@ -19,48 +19,27 @@ from autocast.types import Batch
 
 
 def test_set_if_auto_sets_when_none():
-    cfg = {"key": None}
+    cfg = OmegaConf.create({"key": None})
     _set_if_auto(cfg, "key", 42)
     assert cfg["key"] == 42
 
 
 def test_set_if_auto_sets_when_auto():
-    cfg = {"key": "auto"}
+    cfg = OmegaConf.create({"key": "auto"})
     _set_if_auto(cfg, "key", 42)
     assert cfg["key"] == 42
 
 
 def test_set_if_auto_preserves_explicit_value():
-    cfg = {"key": 10}
+    cfg = OmegaConf.create({"key": 10})
     _set_if_auto(cfg, "key", 42)
     assert cfg["key"] == 10
 
 
 def test_set_if_auto_ignores_missing_key():
-    cfg = {"other": "auto"}
+    cfg = OmegaConf.create({"other": "auto"})
     _set_if_auto(cfg, "key", 42)
     assert "key" not in cfg
-
-
-# --- _extract_config_dict ---
-
-
-def test_extract_config_dict_extracts_subconfig():
-    cfg = OmegaConf.create({"sub": {"a": 1, "b": 2}})
-    result = _extract_config_dict(cfg, "sub")
-    assert result == {"a": 1, "b": 2}
-
-
-def test_extract_config_dict_returns_default_when_missing():
-    cfg = OmegaConf.create({})
-    result = _extract_config_dict(cfg, "missing", {"default": True})
-    assert result == {"default": True}
-
-
-def test_extract_config_dict_returns_empty_dict_when_no_default():
-    cfg = OmegaConf.create({})
-    result = _extract_config_dict(cfg, "missing")
-    assert result == {}
 
 
 # --- _filter_kwargs_for_target ---
@@ -89,7 +68,9 @@ def test_filter_kwargs_handles_invalid_target():
 
 
 def test_apply_processor_defaults_to_auto_values():
-    cfg = {"in_channels": "auto", "out_channels": None, "n_steps_input": 4}
+    cfg = OmegaConf.create(
+        {"in_channels": "auto", "out_channels": None, "n_steps_input": 4}
+    )
     _apply_processor_channel_defaults(
         cfg,
         in_channels=8,
@@ -104,7 +85,7 @@ def test_apply_processor_defaults_to_auto_values():
 
 
 def test_apply_processor_defaults_to_backbone():
-    cfg = {"backbone": {"in_channels": "auto", "cond_channels": None}}
+    cfg = OmegaConf.create({"backbone": {"in_channels": "auto", "cond_channels": None}})
     _apply_processor_channel_defaults(
         cfg,
         in_channels=8,
@@ -159,12 +140,12 @@ def test_resolve_auto_params_unchanged_if_no_datamodule():
 
 
 def test_build_loss_func_defaults_to_mse():
-    loss = _build_loss_func({})
+    loss = _build_loss_func(OmegaConf.create({}))
     assert isinstance(loss, torch.nn.MSELoss)
 
 
 def test_build_loss_func_instantiates_from_config():
-    cfg = {"loss_func": {"_target_": "torch.nn.L1Loss"}}
+    cfg = OmegaConf.create({"loss_func": {"_target_": "torch.nn.L1Loss"}})
     loss = _build_loss_func(cfg)
     assert isinstance(loss, torch.nn.L1Loss)
 
@@ -202,8 +183,11 @@ def test_get_latent_channels_from_encoder():
 
 def test_get_latent_channels_requires_attribute():
     class BrokenEncoder(Encoder):
-        encoder_model = torch.nn.Identity()\n\n        def encode(self, batch: Batch) -> torch.Tensor:  # noqa: ARG002\n            return torch.randn(2, 2, 4, 4, 8)
+        encoder_model = torch.nn.Identity()
+
+        def encode(self, batch: Batch) -> torch.Tensor:  # noqa: ARG002
+            return torch.randn(2, 2, 4, 4, 8)
 
     encoder = BrokenEncoder()
-    with pytest.raises(ValueError, match=\"must set latent_channels\"):
+    with pytest.raises(ValueError, match="must set latent_channels"):
         _get_latent_channels(encoder)

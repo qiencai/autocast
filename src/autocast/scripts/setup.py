@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from hydra.utils import get_class, instantiate
-from lightning.pytorch import LightningDataModule
 from omegaconf import DictConfig
 from torch import nn
 
+from autocast.data.datamodule import SpatioTemporalDataModule
 from autocast.decoders.base import Decoder
 from autocast.encoders.base import Encoder, EncoderWithCond
 from autocast.models.autoencoder import AE, AELoss
@@ -116,7 +116,7 @@ def _apply_processor_channel_defaults(
 
 def setup_datamodule(
     config: DictConfig,
-) -> tuple[LightningDataModule, DictConfig, dict]:
+) -> tuple[SpatioTemporalDataModule, DictConfig, dict]:
     """Create the datamodule and infer data shapes."""
     datamodule = build_datamodule(config)
 
