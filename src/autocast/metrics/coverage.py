@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-from typing import Any
-
 import torch
 from torch.nn import ModuleList
 from torchmetrics import Metric
@@ -96,7 +92,17 @@ class MultiCoverage(Metric):
             assert isinstance(metric, Coverage)
             metric.update(y_pred, y_true)
 
-    def compute(self) -> dict[str, Tensor]:
+    def compute(self) -> Tensor:
+        """Compute the Average Calibration Error."""
+        errors = []
+        for cl, metric in zip(self.coverage_levels, self.metrics, strict=True):
+            assert isinstance(metric, Coverage)
+            # Calibration error: |observed - expected|
+            errors.append(torch.abs(metric.compute() - cl))
+
+        return torch.stack(errors).mean()
+
+    def compute_detailed(self) -> dict[str, Tensor]:
         """Return a dict of results, keys formatted as 'coverage_{coverage_level}'."""
         results = {}
         for cl, metric in zip(self.coverage_levels, self.metrics, strict=True):
@@ -104,35 +110,59 @@ class MultiCoverage(Metric):
             results[f"coverage_{cl}"] = metric.compute()
         return results
 
-    def plot(self) -> Any:
-        try:
-            import wandb  # noqa: PLC0415 since optional dependency
-        except ImportError:
-            return None
+    # TODO: consider re-adding plot method for directly logging to wandb later
+    # def plot(self) -> Any:
+    #     try:
+    #         import matplotlib.pyplot as plt
 
-        # Gather computed values from sub-metrics
-        results = []
-        for metric in self.metrics:
-            assert isinstance(metric, Coverage)
-            results.append(metric.compute().item())
+    #         import wandb
+    #     except ImportError:
+    #         print("MultiCoverage.plot: wandb or matplotlib import failed")
+    #         return None
 
-        # Create a table for the calibration curve
-        table = wandb.Table(
-            data=[
-                [exp, obs]
-                for exp, obs in zip(self.coverage_levels, results, strict=True)
-            ],
-            columns=["expected_coverage", "observed_coverage"],
-        )
+    #     # Gather computed values from sub-metrics
+    #     results = []
+    #     for metric in self.metrics:
+    #         assert isinstance(metric, Coverage)
+    #         val = metric.compute()
+    #         if val.numel() == 1:
+    #             results.append(val.item())
+    #         else:
+    #             results.append(val.mean().item())
 
-        # Create a custom plot (Expected vs Observed)
-        plot = wandb.plot.line(
-            table,
-            "expected_coverage",
-            "observed_coverage",
-            title="Reliability Diagram (Coverage)",
-        )
-        return plot
+    #     # Create matplotlib figure
+    #     step = wandb.run.step
+    #     fig, ax = plt.subplots(figsize=(8, 6))
+
+    #     # Plot observed coverage
+    #     ax.plot(
+    #         self.coverage_levels, results, marker="o", label="Observed", linewidth=2
+    #     )
+
+    #     # Plot ideal coverage (y=x line)
+    #     ax.plot(
+    #         self.coverage_levels,
+    #         self.coverage_levels,
+    #         linestyle="--",
+    #         label="Ideal",
+    #         linewidth=2,
+    #     )
+
+    #     ax.set_xlabel("Expected Coverage")
+    #     ax.set_ylabel("Observed Coverage")
+    #     ax.set_title(f"Coverage (step={step})")
+    #     ax.legend()
+    #     ax.grid(True, alpha=0.3)
+    #     ax.set_xlim(0, 1)
+    #     ax.set_ylim(0, 1)
+
+    #     print(f"MultiCoverage.plot: Created plot with step={step}")
+
+    #     # Convert to wandb Image
+    #     plot = wandb.Image(fig)
+    #     plt.close(fig)
+
+    #     return plot
 
     def reset(self):
         # Reset all sub-metrics
