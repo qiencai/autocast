@@ -8,17 +8,17 @@ from autocast.types import Batch, TensorBNC
 class PermuteConcat(EncoderWithCond):
     """Permute and concatenate Encoder.
 
-    Concatenates channels and time dimensions. The actual latent_dim is
+    Concatenates channels and time dimensions. The actual latent_channels is
     in_channels * n_timesteps, but we store the base in_channels.
     """
 
-    channel_dim: int = 1
+    channel_axis: int = 1
     outputs_time_channel_concat: bool = True
 
     def __init__(self, in_channels: int, with_constants: bool = False) -> None:
         super().__init__()
         self.with_constants = with_constants
-        self.latent_dim = in_channels  # Base channels before time concatenation
+        self.latent_channels = in_channels  # Base channels before time concatenation
 
     def encode(self, batch: Batch) -> TensorBNC:
         # Destructure batch, time, space, channels

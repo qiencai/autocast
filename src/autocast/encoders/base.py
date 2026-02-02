@@ -114,8 +114,8 @@ class Encoder(_Encoder):
     """Base encoder."""
 
     encoder_model: nn.Module
-    channel_dim: int
-    latent_dim: int
+    channel_axis: int
+    latent_channels: int
     outputs_time_channel_concat: bool = False
 
     @abstractmethod

@@ -86,7 +86,7 @@ class DCDecoder(Decoder):
         identity_init: bool = True,
     ) -> None:
         super().__init__()
-        self.latent_dim = in_channels
+        self.latent_channels = in_channels
         self.output_channels = out_channels
         attention_heads = attention_heads or {}
         assert len(hid_blocks) == len(hid_channels)

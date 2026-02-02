@@ -176,7 +176,7 @@ def _make_mock_encoder(output_shape: tuple[int, ...]) -> Encoder:
     """Create a mock encoder returning a specific output shape."""
 
     class MockEncoder(Encoder):
-        latent_dim = 8
+        latent_channels = 8
         encoder_model = torch.nn.Identity()
 
         def encode(self, batch: Batch) -> torch.Tensor:  # noqa: ARG002
@@ -194,30 +194,16 @@ def _make_batch(shape: tuple[int, ...] = (2, 2, 16, 16, 4)) -> Batch:
     )
 
 
-def test_infer_latent_channels_from_encoder():
+def test_get_latent_channels_from_encoder():
     encoder = _make_mock_encoder((2, 2, 4, 4, 8))
-    channels, concat = _infer_latent_channels(encoder, _make_batch())
+    channels = _get_latent_channels(encoder)
     assert channels == 8
-    assert concat is False  # Same ndim
 
 
-def test_infer_latent_channels_detects_time_concat():
-    encoder = _make_mock_encoder((2, 8, 4, 4))  # 4D (time bundled)
-    channels, concat = _infer_latent_channels(encoder, _make_batch())
-    assert channels == 4  # Last dim
-    assert concat is True  # Lower ndim
-
-
-def test_infer_latent_channels_falls_back_on_error():
+def test_get_latent_channels_requires_attribute():
     class BrokenEncoder(Encoder):
-        latent_dim = 8
-        encoder_model = torch.nn.Identity()
-
-        def encode(self, batch: Batch) -> torch.Tensor:  # noqa: ARG002
-            msg = "Broken"
-            raise RuntimeError(msg)
+        encoder_model = torch.nn.Identity()\n\n        def encode(self, batch: Batch) -> torch.Tensor:  # noqa: ARG002\n            return torch.randn(2, 2, 4, 4, 8)
 
     encoder = BrokenEncoder()
-    channels, concat = _infer_latent_channels(encoder, _make_batch())
-    assert channels == 4  # Falls back to input channels
-    assert concat is False
+    with pytest.raises(ValueError, match=\"must set latent_channels\"):
+        _get_latent_channels(encoder)

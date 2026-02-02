@@ -41,13 +41,13 @@ def _make_batch(shape: tuple[int, ...], *, requires_grad: bool = False) -> Batch
 class _FlatEncoder(EncoderWithCond):
     """Minimal encoder that produces flat (non-spatial) latents for tests."""
 
-    def __init__(self, input_dim: int, latent_dim: int) -> None:
+    def __init__(self, input_dim: int, latent_channels: int) -> None:
         super().__init__()
-        self.latent_dim = latent_dim
+        self.latent_channels = latent_channels
         self.net = nn.Sequential(
             nn.Linear(input_dim, 2 * input_dim),
             nn.GELU(),
-            nn.Linear(2 * input_dim, latent_dim),
+            nn.Linear(2 * input_dim, latent_channels),
         )
 
     def encode(self, batch: Batch) -> TensorBNC:
@@ -66,14 +66,14 @@ class _FlatEncoder(EncoderWithCond):
 class _FlatDecoder(Decoder):
     """Minimal decoder that reconstructs flat tensors for tests."""
 
-    def __init__(self, latent_dim: int, output_dim: int) -> None:
+    def __init__(self, latent_channels: int, output_dim: int) -> None:
         super().__init__()
-        self.latent_dim = latent_dim
+        self.latent_channels = latent_channels
         self.output_dim = output_dim
         self.net = nn.Sequential(
-            nn.Linear(latent_dim, 2 * latent_dim),
+            nn.Linear(latent_channels, 2 * latent_channels),
             nn.GELU(),
-            nn.Linear(2 * latent_dim, output_dim),
+            nn.Linear(2 * latent_channels, output_dim),
         )
 
     def decode(self, z: TensorBNC) -> TensorBNC:
@@ -87,15 +87,15 @@ class _FlatDecoder(Decoder):
 class _FlatteningEncoder(EncoderWithCond):
     """Encoder that ingests spatial tensors and outputs flat latents."""
 
-    def __init__(self, input_shape: tuple[int, ...], latent_dim: int) -> None:
+    def __init__(self, input_shape: tuple[int, ...], latent_channels: int) -> None:
         super().__init__()
-        self.latent_dim = latent_dim
+        self.latent_channels = latent_channels
         in_features = math.prod(input_shape)
         self.net = nn.Sequential(
             nn.Flatten(start_dim=1),
             nn.Linear(in_features, 2 * in_features),
             nn.GELU(),
-            nn.Linear(2 * in_features, latent_dim),
+            nn.Linear(2 * in_features, latent_channels),
         )
 
     def encode(self, batch: Batch) -> TensorBNC:
@@ -104,28 +104,28 @@ class _FlatteningEncoder(EncoderWithCond):
         for idx in range(x.shape[1]):
             x_t: TensorBSC = x[:, idx, ...]  # (B, spatial..., C)
             outputs.append(self.net(x_t))
-        return torch.stack(outputs, dim=1)  # (B, T, latent_dim)
+        return torch.stack(outputs, dim=1)  # (B, T, latent_channels)
 
 
 class _FlatteningDecoder(Decoder):
     """Decoder that maps flat latents back to spatial tensors."""
 
-    def __init__(self, latent_dim: int, output_shape: tuple[int, ...]) -> None:
+    def __init__(self, latent_channels: int, output_shape: tuple[int, ...]) -> None:
         super().__init__()
-        self.latent_dim = latent_dim
+        self.latent_channels = latent_channels
         self.output_channels = output_shape[0]
         self.output_shape = output_shape
         out_features = math.prod(output_shape)
         self.net = nn.Sequential(
-            nn.Linear(latent_dim, 2 * latent_dim),
+            nn.Linear(latent_channels, 2 * latent_channels),
             nn.GELU(),
-            nn.Linear(2 * latent_dim, out_features),
+            nn.Linear(2 * latent_channels, out_features),
         )
 
     def decode(self, z: TensorBNC) -> TensorBTSC:
         outputs = []
         for idx in range(z.shape[1]):
-            z_t: TensorBNC = z[:, idx, ...]  # (B, latent_dim)
+            z_t: TensorBNC = z[:, idx, ...]  # (B, latent_channels)
             x_t = self.net(z_t)
             outputs.append(x_t.view(-1, *self.output_shape))
         return torch.stack(outputs, dim=1)  # (B, T, C, H, W)

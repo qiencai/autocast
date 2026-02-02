@@ -228,14 +228,16 @@ def setup_autoencoder_model(config: DictConfig, stats: dict) -> AE:
 def _get_latent_channels(encoder: Encoder) -> int:
     """Get latent channel count from encoder.
 
-    All encoders must set latent_dim in their __init__.
+    All encoders must set latent_channels in their __init__.
     """
-    if not hasattr(encoder, "latent_dim") or not isinstance(encoder.latent_dim, int):
+    if not hasattr(encoder, "latent_channels") or not isinstance(
+        encoder.latent_channels, int
+    ):
         raise ValueError(
-            f"Encoder {type(encoder).__name__} must set latent_dim as an integer "
+            f"Encoder {type(encoder).__name__} must set latent_channels as an integer "
             "in its __init__ method."
         )
-    return encoder.latent_dim
+    return encoder.latent_channels
 
 
 def _get_normalized_processor_config(model_config: DictConfig) -> DictConfig | None:
@@ -354,7 +356,7 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
     )
 
     input_depends_on_channels = not isinstance(
-        getattr(encoder, "latent_dim", None), int
+        getattr(encoder, "latent_channels", None), int
     )
     input_noise_channels = (
         (
