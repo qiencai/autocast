@@ -4,7 +4,7 @@ from typing import Any
 
 import torch
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
 
@@ -13,14 +13,16 @@ class OptimizerMixin(nn.Module):
 
     Inherits from nn.Module to ensure parameters() method is available.
     Requires the class to have:
-        - self.optimizer_config: dict[str, Any] | None
+        - self.optimizer_config: DictConfig | dict[str, Any] | None
         - self.trainer: Lightning Trainer instance (optional, for scheduler)
     """
 
     # Type hints for attributes expected from the concrete class
-    optimizer_config: dict[str, Any] | None
+    optimizer_config: DictConfig | dict[str, Any] | None
 
-    def _create_optimizer(self, cfg: dict[str, Any]) -> torch.optim.Optimizer:
+    def _create_optimizer(
+        self, cfg: DictConfig | dict[str, Any]
+    ) -> torch.optim.Optimizer:
         """Create optimizer from config."""
         if not cfg.get("optimizer"):
             msg = "Optimizer name is required in optimizer_config."

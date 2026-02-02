@@ -3,6 +3,7 @@ from typing import Any
 
 import lightning as L
 import torch
+from omegaconf import DictConfig
 from torch import nn
 from torchmetrics import Metric
 
@@ -19,14 +20,14 @@ class EncoderDecoder(OptimizerMixin, L.LightningModule, MetricsMixin):
     encoder: EncoderWithCond
     decoder: Decoder
     loss_func: nn.Module | None
-    optimizer_config: dict[str, Any] | None
+    optimizer_config: DictConfig | dict[str, Any] | None
 
     def __init__(
         self,
         encoder: EncoderWithCond,
         decoder: Decoder,
         loss_func: nn.Module | None = None,
-        optimizer_config: dict[str, Any] | None = None,
+        optimizer_config: DictConfig | dict[str, Any] | None = None,
         train_metrics: Sequence[Metric] | None = [],
         val_metrics: Sequence[Metric] | None = None,
         test_metrics: Sequence[Metric] | None = None,

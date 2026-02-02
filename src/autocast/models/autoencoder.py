@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
+from omegaconf import DictConfig
 from torch import nn
 from torchmetrics import Metric
 
@@ -49,7 +50,7 @@ class AE(EncoderDecoder):
         encoder: EncoderWithCond,
         decoder: Decoder,
         loss_func: AELoss | None = None,
-        optimizer_config: dict[str, Any] | None = None,
+        optimizer_config: DictConfig | dict[str, Any] | None = None,
         train_metrics: Sequence[Metric] | None = [],
         val_metrics: Sequence[Metric] | None = None,
         test_metrics: Sequence[Metric] | None = None,

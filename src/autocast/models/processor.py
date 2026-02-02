@@ -4,6 +4,7 @@ from typing import Any
 
 import lightning as L
 import torch
+from omegaconf import DictConfig
 from torch import nn
 from torchmetrics import Metric
 
@@ -21,14 +22,14 @@ class ProcessorModel(
     """Processor Base Class."""
 
     processor: Processor
-    optimizer_config: dict[str, Any] | None
+    optimizer_config: DictConfig | dict[str, Any] | None
 
     def __init__(
         self,
         processor: Processor,
         stride: int = 1,
         loss_func: nn.Module | None = None,
-        optimizer_config: dict[str, Any] | None = None,
+        optimizer_config: DictConfig | dict[str, Any] | None = None,
         train_metrics: Sequence[Metric] | None = [],
         val_metrics: Sequence[Metric] | None = None,
         test_metrics: Sequence[Metric] | None = None,

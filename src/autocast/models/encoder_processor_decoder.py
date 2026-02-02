@@ -3,6 +3,7 @@ from typing import Any
 
 import lightning as L
 import torch
+from omegaconf import DictConfig
 from torch import nn
 from torchmetrics import Metric, MetricCollection
 
@@ -31,7 +32,7 @@ class EncoderProcessorDecoder(
         self,
         encoder_decoder: EncoderDecoder,
         processor: Processor,
-        optimizer_config: dict[str, Any] | None = None,
+        optimizer_config: DictConfig | dict[str, Any] | None = None,
         stride: int = 1,
         rollout_stride: int | None = None,
         teacher_forcing_ratio: float = 0.5,

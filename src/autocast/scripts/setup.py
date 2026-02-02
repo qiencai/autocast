@@ -7,7 +7,8 @@ from typing import Any
 
 import torch
 from hydra.utils import get_class, instantiate
-from omegaconf import DictConfig, OmegaConf
+from lightning.pytorch import LightningDataModule
+from omegaconf import DictConfig
 from torch import nn
 
 from autocast.decoders.base import Decoder
@@ -44,26 +45,13 @@ def resolve_auto_params(
     return config
 
 
-def _extract_config_dict(
-    config: DictConfig, key: str, default: dict[str, Any] | None = None
-) -> dict[str, Any]:
-    """Extract a sub-config as a resolved dict, or return default."""
-    sub_config = config.get(key)
-    if sub_config is None:
-        return default if default is not None else {}
-    resolved = OmegaConf.to_container(sub_config, resolve=True)
-    if isinstance(resolved, dict):
-        return resolved  # type: ignore[return-value]
-    return default if default is not None else {}
-
-
-def _get_optimizer_config(config: DictConfig) -> dict[str, Any]:
+def _get_optimizer_config(config: DictConfig) -> DictConfig:
     """Return optimizer config."""
-    optimizer_config = _extract_config_dict(config, "optimizer")
-    if optimizer_config:
-        return optimizer_config
-    msg = "Optimizer config is required for training."
-    raise ValueError(msg)
+    optimizer_config = config.get("optimizer")
+    if optimizer_config is None:
+        msg = "Optimizer config is required for training."
+        raise ValueError(msg)
+    return optimizer_config
 
 
 def _filter_kwargs_for_target(
@@ -88,14 +76,14 @@ def _filter_kwargs_for_target(
     return {k: v for k, v in kwargs.items() if k in allowed}
 
 
-def _set_if_auto(cfg: dict[str, Any], key: str, value: int | None) -> None:
+def _set_if_auto(cfg: DictConfig, key: str, value: int | None) -> None:
     """Set config key to value if current value is None or 'auto'."""
     if key in cfg and cfg.get(key) in (None, "auto"):
         cfg[key] = value
 
 
 def _apply_processor_channel_defaults(
-    processor_config: dict[str, Any] | None,
+    processor_config: DictConfig | None,
     *,
     in_channels: int,
     out_channels: int,
@@ -105,7 +93,7 @@ def _apply_processor_channel_defaults(
     global_cond_channels: int | None = None,
 ) -> None:
     """Apply inferred channel/step defaults to processor and backbone configs."""
-    if not isinstance(processor_config, dict):
+    if processor_config is None:
         return
 
     _set_if_auto(processor_config, "in_channels", in_channels)
@@ -115,7 +103,7 @@ def _apply_processor_channel_defaults(
     _set_if_auto(processor_config, "n_channels_out", n_channels_out)
 
     backbone_config = processor_config.get("backbone")
-    if not isinstance(backbone_config, dict):
+    if backbone_config is None:
         return
 
     _set_if_auto(backbone_config, "in_channels", out_channels)
@@ -127,7 +115,9 @@ def _apply_processor_channel_defaults(
         _set_if_auto(backbone_config, "global_cond_channels", global_cond_channels)
 
 
-def setup_datamodule(config: DictConfig):
+def setup_datamodule(
+    config: DictConfig,
+) -> tuple[LightningDataModule, DictConfig, dict]:
     """Create the datamodule and infer data shapes."""
     datamodule = build_datamodule(config)
 
@@ -147,7 +137,7 @@ def setup_datamodule(config: DictConfig):
     output_shape = train_outputs.shape
 
     config = resolve_auto_params(config, input_shape, output_shape)
-    data_config = _extract_config_dict(config, "datamodule", {})
+    data_config = config.get("datamodule", {})
     logic_stats = {
         "channel_count": input_shape[-1],
         "n_steps_input": data_config.get("n_steps_input", input_shape[1]),
@@ -175,18 +165,16 @@ def setup_autoencoder_components(
         else base_channels
     )
 
-    if isinstance(encoder_config, DictConfig):
-        encoder_config = OmegaConf.to_container(encoder_config, resolve=True)
-    if isinstance(encoder_config, dict) and (
-        "in_channels" in encoder_config
+    # Update auto channel values directly in DictConfig
+    if (
+        encoder_config
+        and "in_channels" in encoder_config
         and isinstance(input_channels, int)
         and encoder_config.get("in_channels") in (None, "auto")
     ):
         encoder_config["in_channels"] = input_channels
 
-    if isinstance(decoder_config, DictConfig):
-        decoder_config = OmegaConf.to_container(decoder_config, resolve=True)
-    if isinstance(decoder_config, dict):
+    if decoder_config:
         if (
             "out_channels" in decoder_config
             and isinstance(base_channels, int)
@@ -262,18 +250,13 @@ def _infer_latent_channels(encoder: Encoder, batch: Batch) -> tuple[int, bool]:
         encoder.train(prev_training)
 
 
-def _get_normalized_processor_config(model_config: dict | DictConfig) -> dict | None:
-    """Ensure processor config is dict or None."""
-    processor_config = model_config.get("processor")
-    if isinstance(processor_config, DictConfig):
-        processor_config = OmegaConf.to_container(processor_config, resolve=True)
-    if not isinstance(processor_config, dict):
-        processor_config = None
-    return processor_config
+def _get_normalized_processor_config(model_config: DictConfig) -> DictConfig | None:
+    """Return processor config or None."""
+    return model_config.get("processor")
 
 
 def _build_processor(
-    model_config: dict | DictConfig,
+    model_config: DictConfig,
     proc_kwargs: dict[str, Any],
     global_cond_channels: int | None = None,
 ) -> nn.Module:
@@ -288,19 +271,17 @@ def _build_processor(
         n_channels_out=proc_kwargs["n_channels_out"],
         global_cond_channels=global_cond_channels,
     )
-    target = (
-        processor_config.get("_target_") if isinstance(processor_config, dict) else None
-    )
+    target = processor_config.get("_target_") if processor_config else None
     filtered_kwargs = _filter_kwargs_for_target(target, proc_kwargs)
     return instantiate(processor_config, **filtered_kwargs)
 
 
-def _build_loss_func(model_config: dict | DictConfig) -> nn.Module:
+def _build_loss_func(model_config: DictConfig) -> nn.Module:
     """Build loss function from config, defaulting to MSELoss."""
     loss_func_config = model_config.get("loss_func")
-    if loss_func_config is not None:
-        return instantiate(loss_func_config)
-    return nn.MSELoss()
+    if loss_func_config is None:
+        return nn.MSELoss()
+    return instantiate(loss_func_config)
 
 
 def setup_processor_model(config: DictConfig, stats: dict) -> ProcessorModel:
@@ -321,7 +302,7 @@ def setup_processor_model(config: DictConfig, stats: dict) -> ProcessorModel:
     is_ensemble = model_config.get("n_members", 1) > 1
     cls = ProcessorModelEnsemble if is_ensemble else ProcessorModel
 
-    data_config = _extract_config_dict(config, "datamodule", {})
+    data_config = config.get("datamodule", {})
     optimizer_config = _get_optimizer_config(config)
     kwargs = {
         "processor": processor,
@@ -345,7 +326,7 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
         config, stats, extra_input_channels=extra_input_channels
     )
 
-    data_config = _extract_config_dict(config, "datamodule", {})
+    data_config = config.get("datamodule", {})
     if data_config.get("freeze_autoencoder"):
         for p in encoder.parameters():
             p.requires_grad = False
@@ -435,9 +416,7 @@ def setup_epd_model(config: DictConfig, stats: dict) -> EncoderProcessorDecoder:
     return cls(**kwargs)
 
 
-def _resolve_input_noise_injector(
-    model_config: dict | DictConfig,
-) -> tuple[Any | None, int]:
+def _resolve_input_noise_injector(model_config: DictConfig) -> tuple[Any | None, int]:
     noise_config = model_config.get("input_noise_injector") if model_config else None
     if not noise_config or "_target_" not in noise_config:
         return None, 0
