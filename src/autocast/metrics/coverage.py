@@ -103,13 +103,21 @@ class MultiCoverage(Metric):
 
         return torch.stack(errors).mean()
 
-    def compute_detailed(self) -> dict[str, Tensor]:
-        """Return a dict of results, keys formatted as 'coverage_{coverage_level}'."""
-        results = {}
+    def _compute_levels_and_values(self) -> tuple[list[float], list[float]]:
+        """Get coverage levels and observed values for plotting."""
+        levels, observed = [], []
         for cl, metric in zip(self.coverage_levels, self.metrics, strict=True):
             assert isinstance(metric, Coverage)
-            results[f"coverage_{cl}"] = metric.compute()
-        return results
+            levels.append(cl)
+            observed.append(metric.compute().mean().item())
+        return levels, observed
+
+    def compute_detailed(self) -> dict[str, float]:
+        """Return a dict of results, keys formatted as 'coverage_{coverage_level}'."""
+        return {
+            f"coverage_{level}": value
+            for level, value in zip(*self._compute_levels_and_values(), strict=True)
+        }
 
     def plot(self, save_path: str | None = None, title: str = "Coverage Plot"):
         """
@@ -127,21 +135,16 @@ class MultiCoverage(Metric):
         matplotlib.figure.Figure
         """
         # Gather computed values from sub-metrics
-        detailed = self.compute_detailed()
-        observed = []
-        for level in self.coverage_levels:
-            key = f"coverage_{level}"
-            value = detailed[key]
-            observed.append(value.mean().item())
+        levels, observed = self._compute_levels_and_values()
 
         # Create matplotlib figure
         fig, ax = plt.subplots(figsize=(6, 6))
 
-        # Ideal line (y=x)
-        ax.plot([0, 1], [0, 1], "k--", label="Ideal")
+        # Optimal line (y=x)
+        ax.plot([0, 1], [0, 1], "k:", label="Optimal")
 
         # Observed coverage
-        ax.plot(self.coverage_levels, observed, "bo-", label="Observed")
+        ax.plot(levels, observed, "bo-", label="Observed")
 
         ax.set_xlabel("Expected Coverage")
         ax.set_ylabel("Observed Coverage")
