@@ -32,7 +32,7 @@ class VAELoss(nn.Module):
         encoded: Tensor
             Encoded tensor containing mean and log variance.
             Shape: [B, 2*C, H, W, ...] for spatial or
-            [B, 2*latent_dim] for flat.
+            [B, 2*latent_channels] for flat.
 
         Returns
         -------
@@ -53,7 +53,7 @@ class VAELoss(nn.Module):
 class VAE(EncoderDecoder):
     """Variational Autoencoder Model.
 
-    Supports both flat (B, latent_dim) and spatial (B, C, H, W, ...)
+    Supports both flat (B, latent_channels) and spatial (B, C, H, W, ...)
     latent representations.
     """
 
@@ -79,28 +79,28 @@ class VAE(EncoderDecoder):
         """
         super().__init__(encoder=encoder, decoder=decoder)
         self.spatial = spatial
-        latent_dim = encoder.latent_dim
-        if encoder.latent_dim != decoder.latent_dim:
+        latent_channels = encoder.latent_channels
+        if encoder.latent_channels != decoder.latent_channels:
             msg = "Encoder and Decoder latent dimensions must match for VAE."
             raise ValueError(msg)
 
         # For spatial latents, use 1x1 convolutions; for flat, use linear
         if spatial is not None:
             self.fc_mean = ConvNd(
-                latent_dim,
-                latent_dim,
+                latent_channels,
+                latent_channels,
                 spatial=spatial,
                 kernel_size=1,
             )
             self.fc_log_var = ConvNd(
-                latent_dim,
-                latent_dim,
+                latent_channels,
+                latent_channels,
                 spatial=spatial,
                 kernel_size=1,
             )
         else:
-            self.fc_mean = nn.Linear(latent_dim, latent_dim)
-            self.fc_log_var = nn.Linear(latent_dim, latent_dim)
+            self.fc_mean = nn.Linear(latent_channels, latent_channels)
+            self.fc_log_var = nn.Linear(latent_channels, latent_channels)
 
         self.loss_func = VAELoss()
 

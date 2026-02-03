@@ -1,4 +1,5 @@
 import torch
+from conftest import get_optimizer_config
 from torch import nn
 
 from autocast.models.processor import ProcessorModel
@@ -52,6 +53,7 @@ def test_processor_rollout_handles_encoded_batches():
     )
     processor = ProcessorModel(
         processor=_IdentityProcessor(),
+        optimizer_config=get_optimizer_config(),
         stride=stride,
         max_rollout_steps=max_rollout_steps,
     )
@@ -94,6 +96,7 @@ def test_processor_rollout_handles_short_trajectory():
     trajectory_length = n_steps_input + 6
     processor = ProcessorModel(
         processor=_IdentityProcessor(),
+        optimizer_config=get_optimizer_config(),
         stride=stride,
         max_rollout_steps=max_rollout_steps,
     )

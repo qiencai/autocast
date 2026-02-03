@@ -327,7 +327,7 @@ def test_ae_wrapper_forward_with_batch():
     assert torch.allclose(output, decoded)
     assert encoded.shape[0] == batch.input_fields.shape[0]
     assert encoded.shape[1] == batch.input_fields.shape[1]  # Time dimension
-    assert encoded.shape[-1] == encoder.latent_dim  # Channel dimension
+    assert encoded.shape[-1] == encoder.latent_channels  # Channel dimension
 
 
 def test_ae_wrapper_loss_and_backward():

@@ -54,15 +54,13 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Train
 uv run train_autoencoder \
-    --config-path=configs/ \
-    --config-name=autoencoder \
-	--work-dir=${WORKING_DIR} \
+    hydra.run.dir=${WORKING_DIR} \
     model=autoencoder_dc_f32c64_small \
+    datamodule=the_well \
+    datamodule.well_dataset_name=rayleigh_benard \
+    datamodule.batch_size=8 \
+    optimizer=adamw \
     logging.wandb.enabled=true \
     trainer.max_epochs=100 \
-    trainer.gradient_clip_val=1.0 \
-    data=the_well \
-    data.well_dataset_name=rayleigh_benard \
-    data.batch_size=8 \
-    optimizer=adamw
+    trainer.gradient_clip_val=1.0
     
