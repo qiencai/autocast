@@ -284,11 +284,19 @@ def compute_coverage_scores_from_dataloader(
     all_preds = [] if return_tensors else None
     all_trues = [] if return_tensors else None
 
+    device = None
     if model is not None:
         model.eval()
+        try:
+            device = next(model.parameters()).device
+        except Exception:
+            pass
 
     with torch.no_grad():
         for batch in dataloader:
+            if device is not None and hasattr(batch, "to"):
+                batch = batch.to(device)
+
             # Get predictions and ground truth
             if predict_fn is not None:
                 result = predict_fn(batch)
@@ -299,6 +307,12 @@ def compute_coverage_scores_from_dataloader(
                 # Standard forward pass
                 preds = model(batch)  # type: ignore  # noqa: PGH003
                 trues = batch.output_fields
+
+            # Move to CPU for metrics
+            if hasattr(preds, "cpu"):
+                preds = preds.cpu()
+            if hasattr(trues, "cpu"):
+                trues = trues.cpu()
 
             # Get metrics per window
             for window, metric in metrics_per_window.items():

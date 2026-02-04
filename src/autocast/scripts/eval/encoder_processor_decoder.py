@@ -391,7 +391,7 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
         log.info("Test coverage for window %s: %s", window, coverage_metric)
         window_str = f"{window[0]}-{window[1]}" if window is not None else "all"
         coverage_metric.plot(
-            save_path=csv_path / f"test_coverage_window_{window}.png",
+            save_path=work_dir / f"test_coverage_window_{window}.png",
             title=f"Test Coverage Window {window}",
         )
 
@@ -454,7 +454,7 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
                 )
                 window_str = f"{window[0]}-{window[1]}" if window is not None else "all"
                 coverage_metric.plot(
-                    save_path=csv_path / f"rollout_coverage_window_{window_str}.png",
+                    save_path=work_dir / f"rollout_coverage_window_{window_str}.png",
                     title=f"Rollout Coverage Window {window_str}",
                 )
 
