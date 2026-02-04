@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import hydra
+import lightning as L
 import torch
 from omegaconf import DictConfig, OmegaConf
 from torch import nn
@@ -26,7 +27,6 @@ from autocast.metrics import (
 from autocast.metrics.coverage import MultiCoverage
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
 from autocast.scripts.config import save_resolved_config
-from autocast.scripts.data import batch_to_device
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
 from autocast.scripts.utils import get_default_config_path
 from autocast.utils import plot_spatiotemporal_video
@@ -61,17 +61,6 @@ def _resolve_video_dir(eval_cfg: DictConfig, work_dir: Path) -> Path:
     return (work_dir / "videos").resolve()
 
 
-def _resolve_device(device_str: str) -> torch.device:
-    if device_str != "auto":
-        return torch.device(device_str)
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    mps_available = getattr(torch.backends, "mps", None)
-    if mps_available is not None and torch.backends.mps.is_available():  # type: ignore[attr-defined]
-        return torch.device("mps")
-    return torch.device("cpu")
-
-
 def _build_metrics(metric_names: Sequence[str]):
     names = metric_names or ("mse", "rmse", "vrmse")
     metrics = {}
@@ -85,7 +74,6 @@ def _evaluate_metrics(
     model: EncoderProcessorDecoder,
     dataloader,
     metrics: dict[str, nn.Module],
-    device: torch.device,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     totals = dict.fromkeys(metrics, 0.0)
@@ -95,9 +83,8 @@ def _evaluate_metrics(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
-            batch_on_device = batch_to_device(batch, device)
-            preds = model(batch_on_device)
-            trues = batch_on_device.output_fields
+            preds = model(batch)
+            trues = batch.output_fields
             batch_size = preds.shape[0]
             total_weight += batch_size
 
@@ -130,7 +117,6 @@ def _evaluate_metrics(
 def _evaluate_rollout_coverage(
     model: EncoderProcessorDecoder,
     dataloader,
-    device: torch.device,
     stride: int,
     max_rollout_steps: int,
     free_running_only: bool,
@@ -142,9 +128,8 @@ def _evaluate_rollout_coverage(
 
     def rollout_predict(batch):
         """Predict function for rollout evaluation."""
-        batch_on_device = batch_to_device(batch, device)
         preds, trues = model.rollout(
-            batch_on_device,
+            batch,
             stride=stride,
             max_rollout_steps=max_rollout_steps,
             free_running_only=free_running_only,
@@ -177,7 +162,6 @@ def _render_rollouts(
     sample_index: int,
     fmt: str,
     fps: int,
-    device: torch.device,
     stride: int,
     max_rollout_steps: int,
     free_running_only: bool,
@@ -194,9 +178,8 @@ def _render_rollouts(
         for batch_idx, batch in enumerate(dataloader):
             if batch_idx not in targets:
                 continue
-            batch_on_device = batch_to_device(batch, device)
             preds, trues = model.rollout(
-                batch_on_device,
+                batch,
                 stride=stride,
                 max_rollout_steps=max_rollout_steps,
                 free_running_only=free_running_only,
@@ -374,11 +357,26 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
     model_cfg = cfg.get("model", {})
     n_members = model_cfg.get("n_members", 1)
 
-    device = _resolve_device(eval_cfg.get("device", "auto"))
-    model.to(device)
+    # Setup Fabric for device management
+    device_str = eval_cfg.get("device", "auto")
+    accelerator = "auto"
+    if device_str == "cpu":
+        accelerator = "cpu"
+    elif device_str == "cuda" or (device_str == "auto" and torch.cuda.is_available()):
+        accelerator = "cuda"
+    elif device_str == "mps":
+        accelerator = "mps"
+
+    fabric = L.Fabric(accelerator=accelerator, devices=1)
+    fabric.launch()
+
+    # Setup model and loader with Fabric
+    model = fabric.setup_module(model)
+    test_loader = fabric.setup_dataloaders(datamodule.test_dataloader())
+    device = fabric.device
 
     # Evaluation
-    test_loader = datamodule.test_dataloader()
+    # test_loader is already setup above
 
     # Compute coverage using helper function
     test_coverage, _ = compute_coverage_scores_from_dataloader(
@@ -391,7 +389,7 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
         log.info("Test coverage for window %s: %s", window, coverage_metric)
         window_str = f"{window[0]}-{window[1]}" if window is not None else "all"
         coverage_metric.plot(
-            save_path=work_dir / f"test_coverage_window_{window}.png",
+            save_path=csv_path / f"test_coverage_window_{window}.png",
             title=f"Test Coverage Window {window}",
         )
 
@@ -454,7 +452,7 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
                 )
                 window_str = f"{window[0]}-{window[1]}" if window is not None else "all"
                 coverage_metric.plot(
-                    save_path=work_dir / f"rollout_coverage_window_{window_str}.png",
+                    save_path=csv_path / f"rollout_coverage_window_{window_str}.png",
                     title=f"Rollout Coverage Window {window_str}",
                 )
 

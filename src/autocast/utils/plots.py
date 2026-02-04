@@ -78,7 +78,14 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     pred_batch = pred[batch_idx]
     pred_uq_batch = pred_uq[batch_idx] if pred_uq is not None else None
 
-    T, _, _, C = true_batch.shape
+    # Extract dimensions
+    if true_batch.ndim == 4:
+        T, _, _, C = true_batch.shape
+    elif true_batch.ndim == 5:
+        T, _, _, C, _ = true_batch.shape
+    else:
+        msg = f"Expected true tensor to have 4 or 5 dimensions, got {true_batch.ndim}"
+        raise ValueError(msg)
 
     if hasattr(true_batch, "detach"):
         true_batch = true_batch.detach().cpu().numpy()
@@ -230,7 +237,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     return anim
 
 
-def compute_coverage_scores_from_dataloader(
+def compute_coverage_scores_from_dataloader(  # noqa: PLR0912
     dataloader: torch.utils.data.DataLoader,
     model: torch.nn.Module | None = None,
     predict_fn: Callable | None = None,
@@ -284,19 +291,11 @@ def compute_coverage_scores_from_dataloader(
     all_preds = [] if return_tensors else None
     all_trues = [] if return_tensors else None
 
-    device = None
     if model is not None:
         model.eval()
-        try:
-            device = next(model.parameters()).device
-        except Exception:
-            pass
 
     with torch.no_grad():
         for batch in dataloader:
-            if device is not None and hasattr(batch, "to"):
-                batch = batch.to(device)
-
             # Get predictions and ground truth
             if predict_fn is not None:
                 result = predict_fn(batch)
