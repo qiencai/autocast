@@ -210,8 +210,8 @@ def _render_rollouts(
             # When n_members > 1, the rollout output has shape (B, T, ..., C, M).
             if n_members is not None and n_members > 1:
                 preds_mean = preds.mean(dim=-1)
-                trues_mean = trues.mean(dim=-1)
                 preds_uq = preds.std(dim=-1)
+                trues_mean = trues
             else:
                 preds_mean = preds
                 trues_mean = trues

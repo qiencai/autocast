@@ -79,13 +79,14 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     pred_uq_batch = pred_uq[batch_idx] if pred_uq is not None else None
 
     # Extract dimensions
-    if true_batch.ndim == 4:
-        T, _, _, C = true_batch.shape
-    elif true_batch.ndim == 5:
-        T, _, _, C, _ = true_batch.shape
-    else:
-        msg = f"Expected true tensor to have 4 or 5 dimensions, got {true_batch.ndim}"
-        raise ValueError(msg)
+    try:
+        T, *_, C = true_batch.shape
+    except Exception as e:
+        msg = (
+            f"Expected true tensor of shape {true_batch.shape} did not match "
+            "expected format T, S, C."
+        )
+        raise RuntimeError(msg) from e
 
     if hasattr(true_batch, "detach"):
         true_batch = true_batch.detach().cpu().numpy()
