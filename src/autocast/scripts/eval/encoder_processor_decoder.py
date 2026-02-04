@@ -454,6 +454,10 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0912, PLR0915
             log.info("Computing rollout coverage metrics...")
             assert isinstance(model, EncoderProcessorDecoderEnsemble)
             windows = eval_cfg.get("coverage_windows", [(6, 12), (13, 30)])
+            if windows is not None:
+                windows = [
+                    tuple(w) if isinstance(w, (list, Sequence)) else w for w in windows
+                ]
             rollout_coverage_per_window = _evaluate_rollout_coverage(
                 model,
                 fabric.setup_dataloaders(
