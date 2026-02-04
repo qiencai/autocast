@@ -26,6 +26,9 @@ from autocast.metrics import (
 )
 from autocast.metrics.coverage import MultiCoverage
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
+from autocast.models.encoder_processor_decoder_ensemble import (
+    EncoderProcessorDecoderEnsemble,
+)
 from autocast.scripts.config import save_resolved_config
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
 from autocast.scripts.utils import get_default_config_path
@@ -115,7 +118,7 @@ def _evaluate_metrics(
 
 
 def _evaluate_rollout_coverage(
-    model: EncoderProcessorDecoder,
+    model: EncoderProcessorDecoderEnsemble,
     dataloader,
     stride: int,
     max_rollout_steps: int,
@@ -358,22 +361,13 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
     n_members = model_cfg.get("n_members", 1)
 
     # Setup Fabric for device management
-    device_str = eval_cfg.get("device", "auto")
-    accelerator = "auto"
-    if device_str == "cpu":
-        accelerator = "cpu"
-    elif device_str == "cuda" or (device_str == "auto" and torch.cuda.is_available()):
-        accelerator = "cuda"
-    elif device_str == "mps":
-        accelerator = "mps"
-
+    accelerator = eval_cfg.get("device", "auto")
     fabric = L.Fabric(accelerator=accelerator, devices=1)
     fabric.launch()
 
     # Setup model and loader with Fabric
-    model = fabric.setup_module(model)
+    model.to(fabric.device)
     test_loader = fabric.setup_dataloaders(datamodule.test_dataloader())
-    device = fabric.device
 
     # Evaluation
     # test_loader is already setup above
@@ -389,12 +383,12 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
         log.info("Test coverage for window %s: %s", window, coverage_metric)
         window_str = f"{window[0]}-{window[1]}" if window is not None else "all"
         coverage_metric.plot(
-            save_path=csv_path / f"test_coverage_window_{window}.png",
+            save_path=work_dir / f"test_coverage_window_{window}.png",
             title=f"Test Coverage Window {window}",
         )
 
     # Compute other metrics
-    rows = _evaluate_metrics(model, test_loader, metrics, device)
+    rows = _evaluate_metrics(model, test_loader, metrics)
     _write_csv(rows, csv_path, list(metrics.keys()))
 
     aggregate_row = next((row for row in rows if row.get("batch_index") == "all"), None)
@@ -418,26 +412,29 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
         if batch_indices:
             _render_rollouts(
                 model,
-                datamodule.rollout_test_dataloader(batch_size=eval_batch_size),
+                fabric.setup_dataloaders(
+                    datamodule.rollout_test_dataloader(batch_size=eval_batch_size)
+                ),
                 batch_indices,
                 video_dir,
                 eval_cfg.get("video_sample_index", 0),
                 eval_cfg.get("video_format", "mp4"),
                 eval_cfg.get("fps", 5),
-                device,
                 stride=rollout_stride,
                 max_rollout_steps=max_rollout_steps,
                 free_running_only=eval_cfg.get("free_running_only", True),
                 n_members=n_members,
             )
 
-        if compute_rollout_coverage:
+        if compute_rollout_coverage and n_members and n_members > 1:
             log.info("Computing rollout coverage metrics...")
+            assert isinstance(model, EncoderProcessorDecoderEnsemble)
             windows = eval_cfg.get("coverage_windows", [(6, 12), (13, 30)])
             rollout_coverage_per_window = _evaluate_rollout_coverage(
                 model,
-                datamodule.rollout_test_dataloader(batch_size=eval_batch_size),
-                device,
+                fabric.setup_dataloaders(
+                    datamodule.rollout_test_dataloader(batch_size=eval_batch_size)
+                ),
                 stride=rollout_stride,
                 max_rollout_steps=max_rollout_steps,
                 free_running_only=eval_cfg.get("free_running_only", True),

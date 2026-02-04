@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Literal
 
 import matplotlib.pyplot as plt
@@ -238,7 +238,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
 
 
 def compute_coverage_scores_from_dataloader(  # noqa: PLR0912
-    dataloader: torch.utils.data.DataLoader,
+    dataloader: Iterable,
     model: torch.nn.Module | None = None,
     predict_fn: Callable | None = None,
     coverage_levels: list[float] | None = None,
