@@ -238,7 +238,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     return anim
 
 
-def compute_coverage_scores_from_dataloader(  # noqa: PLR0912
+def compute_coverage_scores_from_dataloader(
     dataloader: Iterable,
     model: torch.nn.Module | None = None,
     predict_fn: Callable | None = None,
@@ -309,10 +309,8 @@ def compute_coverage_scores_from_dataloader(  # noqa: PLR0912
                 trues = batch.output_fields
 
             # Move to CPU for metrics
-            if hasattr(preds, "cpu"):
-                preds = preds.cpu()
-            if hasattr(trues, "cpu"):
-                trues = trues.cpu()
+            preds = preds.cpu()
+            trues = trues.cpu()
 
             # Get metrics per window
             for window, metric in metrics_per_window.items():
@@ -323,6 +321,9 @@ def compute_coverage_scores_from_dataloader(  # noqa: PLR0912
                     t_start, t_end = window
                     p = preds[:, t_start:t_end]  # assume time is dim=1
                     t = trues[:, t_start:t_end]
+
+                if p.numel() == 0 or t.numel() == 0:
+                    continue
 
                 # Update metric
                 metric.update(p, t)
