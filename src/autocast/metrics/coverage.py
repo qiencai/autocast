@@ -1,7 +1,9 @@
 from pathlib import Path
 
+import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from matplotlib.lines import Line2D
 from torch.nn import ModuleList
 from torchmetrics import Metric
 
@@ -19,14 +21,15 @@ class Coverage(BTSCMMetric):
 
     name: str = "coverage"
 
-    def __init__(self, coverage_level: float = 0.95):
+    def __init__(self, coverage_level: float = 0.95, **kwargs):
         """Initialize Coverage metric.
 
         Args:
             coverage_level: nominal coverage probability (e.g. 0.95 for 95% interval).
                 Must be between 0 and 1.
+            **kwargs: Additional arguments passed to BaseMetric.
         """
-        super().__init__()
+        super().__init__(**kwargs)
         if not (0 < coverage_level < 1):
             raise ValueError(f"coverage_level must be in (0, 1), got {coverage_level}")
         self.coverage_level = coverage_level
@@ -85,9 +88,9 @@ class MultiCoverage(Metric):
             ]
 
         self.coverage_levels = coverage_levels
-        # Create a list of Coverage metrics
+        # List of Coverage metrics with reduce_all=False to allow per-channel analysis
         self.metrics = ModuleList(
-            [Coverage(coverage_level=cl) for cl in coverage_levels]
+            [Coverage(coverage_level=cl, reduce_all=False) for cl in coverage_levels]
         )
 
     def update(self, y_pred, y_true):
@@ -136,17 +139,71 @@ class MultiCoverage(Metric):
         -------
         matplotlib.figure.Figure
         """
-        # Gather computed values from sub-metrics
-        levels, observed = self._compute_levels_and_values()
+        # Gather observed values from sub-metrics
+        # If reduce_all=False, compute() returns (T, C)
+        # We want to check if we can plot per-channel lines
+
+        # Check first metric to see shape
+        first_val = self.metrics[0].compute()  # type: ignore as Coverage
+
+        # Determine if we have channel info
+        has_channels = False
+        n_channels = 0
+
+        # If reduced over all, it's a 0-d tensor.
+        # If reduced over spatial only (reduce_all=False), it's (T, C).
+        # We average over T to get (C,)
+
+        if first_val.ndim == 2:  # (T, C)
+            has_channels = True
+            n_channels = first_val.shape[1]
+
+        # Prepare data structure: levels -> [val_c1, val_c2, ...]
+        levels = self.coverage_levels
+        observed_means = []
+        observed_channels = []  # shape (L, C)
+
+        for metric in self.metrics:
+            assert isinstance(metric, Coverage)
+            val = metric.compute()
+
+            if has_channels:
+                # Average over Time
+                val_c = val.mean(dim=0).cpu().numpy()  # (C,)
+                observed_channels.append(val_c)
+                observed_means.append(val_c.mean())
+            else:
+                scalar = val.mean().item()
+                observed_means.append(scalar)
 
         # Create matplotlib figure
-        fig, ax = plt.subplots(figsize=(6, 6))
+        fig, ax = plt.subplots(figsize=(8, 8))
 
         # Optimal line (y=x)
-        ax.plot([0, 1], [0, 1], "k:", label="Optimal")
+        ax.plot([0, 1], [0, 1], "k:", label="Optimal", linewidth=2)
 
-        # Observed coverage
-        ax.plot(levels, observed, "bo-", label="Observed")
+        # Plot per-channel traces if available
+        if has_channels:
+            observed_arr = np.stack(observed_channels)  # (L, C)
+            # Use color map if many channels
+            cmap = plt.get_cmap("viridis")
+            for c in range(n_channels):
+                color = cmap(c / n_channels) if n_channels > 1 else "blue"
+                label = f"Ch {c}" if n_channels <= 10 else None
+                ax.plot(
+                    levels,
+                    observed_arr[:, c],
+                    color=color,
+                    alpha=0.3,
+                    linewidth=1,
+                    label=label,
+                )
+
+            # Plot mean coverage in bold
+            ax.plot(levels, observed_means, "k-", linewidth=3, label="Mean")
+        else:
+            # Observed mean coverage
+            ax.plot(levels, observed_means, "bo-", label="Observed")
 
         ax.set_xlabel("Expected Coverage")
         ax.set_ylabel("Observed Coverage")
@@ -154,7 +211,17 @@ class MultiCoverage(Metric):
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
         ax.grid(True, linestyle=":", alpha=0.6)
-        ax.legend()
+
+        # Only show legend if not cluttered
+        if has_channels and n_channels > 10:
+            # Add manual legend for trace
+            custom_lines = [
+                Line2D([0], [0], color="k", lw=3),
+                Line2D([0], [0], color="grey", lw=1, alpha=0.5),
+            ]
+            ax.legend(custom_lines, ["Mean", "Individual Channels"])
+        else:
+            ax.legend()
 
         if save_path:
             plt.savefig(save_path, bbox_inches="tight")
