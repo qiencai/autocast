@@ -33,8 +33,8 @@ def test_multi_alpha_coverage_dict_keys_and_values():
     levels = [0.5, 0.9]
     metric = MultiCoverage(coverage_levels=levels)
     metric.update(y_pred, y_true)
-    results = metric.compute()
+    results = metric.compute_detailed()
 
     assert set(results.keys()) == {"coverage_0.5", "coverage_0.9"}
     for value in results.values():
-        assert torch.allclose(value, torch.tensor(1.0))
+        assert torch.isclose(torch.tensor(value), torch.tensor(1.0))
