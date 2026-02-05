@@ -1,7 +1,5 @@
 """Tests for DenormMixin functionality."""
 
-import contextlib
-
 import lightning as L
 import pytest
 import torch
@@ -14,9 +12,10 @@ from autocast.types.batch import Batch
 class SimpleDenormModel(DenormMixin, L.LightningModule):
     """Simple model for testing DenormMixin."""
 
-    def __init__(self):
+    def __init__(self, normalization_type: ZScoreNormalization | None = None):
         super().__init__()
         self.linear = torch.nn.Linear(10, 10)
+        self.norm = normalization_type
 
     def forward(self, batch: Batch) -> torch.Tensor:
         # Simple forward pass for testing
@@ -79,8 +78,7 @@ def test_denorm_mixin_no_normalizer():
 
 def test_denorm_mixin_with_normalizer(mock_normalizer):
     """Test that DenormMixin correctly denormalizes when normalizer is set."""
-    model = SimpleDenormModel()
-    model.norm = mock_normalizer
+    model = SimpleDenormModel(normalization_type=mock_normalizer)
 
     # Create normalized tensor (z-score normalized)
     # Original values: [2.0, 4.0] -> normalized: [0.0, 0.0]
@@ -115,8 +113,7 @@ def test_predict_step_without_normalizer():
 
 def test_predict_step_with_normalizer(mock_normalizer):
     """Test predict_step denormalizes predictions when normalizer is set."""
-    model = SimpleDenormModel()
-    model.norm = mock_normalizer
+    model = SimpleDenormModel(normalization_type=mock_normalizer)
 
     # Create batch with normalized data (zero mean)
     batch = Batch(
@@ -152,116 +149,41 @@ def test_denormalize_tensor_shapes():
         assert result.shape == tensor.shape, f"Shape mismatch for {shape}"
 
 
-def test_connect_normalizer_from_datamodule(mock_normalizer):
-    """Test that _connect_normalizer pulls normalizer from datamodule."""
-    model = SimpleDenormModel()
+def test_denormalize_tensor_delta_mode(mock_normalizer):
+    """Test denormalize_tensor with delta=True uses delta denormalization."""
+    model = SimpleDenormModel(normalization_type=mock_normalizer)
 
-    # Create mock datamodule with normalizer
-    class MockDataModule:
-        class MockDataset:
-            def __init__(self):
-                self.norm = mock_normalizer
+    # Create normalized delta tensor (normalized change)
+    # Original delta: [0.0, 0.0] -> normalized delta: [0.0, 0.0]
+    normalized_delta = torch.zeros(1, 1, 2, 2, 2)
 
-        def __init__(self):
-            self.train_dataset = self.MockDataset()
+    result = model.denormalize_tensor(normalized_delta, delta=True)
 
-    class MockTrainer:
-        def __init__(self):
-            self.datamodule = MockDataModule()
+    # Should denormalize using delta stats: delta = z * std_delta + mean_delta
+    # Channel 0: 0 * 0.1 + 0.0 = 0.0
+    # Channel 1: 0 * 0.2 + 0.0 = 0.0
+    expected = torch.zeros_like(normalized_delta)
 
-    # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()  # type: ignore[assignment]
-    model._connect_normalizer()
-
-    assert model.norm is mock_normalizer
+    assert torch.allclose(result, expected)
 
 
-def test_connect_normalizer_no_trainer():
-    """Test that _connect_normalizer handles missing trainer gracefully."""
-    model = SimpleDenormModel()
-    # Lightning raises error when accessing trainer property if not attached
-    # _connect_normalizer should handle this gracefully with hasattr check
-    with contextlib.suppress(RuntimeError):
-        model._connect_normalizer()
-    # Should still have no normalizer set
-    assert model.norm is None
+def test_norm_attribute_initialization():
+    """Test that norm attribute is properly initialized."""
+    # Test without normalizer
+    model_without = SimpleDenormModel()
+    assert model_without.norm is None
 
-
-def test_connect_normalizer_no_datamodule():
-    """Test that _connect_normalizer handles missing datamodule gracefully."""
-    model = SimpleDenormModel()
-
-    class MockTrainer:
-        pass
-
-    # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()  # type: ignore[assignment]
-    model._connect_normalizer()
-    assert model.norm is None
-
-
-def test_connect_normalizer_no_norm_attribute():
-    """Test that _connect_normalizer handles missing norm attribute gracefully."""
-    model = SimpleDenormModel()
-
-    class MockDataModule:
-        class MockDataset:
-            pass
-
-        def __init__(self):
-            self.train_dataset = self.MockDataset()
-
-    class MockTrainer:
-        def __init__(self):
-            self.datamodule = MockDataModule()
-
-    # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()  # type: ignore[assignment]
-    model._connect_normalizer()
-    assert model.norm is None
-
-
-def test_on_fit_start_connects_normalizer(mock_normalizer):
-    """Test that on_fit_start automatically connects normalizer."""
-    model = SimpleDenormModel()
-
-    class MockDataModule:
-        class MockDataset:
-            def __init__(self):
-                self.norm = mock_normalizer
-
-        def __init__(self):
-            self.train_dataset = self.MockDataset()
-
-    class MockTrainer:
-        def __init__(self):
-            self.datamodule = MockDataModule()
-
-    # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()  # type: ignore[assignment]
-    model.on_fit_start()
-
-    assert model.norm is mock_normalizer
-
-
-def test_on_predict_start_connects_normalizer(mock_normalizer):
-    """Test that on_predict_start automatically connects normalizer."""
-    model = SimpleDenormModel()
-
-    class MockDataModule:
-        class MockDataset:
-            def __init__(self):
-                self.norm = mock_normalizer
-
-        def __init__(self):
-            self.train_dataset = self.MockDataset()
-
-    class MockTrainer:
-        def __init__(self):
-            self.datamodule = MockDataModule()
-
-    # Directly set _trainer to avoid property check
-    model._trainer = MockTrainer()  # type: ignore[assignment]
-    model.on_predict_start()
-
-    assert model.norm is mock_normalizer
+    # Test with normalizer
+    stats = {
+        "mean": {"U": 2.0},
+        "std": {"U": 1.0},
+        "mean_delta": {"U": 0.0},
+        "std_delta": {"U": 0.1},
+    }
+    norm = ZScoreNormalization(
+        stats=stats,
+        core_field_names=["U"],
+        core_constant_field_names=[],
+    )
+    model_with = SimpleDenormModel(normalization_type=norm)
+    assert model_with.norm is norm
