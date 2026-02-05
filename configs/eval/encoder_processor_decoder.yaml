@@ -12,5 +12,5 @@ metrics:
 
 max_rollout_steps: 25
 compute_rollout_coverage: true
-coverage_windows: [null]
-coverage_windows_rollout: [[0, 1], [6, 12], [13, 30]]
+metric_windows: [null]
+metric_windows_rollout: [[0, 1], [6, 12], [13, 30]]

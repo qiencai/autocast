@@ -387,7 +387,7 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
     # Evaluation
 
     # Compute coverage using helper function
-    coverage_windows = _map_windows(eval_cfg.get("coverage_windows", None))
+    coverage_windows = _map_windows(eval_cfg.get("metric_windows", None))
     test_coverage, _ = compute_coverage_scores_from_dataloader(
         dataloader=test_loader,
         model=model,
@@ -437,7 +437,7 @@ def main(cfg: DictConfig) -> None:  # noqa: PLR0915
             log.info("Computing rollout coverage metrics...")
             assert isinstance(model, EncoderProcessorDecoderEnsemble)
             windows = _map_windows(
-                eval_cfg.get("coverage_windows_rollout", [(0, 1), (6, 12), (13, 30)])
+                eval_cfg.get("metric_windows_rollout", [(0, 1), (6, 12), (13, 30)])
             )
             rollout_coverage_per_window = _evaluate_rollout_coverage(
                 model,
