@@ -45,7 +45,7 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         dtype: torch.dtype = torch.float32,
         verbose: bool = False,
         use_normalization: bool = False,
-        normalization_type: type[ZScoreNormalization] | None = None,
+        normalization_type: type[ZScoreNormalization] | None = ZScoreNormalization,
         normalization_path: str | None = None,
         normalization_stats: dict | None = None,
     ):
@@ -82,7 +82,8 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         use_normalization: bool
             Whether to apply Z-score normalization. Defaults to False.
         normalization_type: type[ZScoreNormalization] | None
-            Normalization object (computed from training data). Defaults to None.
+            Normalization object (computed from training data). Defaults to
+            ZScoreNormalization.
         normalization_path: str | None
             Path to normalization statistics file (yaml). Defaults to None.
         normalization_stats: dict | None
@@ -144,8 +145,9 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         for traj_idx in range(self.n_trajectories):
             # Create subtrajectories for this trajectory
             fields = (
-                self.data[traj_idx]
-                .unfold(0, self.n_steps_input + self.n_steps_output, self.stride)
+                self.data[traj_idx].unfold(
+                    0, self.n_steps_input + self.n_steps_output, self.stride
+                )
                 # [num_subtrajectories, T_in + T_out, W, H, C]
                 .permute(0, -1, 1, 2, 3)
             )

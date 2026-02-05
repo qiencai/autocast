@@ -170,7 +170,7 @@ class SpatioTemporalDataModule(LightningDataModule):
         verbose: bool = False,
         autoencoder_mode: bool = False,
         use_normalization: bool = False,
-        normalization_type: type[ZScoreNormalization] | None = None,
+        normalization_type: type[ZScoreNormalization] | None = ZScoreNormalization,
         normalization_path: None | str = None,
         normalization_stats: dict | None = None,
         num_workers: int | None = None,
