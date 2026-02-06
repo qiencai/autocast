@@ -43,9 +43,9 @@ export USE_NORMALIZATION="true"
 # Train
 srun uv run train_autoencoder \
     hydra.run.dir=${WORKING_DIR} \
-	datamodule=${DATAPATH}" \
-	datamodule.data_path=${AUTOCAST_DATASETS}/${DATAPATH}" \
-	datamodule.use_normalization=${USE_NORMALIZATION} \
+	datamodule="${DATAPATH}" \
+	datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
+	datamodule.use_normalization="${USE_NORMALIZATION}" \
 	trainer.max_epochs=100 \
 	logging.wandb.enabled=true \
 	optimizer.learning_rate=0.00002
