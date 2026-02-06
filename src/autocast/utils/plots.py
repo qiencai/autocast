@@ -11,7 +11,7 @@ from matplotlib.gridspec import GridSpec
 from torchmetrics import Metric
 
 from autocast.metrics.coverage import MultiCoverage
-from autocast.types.types import Tensor, TensorBTSC, TensorBTSCM
+from autocast.types import Tensor, TensorBTSC, TensorBTSCM
 
 
 def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
@@ -279,10 +279,21 @@ def compute_metrics_from_dataloader(
         window: {name: fn() for name, fn in metric_fns.items()}
         for window in (windows or [None])
     }
-
     all_preds = [] if return_tensors else None
     all_trues = [] if return_tensors else None
     per_batch_rows = [] if return_per_batch else None
+
+    def _get_val(m):
+        """Extract scalar values safely."""
+        try:
+            val = m.compute()
+            if val.numel() == 1:
+                return float(val.item())
+            if hasattr(val, "mean"):
+                return float(val.mean().item())
+        except Exception:
+            pass
+        return None
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
@@ -290,27 +301,29 @@ def compute_metrics_from_dataloader(
             if result is None:
                 continue
 
-            preds, trues = None, None
-            if isinstance(result, tuple) and len(result) == 2:
-                preds, trues = result
-            elif hasattr(batch, "output_fields"):
-                preds, trues = result, batch.output_fields
-
-            if not isinstance(preds, torch.Tensor) or not isinstance(
-                trues, torch.Tensor
-            ):
+            # Extract preds/trues
+            preds, trues = (
+                result
+                if (isinstance(result, tuple) and len(result) == 2)
+                # TODO: consider making generic over batch type with outputs() method
+                else (result, getattr(batch, "output_fields", None))
+            )
+            if not (isinstance(preds, Tensor) and isinstance(trues, Tensor)):
                 continue
-            for window, metrics_dict in metrics_per_window.items():
-                # Get windowed data
-                if window is None:
-                    p, t = preds, trues
-                    window_str = "all"
-                else:
-                    t_start, t_end = window
-                    p = preds[:, t_start:t_end]  # assume time is dim=1
-                    t = trues[:, t_start:t_end]
-                    window_str = f"{window[0]}-{window[1]}"
 
+            # Move to CPU for metric computation
+            preds, trues = preds.cpu(), trues.cpu()
+
+            # Get metrics for each window
+            for window, metrics_dict in metrics_per_window.items():
+                p, t = (
+                    (preds, trues)
+                    if window is None
+                    else (
+                        preds[:, window[0] : window[1]],
+                        trues[:, window[0] : window[1]],
+                    )
+                )
                 if p.numel() == 0 or t.numel() == 0:
                     continue
 
@@ -318,26 +331,24 @@ def compute_metrics_from_dataloader(
                 for metric in metrics_dict.values():
                     metric.update(p, t)
 
-                # Compute per-batch metrics if requested
-                if return_per_batch and per_batch_rows is not None:
-                    row = {"window": window_str, "batch_idx": batch_idx}
-                    for name, fn in metric_fns.items():
-                        single_metric = fn()
-                        single_metric.update(p, t)
-                        try:
-                            val = single_metric.compute()
-                            if val.numel() == 1:
-                                row[name] = float(val.item())
-                            elif hasattr(val, "mean"):
-                                row[name] = float(val.mean().item())
-                        except Exception:
-                            pass
-                    per_batch_rows.append(row)
-
-                # Append tensors if needed
-                if all_preds is not None and all_trues is not None:
+                # Store tensors if requested
+                if all_preds is not None:
                     all_preds.append(p)
+                if all_trues is not None:
                     all_trues.append(t)
+
+                # Per-batch metrics
+                if per_batch_rows is not None:
+                    row = {
+                        "window": f"{window[0]}-{window[1]}" if window else "all",
+                        "batch_idx": batch_idx,
+                    }
+                    for name, fn in metric_fns.items():
+                        m = fn()
+                        m.update(p, t)
+                        if (val := _get_val(m)) is not None:
+                            row[name] = val
+                    per_batch_rows.append(row)
 
     # Concatenate tensors if needed
     tensors = None
