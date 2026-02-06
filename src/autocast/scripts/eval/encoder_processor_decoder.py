@@ -12,17 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
 from autocast.logging import create_wandb_logger, log_metrics
-from autocast.metrics import (
-    MAE,
-    MSE,
-    NMAE,
-    NMSE,
-    NRMSE,
-    RMSE,
-    VMSE,
-    VRMSE,
-    LInfinity,
-)
+from autocast.metrics import MAE, MSE, NMAE, NMSE, NRMSE, RMSE, VMSE, VRMSE, LInfinity
 from autocast.models.encoder_processor_decoder import EncoderProcessorDecoder
 from autocast.scripts.config import save_resolved_config
 from autocast.scripts.data import batch_to_device
@@ -281,7 +271,7 @@ def main(cfg: DictConfig) -> None:
     datamodule, cfg, stats = setup_datamodule(cfg)
 
     # Setup Model
-    model = setup_epd_model(cfg, stats)
+    model = setup_epd_model(cfg, stats, datamodule=datamodule)
 
     # Load checkpoint
     log.info("Loading checkpoint from %s", checkpoint_path)
