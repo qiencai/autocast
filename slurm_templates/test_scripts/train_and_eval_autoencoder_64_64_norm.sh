@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --gpus=1
 #SBATCH --ntasks=1
-#SBATCH --time=10:00:00        
+#SBATCH --time=48:00:00        
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=256G
-#SBATCH --job-name well-benchmark
-#SBATCH --output=logs/well-benchmark%j.out
-#SBATCH --error=logs/well-benchmark%j.err
+#SBATCH --job-name ae
+#SBATCH --output=logs/ae%j.out
+#SBATCH --error=logs/ae%j.err
 
 # This forces script to fail as soon as it hits an error
 set -e
