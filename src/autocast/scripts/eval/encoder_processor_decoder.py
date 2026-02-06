@@ -12,18 +12,7 @@ import torch
 from omegaconf import DictConfig
 from torchmetrics import Metric
 
-from autocast.logging import create_wandb_logger, log_metrics
-from autocast.metrics import (
-    MAE,
-    MSE,
-    NMAE,
-    NMSE,
-    NRMSE,
-    RMSE,
-    VMSE,
-    VRMSE,
-    LInfinity,
-)
+from autocast.metrics import MAE, MSE, NMAE, NMSE, NRMSE, RMSE, VMSE, VRMSE, LInfinity
 from autocast.metrics.base import BaseMetric
 from autocast.metrics.coverage import MultiCoverage
 from autocast.metrics.ensemble import CRPS, AlphaFairCRPS, FairCRPS
