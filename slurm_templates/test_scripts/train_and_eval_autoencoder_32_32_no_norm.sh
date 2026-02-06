@@ -37,6 +37,7 @@ exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
 
 # ---------------- Code to train and evaluate the model ----------------
 
+export AUTOCAST_DATASETS="$PWD/datasets"
 export DATAPATH="advection_diffusion_multichannel"
 export USE_NORMALIZATION="false"
 
