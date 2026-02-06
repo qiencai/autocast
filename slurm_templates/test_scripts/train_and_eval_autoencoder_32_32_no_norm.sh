@@ -46,7 +46,9 @@ srun uv run train_autoencoder \
 	datamodule=${DATAPATH}" \
 	datamodule.data_path=${AUTOCAST_DATASETS}/${DATAPATH}" \
 	datamodule.use_normalization=${USE_NORMALIZATION} \
-	trainer.max_epochs=100
+	trainer.max_epochs=100 \
+	logging.wandb.enabled=true \
+	optimizer.learning_rate=0.00002
 
 
 
