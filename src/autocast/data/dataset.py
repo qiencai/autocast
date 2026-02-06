@@ -4,7 +4,7 @@ from typing import Any, Literal
 import h5py
 import torch
 import yaml
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from the_well.data import Augmentation, WellDataset
 from the_well.data.normalization import ZScoreNormalization
 from torch.utils.data import Dataset
@@ -303,16 +303,6 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
 
                 with open(self.normalization_path) as f:
                     self.normalization_stats = yaml.safe_load(f)
-
-            # Convert DictConfig to dict if needed (Hydra compatibility)
-            if isinstance(self.normalization_stats, DictConfig):
-                converted = OmegaConf.to_container(
-                    self.normalization_stats, resolve=True
-                )
-                if not isinstance(converted, dict):
-                    msg = "normalization_stats must be a dict"
-                    raise TypeError(msg)
-                self.normalization_stats = converted
 
             self.norm = self.normalization_type(
                 self.normalization_stats.get("stats", {}),
