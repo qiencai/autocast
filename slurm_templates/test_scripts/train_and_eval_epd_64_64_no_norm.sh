@@ -53,6 +53,7 @@ srun uv run train_encoder_processor_decoder \
 	datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
 	datamodule.use_normalization="${USE_NORMALIZATION}" \
 	trainer.max_epochs=100 \
+    datamodule.batch_size=64 \
 	logging.wandb.enabled=true \
 	 "${MODEL_PARAMS[@]}"
 	
@@ -66,6 +67,7 @@ uv run evaluate_encoder_processor_decoder \
         eval=encoder_processor_decoder \
         datamodule="${DATAPATH}" \
         datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
+        datamodule.batch_size=64 \
         eval.checkpoint=${CKPT_PATH} \
         eval.batch_indices=[0,1,2,3] \
         eval.video_dir="${EVAL_DIR}/videos" \
