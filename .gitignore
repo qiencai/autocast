@@ -10,3 +10,4 @@ outputs/
 lightning_logs/
 datasets
 slurm_scripts
+logs
