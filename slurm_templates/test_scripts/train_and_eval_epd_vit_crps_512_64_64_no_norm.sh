@@ -73,6 +73,7 @@ MODEL_PARAMS=(
      "${HIDDEN_PARAMS}"
      "model.processor.patch_size=null"
      "+model.n_members=10"
+	 "model.train_in_latent_space=false"
      "model.loss_func._target_=autocast.losses.ensemble.CRPSLoss"
      "+model.train_metrics.crps._target_=autocast.metrics.ensemble.CRPS"
 )

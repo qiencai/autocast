@@ -72,6 +72,7 @@ MODEL_PARAMS=(
      "${SPATIAL_RESOLUTION_PARAMS}"
      "${HIDDEN_PARAMS}"
      "model.processor.patch_size=null"
+	 "model.train_in_latent_space=false"
      "+model.n_members=10"
      "model.loss_func._target_=autocast.losses.ensemble.CRPSLoss"
      "+model.train_metrics.crps._target_=autocast.metrics.ensemble.CRPS"
