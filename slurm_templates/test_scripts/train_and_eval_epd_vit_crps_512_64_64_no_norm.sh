@@ -67,7 +67,7 @@ MODEL_PARAMS=(
      "encoder@model.encoder=permute_concat"
      "model.encoder.with_constants=true"
      "decoder@model.decoder=channels_last"
-     "processor@model.processor=vit_large"
+     "processor@model.processor=${MODEL}"
      "${MODEL_NOISE_PARAMS}"
      "${SPATIAL_RESOLUTION_PARAMS}"
      "${HIDDEN_PARAMS}"
@@ -98,7 +98,7 @@ srun uv run train_encoder_processor_decoder \
 CKPT_PATH="${WORKING_DIR}/encoder_processor_decoder.ckpt"
 EVAL_DIR="${WORKING_DIR}/eval"
 
-uv run evaluate_encoder_processor_decoder \
+srun uv run evaluate_encoder_processor_decoder \
     hydra.run.dir="${EVAL_DIR}" \
     eval=encoder_processor_decoder \
     datamodule="${DATAPATH}" \

@@ -98,7 +98,7 @@ srun uv run train_encoder_processor_decoder \
 CKPT_PATH="${WORKING_DIR}/encoder_processor_decoder.ckpt"
 EVAL_DIR="${WORKING_DIR}/eval"
 
-uv run evaluate_encoder_processor_decoder \
+srun uv run evaluate_encoder_processor_decoder \
     hydra.run.dir="${EVAL_DIR}" \
     eval=encoder_processor_decoder \
     datamodule="${DATAPATH}" \
