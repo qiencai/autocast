@@ -68,12 +68,14 @@ if [ ${MODEL} == "vit_large" ]; then
         "${SPATIAL_RESOLUTION_PARAMS}"
         "${HIDDEN_PARAMS}"
         "model.processor.patch_size=null"
+		"datamodule.batch_size=64"
     )
 elif [ ${MODEL} == "fno" ]; then
     MODEL_SPECIFIC_PARAMS=(
         "processor@model.processor=${MODEL}"
         "${HIDDEN_PARAMS}"
         "${MODEL_NOISE_PARAMS}"
+		"datamodule.batch_size=16"
     )
 fi
 
@@ -102,7 +104,6 @@ srun uv run train_encoder_processor_decoder \
 	datamodule="${DATAPATH}" \
 	datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
 	datamodule.use_normalization="${USE_NORMALIZATION}" \
-    datamodule.batch_size=128 \
 	logging.wandb.enabled=true \
 	logging.wandb.name="${RUN_NAME}" \
 	 "${MODEL_PARAMS[@]}"
@@ -117,7 +118,6 @@ srun uv run evaluate_encoder_processor_decoder \
     eval=encoder_processor_decoder \
     datamodule="${DATAPATH}" \
     datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
-    datamodule.batch_size=128 \
     eval.checkpoint=${CKPT_PATH} \
     eval.batch_indices=[0,1,2,3] \
     eval.video_dir="${EVAL_DIR}/videos" \
