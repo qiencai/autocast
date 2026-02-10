@@ -89,3 +89,4 @@ srun uv run evaluate_encoder_processor_decoder \
     eval.batch_indices=[0,1,2,3] \
     eval.video_dir="${EVAL_DIR}/videos" \
     "${MODEL_PARAMS[@]}"
+

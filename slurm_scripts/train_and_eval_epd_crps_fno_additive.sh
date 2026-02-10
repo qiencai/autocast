@@ -16,9 +16,9 @@ export AUTOCAST_DATASETS="$PWD/datasets"
 # Set configuration parameters
 DATAPATH="advection_diffusion_multichannel_64_64" # Options: "advection_diffusion_multichannel_64_64", "advection_diffusion_multichannel"
 USE_NORMALIZATION="false" # Options: "true" or "false"
-MODEL="vit_large" # Options (any compatible config in configs/processors/), currently: "vit", "vit_large", "fno"
+MODEL="fno" # Options (any compatible config in configs/processors/), currently: "vit", "vit_large", "fno"
 HIDDEN_DIM=256 # Any positive integer, e.g. 256, 512, 1024, etc.
-MODEL_NOISE="concat" # Options: "cln", "concat", "additive"
+MODEL_NOISE="additive" # Options: "cln", "concat", "additive"
 
 # These assume a single noise per spatial point (not per time step).
 if [ ${DATAPATH} == "advection_diffusion_multichannel_64_64" ]; then
@@ -77,8 +77,8 @@ MODEL_PARAMS=(
 )
 MODEL_PARAMS+=("${MODEL_SPECIFIC_PARAMS[@]}")
 MODEL_PARAMS+=(
-    "trainer.max_epochs=100"
-	 "model.train_in_latent_space=false"
+	 "trainer.max_epochs=100"
+     "model.train_in_latent_space=false"
      "+model.n_members=10"
      "model.loss_func._target_=autocast.losses.ensemble.CRPSLoss"
      "+model.train_metrics.crps._target_=autocast.metrics.ensemble.CRPS"
