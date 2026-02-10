@@ -67,7 +67,7 @@ MODEL_PARAMS=(
      "encoder@model.encoder=permute_concat"
      "model.encoder.with_constants=true"
      "decoder@model.decoder=channels_last"
-     "processor@model.processor=vit_large"
+     "processor@model.processor=${MODEL}"
      "${MODEL_NOISE_PARAMS}"
      "${SPATIAL_RESOLUTION_PARAMS}"
      "${HIDDEN_PARAMS}"
