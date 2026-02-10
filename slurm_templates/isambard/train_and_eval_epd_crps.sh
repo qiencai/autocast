@@ -37,8 +37,10 @@ fi
 # Input noise injection
 if [ ${MODEL_NOISE} == "cln" ]; then
     MODEL_NOISE_PARAMS="model.processor.n_noise_channels=${NOISE_CHANNELS}"
-else
+elif [ ${MODEL_NOISE} == "concat" ]; then
     MODEL_NOISE_PARAMS="input_noise_injector@model.input_noise_injector=concat"
+elif [ ${MODEL_NOISE} == "additive" ]; then
+    MODEL_NOISE_PARAMS="input_noise_injector@model.input_noise_injector=additive"
 fi
 
 # Spatial resolution parameters
