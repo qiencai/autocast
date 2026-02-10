@@ -26,7 +26,7 @@ if [ ${DATAPATH} == "advection_diffusion_multichannel_64_64" ]; then
 else
     NOISE_CHANNELS=1024
 fi
-RUN_NAME="${DATAPATH}_${MODEL}_${MODEL_NOISE}_crps_no_norm"
+RUN_NAME="${DATAPATH}_${MODEL}_${MODEL_NOISE}_${HIDDEN_DIM}_crps_no_norm"
 WORKING_DIR="$PWD/outputs/$(date +%F)/${RUN_NAME}/"
 
 mkdir -p $WORKING_DIR
