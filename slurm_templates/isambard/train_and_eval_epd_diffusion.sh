@@ -25,12 +25,8 @@ elif [ ${DATAPATH} == "advection_diffusion_multichannel" ]; then
 fi
 
 
-# # Hidden dimension parameters
-# if [ ${MODEL} == "vit_large" ]; then
-#     HIDDEN_PARAMS="model.processor.hidden_dim=${HIDDEN_DIM}"
-# else
-#     HIDDEN_PARAMS="model.processor.hidden_channels=${HIDDEN_DIM}"
-# fi
+# Hidden dimension parameters
+HIDDEN_DIM=512 # Options: 512, 1024
 
 # One model params block for now since shared config pattern
 MODEL_PARAMS=(
@@ -40,6 +36,8 @@ MODEL_PARAMS=(
     "encoder@model.encoder=dc_deep_256"
     "decoder@model.decoder=dc_deep_256"
     "model.train_in_latent_space=true"
+    "model.processor.backbone.hid_channels=${HIDDEN_DIM}"
+    "trainer.max_epochs=200"
 )
 
 # Derive code and unique run identifiers
@@ -51,6 +49,7 @@ RUN_NAME="diff_${DATAPATH}_${MODEL}_${MODEL_NOISE}_${HIDDEN_DIM}_${GIT_HASH}_${U
 WORKING_DIR="$PWD/outputs/$(date +%F)/${RUN_NAME}/"
 
 # Check if there's a pretrained autoencoder checkpoint in the working directory
+mkdir -p "${WORKING_DIR}"
 cd "${WORKING_DIR}"
 ln -s "${AE_CHECKPOINT}" autoencoder.ckpt
 cd -
