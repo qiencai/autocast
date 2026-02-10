@@ -27,7 +27,7 @@ else
     NOISE_CHANNELS=1024
 fi
 RUN_NAME="${DATAPATH}_${MODEL}_${MODEL_NOISE}_crps_no_norm"
-WORKING_DIR="$PWD/outputs/2026-02-09/${RUN_NAME}/"
+WORKING_DIR="$PWD/outputs/$(date +%F)/${RUN_NAME}/"
 
 mkdir -p $WORKING_DIR
 exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
