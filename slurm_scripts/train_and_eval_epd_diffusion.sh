@@ -45,7 +45,7 @@ GIT_HASH=$(git rev-parse --short=7 HEAD | tr -d '\n')
 UUID=$(uuidgen | tr -d '\n' | tail -c 7)
 
 # Run name and working directory
-RUN_NAME="diff_${DATAPATH}_${MODEL}_${MODEL_NOISE}_${HIDDEN_DIM}_${GIT_HASH}_${UUID}"
+RUN_NAME="diff_${DATAPATH}_${MODEL}_${HIDDEN_DIM}_${GIT_HASH}_${UUID}"
 WORKING_DIR="$PWD/outputs/$(date +%F)/${RUN_NAME}/"
 
 # Check if there's a pretrained autoencoder checkpoint in the working directory
