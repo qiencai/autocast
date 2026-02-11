@@ -25,6 +25,8 @@ MODEL_NOISE="concat" # Options: "cln", "concat", "additive"
 EPOCHS=100
 EVAL_BATCH_SIZE=16
 LEARNING_RATE=0.0002
+EVAL_ONLY="false"
+WORKING_DIR=""
 
 # These assume a single noise per spatial point (not per time step).
 if [ ${DATAPATH} == "advection_diffusion_multichannel_64_64" ]; then
@@ -96,7 +98,15 @@ UUID=$(uuidgen | tr -d '\n' | tail -c 7)
 
 # Run name and working directory
 RUN_NAME="crps_${DATAPATH}_${MODEL}_${MODEL_NOISE}_${HIDDEN_DIM}_${GIT_HASH}_${UUID}"
-WORKING_DIR="$PWD/outputs/$(date +%F)/${RUN_NAME}/"
+
+if [ ${EVAL_ONLY} = "false" ]; then
+	WORKING_DIR="$PWD/outputs/$(date +%F)/${RUN_NAME}/"
+else
+	if [ "${WORKING_DIR}" = "" ]; then
+		echo "Error: WORKING_DIR must be set when EVAL_ONLY is true."
+		exit 1
+	fi
+fi
 
 # Check if there's a pretrained autoencoder checkpoint in the working directory
 CKPT="${WORKING_DIR}/autoencoder.ckpt"
@@ -105,21 +115,24 @@ if [ -f "${CKPT}" ]; then
 fi
 
 # Make directories and redirect output and error logs to the working directory
-mkdir -p $WORKING_DIR
+if [ ${EVAL_ONLY} = "false" ]; then
+	mkdir -p $WORKING_DIR
+fi
 exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
      2> "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.err"
 
 
 # Training
-srun uv run train_encoder_processor_decoder \
-    hydra.run.dir=${WORKING_DIR} \
-	datamodule="${DATAPATH}" \
-	datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
-	datamodule.use_normalization="${USE_NORMALIZATION}" \
-	logging.wandb.enabled=true \
-	logging.wandb.name="${RUN_NAME}" \
-	 "${MODEL_PARAMS[@]}"
-	
+if [ ${EVAL_ONLY} = "false" ]; then
+	srun uv run train_encoder_processor_decoder \
+		hydra.run.dir=${WORKING_DIR} \
+		datamodule="${DATAPATH}" \
+		datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
+		datamodule.use_normalization="${USE_NORMALIZATION}" \
+		logging.wandb.enabled=true \
+		logging.wandb.name="${RUN_NAME}" \
+		"${MODEL_PARAMS[@]}"
+fi
 
 # Eval
 CKPT_PATH="${WORKING_DIR}/encoder_processor_decoder.ckpt"
