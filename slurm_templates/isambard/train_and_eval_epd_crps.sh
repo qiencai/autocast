@@ -22,6 +22,9 @@ USE_NORMALIZATION="false" # Options: "true" or "false"
 MODEL="vit_large" # Options (any compatible config in configs/processors/), currently: "vit", "vit_large", "fno"
 HIDDEN_DIM=256 # Any positive integer, e.g. 256, 512, 1024, etc.
 MODEL_NOISE="concat" # Options: "cln", "concat", "additive"
+EPOCHS=100
+EVAL_BATCH_SIZE=16
+LEARNING_RATE=0.0002
 
 # These assume a single noise per spatial point (not per time step).
 if [ ${DATAPATH} == "advection_diffusion_multichannel_64_64" ]; then
@@ -73,14 +76,14 @@ fi
 
 # Combine all model parameters
 MODEL_PARAMS=(
-     "optimizer.learning_rate=0.0002"
+     "optimizer.learning_rate=${LEARNING_RATE}"
      "encoder@model.encoder=permute_concat"
      "model.encoder.with_constants=true"
      "decoder@model.decoder=channels_last"
 )
 MODEL_PARAMS+=("${MODEL_SPECIFIC_PARAMS[@]}")
 MODEL_PARAMS+=(
-    "trainer.max_epochs=100"
+    "trainer.max_epochs=${EPOCHS}"
 	 "model.train_in_latent_space=false"
      "+model.n_members=10"
      "model.loss_func._target_=autocast.losses.ensemble.CRPSLoss"
@@ -128,6 +131,7 @@ srun uv run evaluate_encoder_processor_decoder \
     datamodule="${DATAPATH}" \
     datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
     eval.checkpoint=${CKPT_PATH} \
-    eval.batch_indices=[0,1,2,3] \
+    eval.batch_indices=[0,1,2,3,4,5,6,7] \
     eval.video_dir="${EVAL_DIR}/videos" \
-    "${MODEL_PARAMS[@]}"
+    "${MODEL_PARAMS[@]}" \
+    datamodule.batch_size=${EVAL_BATCH_SIZE}

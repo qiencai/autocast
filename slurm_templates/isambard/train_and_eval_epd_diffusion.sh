@@ -20,6 +20,9 @@ export AUTOCAST_DATASETS="$PWD/datasets"
 DATAPATH="advection_diffusion_multichannel_64_64" # Options: "advection_diffusion_multichannel_64_64", "advection_diffusion_multichannel"
 USE_NORMALIZATION="false" # Options: "true" or "false"
 MODEL="flow_matching_vit" # Options (any compatible config in configs/processors/), currently: "flow_matching_vit", "diffusion_vit"
+EPOCHS=100
+EVAL_BATCH_SIZE=16
+LEARNING_RATE=0.0002
 
 if [ ${DATAPATH} == "advection_diffusion_multichannel_64_64" ]; then
     AE_CHECKPOINT="/projects/u5gf/ai4physics/outputs/2026-02-06/advection_diffusion_multichannel_64_64_no_norm/autoencoder.ckpt"
@@ -89,6 +92,7 @@ srun uv run evaluate_encoder_processor_decoder \
     datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
     +model.n_members=10 \
     eval.checkpoint=${CKPT_PATH} \
-    eval.batch_indices=[0,1,2,3] \
+    eval.batch_indices=[0,1,2,3,4,5,6,7] \
     eval.video_dir="${EVAL_DIR}/videos" \
-    "${MODEL_PARAMS[@]}"
+    "${MODEL_PARAMS[@]}" \
+	datamodule.batch_size=${EVAL_BATCH_SIZE}
