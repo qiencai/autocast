@@ -10,6 +10,9 @@
 
 set -e
 
+# Enable write permissions for group
+umask 0002
+
 # Might be used within python scripts
 export AUTOCAST_DATASETS="$PWD/datasets"
 
