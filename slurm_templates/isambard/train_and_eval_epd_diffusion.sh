@@ -27,7 +27,7 @@ EVAL_ONLY="false"
 WORKING_DIR=""
 
 if [ ${DATAPATH} == "advection_diffusion_multichannel_64_64" ]; then
-    AE_CHECKPOINT="/projects/u5gf/ai4physics/outputs/2026-02-06/advection_diffusion_multichannel_64_64_no_norm/autoencoder.ckpt"
+    AE_CHECKPOINT="/home/u5gf/ltcx7228.u5gf/autocast/outputs/autoencoders/adm_64_1000.ckpt"
 elif [ ${DATAPATH} == "advection_diffusion_multichannel" ]; then
     AE_CHECKPOINT="/projects/u5gf/ai4physics/outputs/2026-02-06/advection_diffusion_multichannel_no_norm/autoencoder.ckpt"
 fi
