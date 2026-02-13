@@ -68,12 +68,6 @@ else
 fi
 
 # Check if there's a pretrained autoencoder checkpoint in the working directory
-if [ ${EVAL_ONLY} = "false" ]; then
-	mkdir -p "${WORKING_DIR}"
-	cd "${WORKING_DIR}"
-	ln -s "${AE_CHECKPOINT}" autoencoder.ckpt
-	cd -
-fi
 CKPT="${WORKING_DIR}/autoencoder.ckpt"
 if [ -f "${CKPT}" ]; then
     MODEL_PARAMS+=( "+autoencoder_checkpoint=${CKPT}" )
