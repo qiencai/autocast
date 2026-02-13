@@ -1,6 +1,100 @@
 """Utility functions for AutoCast scripts."""
 
+from __future__ import annotations
+
+import subprocess
+import uuid
 from pathlib import Path
+
+from omegaconf import DictConfig
+
+# Short aliases for dataset names, matching slurm_templates/isambard/dataset_aliases.sh
+DATASET_ALIASES: dict[str, str] = {
+    "advection_diffusion_multichannel_64_64": "adm64",
+    "advection_diffusion_multichannel": "adm32",
+}
+
+
+def generate_run_name(cfg: DictConfig, prefix: str) -> str:
+    """Build a descriptive run name from a resolved Hydra config.
+
+    The name follows the pattern used in the SLURM template scripts:
+      ``{prefix}_{dataset}_{processor}_{extras}_{git}_{uuid}``
+
+    Parameters
+    ----------
+    cfg : DictConfig
+        The resolved Hydra config.
+    prefix : str
+        Run type prefix, e.g. ``"ae"``, ``"crps"``, ``"diff"``.
+    """
+    parts: list[str] = [prefix]
+
+    # ---- dataset info ----
+    # see if data_path is in the config and use it to determine dataset name
+    datamodule_cfg = cfg.get("datamodule", {})
+    data_path = ""
+    if isinstance(datamodule_cfg, dict):
+        data_path = datamodule_cfg.get("data_path", "")
+    data_path = str(data_path)
+    if data_path:
+        # get name of the dataset file from the path
+        dataset_key = Path(data_path).name
+        # use dataset alias if it exists, otherwise use the full name (may be long)
+        if dataset_key in DATASET_ALIASES:
+            parts.append(DATASET_ALIASES[dataset_key])
+        else:
+            parts.append(dataset_key)
+
+    # ---- processor info (not relevant for autoencoders) ----
+    if prefix != "ae":
+        model_cfg = cfg.get("model", {})
+        processor_cfg = model_cfg.get("processor", {})
+        processor_target = ""
+        if isinstance(processor_cfg, dict):
+            processor_target = processor_cfg.get("_target_", "")
+
+        # processor short name
+        if processor_target:
+            # autocast.processors.fno.FNOProcessor → fno
+            # autocast.processors.diffusion.DiffusionProcessor → diffusion
+            # autocast.processors.flow_matching.FlowMatchingProcessor → flow_matching
+            module_path = processor_target.rsplit(".", 1)[0]
+            proc_short = module_path.rsplit(".", 1)[-1]
+            parts.append(proc_short)
+
+        # hidden dim
+        if isinstance(processor_cfg, dict):
+            # FNOs have hidden_channels, ViT processor has hidden_dim
+            hid = processor_cfg.get("hidden_channels") or processor_cfg.get(
+                "hidden_dim"
+            )
+            # diffusion models have hid_channels in the backbone (e.g., ViT) config
+            if hid is None:
+                backbone = processor_cfg.get("backbone", {})
+                if isinstance(backbone, dict):
+                    hid = backbone.get("hid_channels")
+            if hid is not None:
+                parts.append(str(hid))
+
+    # ---- git hash ----
+    try:
+        git_hash = (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short=7", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode()
+            .strip()
+        )
+        parts.append(git_hash)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # ---- short uuid ----
+    parts.append(uuid.uuid4().hex[:7])
+
+    return "_".join(parts)
 
 
 def get_default_config_path() -> str:

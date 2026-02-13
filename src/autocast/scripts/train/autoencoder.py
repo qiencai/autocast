@@ -7,7 +7,7 @@ import hydra
 from omegaconf import DictConfig
 
 from autocast.scripts.training import train_autoencoder
-from autocast.scripts.utils import get_default_config_path
+from autocast.scripts.utils import generate_run_name, get_default_config_path
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +24,8 @@ def main(cfg: DictConfig) -> None:
     # Work directory is managed by Hydra
     work_dir = Path.cwd()
 
-    train_autoencoder(cfg, work_dir)
+    run_name = generate_run_name(cfg, prefix="ae")
+    train_autoencoder(cfg, work_dir, run_name=run_name)
 
 
 if __name__ == "__main__":

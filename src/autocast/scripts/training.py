@@ -28,6 +28,7 @@ def run_training(
     skip_test: bool = False,
     output_checkpoint_path: Path | None = None,
     job_type: str = "train",
+    run_name: str | None = None,
 ):
     """Standardized training loop."""
     # Ensure work_dir is a Path
@@ -35,14 +36,15 @@ def run_training(
 
     # Setup logger
     logging_cfg = config.get("logging")
-    logging_cfg = (
+    logging_cfg_resolved = (
         OmegaConf.to_container(logging_cfg, resolve=True)
         if logging_cfg is not None
         else {}
     )
     wandb_logger, _watch_cfg = create_wandb_logger(
-        logging_cfg,  # type: ignore TODO: fix
+        logging_cfg_resolved,  # type: ignore TODO: fix
         experiment_name=config.get("experiment_name"),
+        run_name=run_name,
         job_type=job_type,
         work_dir=work_dir,
         config={"hydra": OmegaConf.to_container(config, resolve=True)},
@@ -132,7 +134,11 @@ def _save_reconstructions(
             break
 
 
-def train_autoencoder(config: DictConfig, work_dir: Path) -> Path:
+def train_autoencoder(
+    config: DictConfig,
+    work_dir: Path,
+    run_name: str | None = None,
+) -> Path:
     """Train the autoencoder defined in `cfg` and return the checkpoint path."""
     log.info("Starting autoencoder experiment: %s", config.get("experiment_name"))
     L.seed_everything(config.get("seed", 42), workers=True)
@@ -140,14 +146,15 @@ def train_autoencoder(config: DictConfig, work_dir: Path) -> Path:
     resolved_cfg = OmegaConf.to_container(config, resolve=True)
 
     logging_cfg = config.get("logging")
-    logging_cfg = (
+    logging_cfg_resolved = (
         OmegaConf.to_container(logging_cfg, resolve=True)
         if logging_cfg is not None
         else {}
     )
     wandb_logger, watch_cfg = create_wandb_logger(
-        logging_cfg,  # type: ignore TODO: fix
+        logging_cfg_resolved,  # type: ignore TODO: fix
         experiment_name=config.get("experiment_name"),
+        run_name=run_name,
         job_type="train-autoencoder",
         work_dir=work_dir,
         config={"hydra": resolved_cfg},
