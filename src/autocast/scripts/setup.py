@@ -388,7 +388,11 @@ def setup_epd_model(
     )
 
     data_config = config.get("datamodule", {})
-    if data_config.get("freeze_autoencoder"):
+    freeze_encoder_decoder = bool(
+        model_config.get("freeze_encoder_decoder", False)
+        or data_config.get("freeze_autoencoder", False)
+    )
+    if freeze_encoder_decoder:
         for p in encoder.parameters():
             p.requires_grad = False
         for p in decoder.parameters():
@@ -457,6 +461,7 @@ def setup_epd_model(
         ),
         "processor": processor,
         "train_in_latent_space": model_config.get("train_in_latent_space", False),
+        "freeze_encoder_decoder": freeze_encoder_decoder,
         "stride": data_config.get("stride", stats["n_steps_output"]),
         "optimizer_config": optimizer_config,
         "loss_func": loss_func,
