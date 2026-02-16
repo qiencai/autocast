@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import uuid
+from collections.abc import Mapping
 from pathlib import Path
 
 from omegaconf import DictConfig
@@ -34,7 +35,7 @@ def generate_run_name(cfg: DictConfig, prefix: str) -> str:
     # see if data_path is in the config and use it to determine dataset name
     datamodule_cfg = cfg.get("datamodule", {})
     data_path = ""
-    if isinstance(datamodule_cfg, dict):
+    if isinstance(datamodule_cfg, Mapping):
         data_path = datamodule_cfg.get("data_path", "")
     data_path = str(data_path)
     if data_path:
@@ -51,7 +52,7 @@ def generate_run_name(cfg: DictConfig, prefix: str) -> str:
         model_cfg = cfg.get("model", {})
         processor_cfg = model_cfg.get("processor", {})
         processor_target = ""
-        if isinstance(processor_cfg, dict):
+        if isinstance(processor_cfg, Mapping):
             processor_target = processor_cfg.get("_target_", "")
 
         # processor short name
@@ -64,7 +65,7 @@ def generate_run_name(cfg: DictConfig, prefix: str) -> str:
             parts.append(proc_short)
 
         # hidden dim
-        if isinstance(processor_cfg, dict):
+        if isinstance(processor_cfg, Mapping):
             # FNOs have hidden_channels, ViT processor has hidden_dim
             hid = processor_cfg.get("hidden_channels") or processor_cfg.get(
                 "hidden_dim"
@@ -72,7 +73,7 @@ def generate_run_name(cfg: DictConfig, prefix: str) -> str:
             # diffusion models have hid_channels in the backbone (e.g., ViT) config
             if hid is None:
                 backbone = processor_cfg.get("backbone", {})
-                if isinstance(backbone, dict):
+                if isinstance(backbone, Mapping):
                     hid = backbone.get("hid_channels")
             if hid is not None:
                 parts.append(str(hid))
