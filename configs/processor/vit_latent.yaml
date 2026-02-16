@@ -1,0 +1,12 @@
+_target_: autocast.processors.vit.AViTLatentProcessor
+in_channels: auto 
+out_channels: auto
+global_cond_channels: auto
+include_global_cond: true
+n_steps_output: auto
+spatial_resolution: [16, 16]
+hidden_dim: 128
+num_heads: 4
+n_layers: 4
+drop_path: 0.1
+n_noise_channels: null

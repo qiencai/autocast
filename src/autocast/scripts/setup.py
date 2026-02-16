@@ -100,6 +100,7 @@ def _apply_processor_channel_defaults(
     _set_if_auto(processor_config, "n_steps_input", n_steps_input)
     _set_if_auto(processor_config, "n_steps_output", n_steps_output)
     _set_if_auto(processor_config, "n_channels_out", n_channels_out)
+    _set_if_auto(processor_config, "global_cond_channels", global_cond_channels)
 
     backbone_config = processor_config.get("backbone")
     if backbone_config is None:
