@@ -90,6 +90,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     primary_rows = [true_batch]
 
     # Calculate difference
+    diff_batch = None
     if pred_batch is not None:
         diff_batch = true_batch - pred_batch
         primary_rows.append(pred_batch)
@@ -129,9 +130,10 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
                 min_val, max_val = _range_from_arrays([row[:, :, :, ch]])
                 norms[row_idx][ch] = Normalize(vmin=min_val, vmax=max_val)
 
-    diff_max = float(np.abs(diff_batch).max())
-    diff_span = diff_max if diff_max > 0 else 1e-9
-    diff_norm = TwoSlopeNorm(vmin=-diff_span, vcenter=0, vmax=diff_span)
+    if diff_batch is not None:
+        diff_max = float(np.abs(diff_batch).max())
+        diff_span = diff_max if diff_max > 0 else 1e-9
+        diff_norm = TwoSlopeNorm(vmin=-diff_span, vcenter=0, vmax=diff_span)
 
     rows_to_plot: list[tuple[np.ndarray | Tensor | None, str, str]] = [
         (true_batch, "Ground Truth", cmap),
