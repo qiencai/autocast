@@ -1,24 +1,15 @@
 #!/bin/bash
-#SBATCH --account=vjgo8416-ai-phy-sys
-#SBATCH --qos turing
-#SBATCH --time 12:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=36
 #SBATCH --gpus=1
-#SBATCH --mem=0
-#SBATCH --job-name processor
-#SBATCH --output=logs/processor_%j.out
-#SBATCH --error=logs/processor_%j.err
+#SBATCH --ntasks=1
+#SBATCH --time=24:00:00        
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=256G
+#SBATCH --job-name ae
+#SBATCH --output=logs/ae%j.out
+#SBATCH --error=logs/ae%j.err
 
+# This forces script to fail as soon as it hits an error
 set -e
-
-module purge
-module load baskerville
-module load bask-apps/live
-module load Python/3.11.3-GCCcore-12.3.0
-module load FFmpeg/6.0-GCCcore-12.3.0
-
 
 # Pip install to get current version of code    
 uv sync --extra dev
@@ -26,6 +17,7 @@ uv sync --extra dev
 # Activate virtual environment - This assumes you have already created a virtual environment in the project directory
 # If you haven't, replace with `uv venv`
 source .venv/bin/activate
+
 # First define a timestamp
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
@@ -37,7 +29,6 @@ JOB_NAME="processor"
 # It follows the structure outputs/JOB_NAME/TIMESTAMP
 WORKING_DIR="outputs/${JOB_NAME}/${TIMESTAMP}"
 
-
 # Write the slurm output and error files to the working directory
 mkdir -p "${WORKING_DIR}"
 
@@ -46,16 +37,17 @@ exec > "${WORKING_DIR}/slurm_${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
 
 # ---------------- Code to train and evaluate the model ----------------
 
+export AUTOCAST_DATASETS="$PWD/datasets"
+export DATAPATH="advection_diffusion_multichannel_64_64"
+export USE_NORMALIZATION="false"
+
 # Train
-uv run train_processor \
+srun uv run train_autoencoder \
     hydra.run.dir=${WORKING_DIR} \
-    datamodule.data_path=datasets/rayleigh_benard/1e3z5x2c_rayleigh_benard_dcae_f32c64_large/cache/rayleigh_benard \
-    datamodule.batch_size=64 \
-    datamodule.n_steps_input=1 \
-    datamodule.n_steps_output=4 \
-    processor@model.processor=diffusion_vit \
-    datamodule.stride=1 \
-    trainer.max_epochs=20 \
-    logging.wandb.enabled=true
-	
+	datamodule="${DATAPATH}" \
+	datamodule.data_path="${AUTOCAST_DATASETS}/${DATAPATH}" \
+	datamodule.use_normalization="${USE_NORMALIZATION}" \
+	trainer.max_epochs=100 \
+	logging.wandb.enabled=true \
+	optimizer.learning_rate=0.00002
 
