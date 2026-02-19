@@ -9,4 +9,8 @@ exploratory/data
 outputs/
 lightning_logs/
 datasets
+slurm-*.out
+slurm-*.stats
+logs/
+wandb/
 slurm_scripts
