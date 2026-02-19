@@ -9,7 +9,7 @@ from hydra.utils import get_class, instantiate
 from omegaconf import DictConfig
 from torch import nn
 
-from autocast.data.datamodule import SpatioTemporalDataModule
+from autocast.data.datamodule import SpatioTemporalDataModule, TheWellDataModule
 from autocast.decoders.base import Decoder
 from autocast.encoders.base import Encoder, EncoderWithCond
 from autocast.models.autoencoder import AE, AELoss
@@ -117,7 +117,7 @@ def _apply_processor_channel_defaults(
 
 def setup_datamodule(
     config: DictConfig,
-) -> tuple[SpatioTemporalDataModule, DictConfig, dict]:
+) -> tuple[SpatioTemporalDataModule | TheWellDataModule, DictConfig, dict]:
     """Create the datamodule and infer data shapes."""
     datamodule = build_datamodule(config)
 
@@ -247,7 +247,9 @@ def setup_autoencoder_components(
 
 
 def setup_autoencoder_model(
-    config: DictConfig, stats: dict, datamodule: SpatioTemporalDataModule
+    config: DictConfig,
+    stats: dict,
+    datamodule: SpatioTemporalDataModule | TheWellDataModule,
 ) -> AE:
     """Build the full autoencoder model (encoder, decoder, loss)."""
     encoder, decoder = setup_autoencoder_components(config, stats)
@@ -331,7 +333,9 @@ def _build_loss_func(model_config: DictConfig) -> nn.Module:
 
 
 def setup_processor_model(
-    config: DictConfig, stats: dict, datamodule: SpatioTemporalDataModule
+    config: DictConfig,
+    stats: dict,
+    datamodule: SpatioTemporalDataModule | TheWellDataModule,
 ) -> ProcessorModel:
     """Set up just the processor model for training on latents."""
     model_config = config.get("model", {})
@@ -368,7 +372,9 @@ def setup_processor_model(
 
 
 def setup_epd_model(
-    config: DictConfig, stats: dict, datamodule: SpatioTemporalDataModule
+    config: DictConfig,
+    stats: dict,
+    datamodule: SpatioTemporalDataModule | TheWellDataModule,
 ) -> EncoderProcessorDecoder | EncoderProcessorDecoderEnsemble:
     """Orchestrate the creation of the full Encoder-Processor-Decoder model."""
     model_config = config.get("model", {})
