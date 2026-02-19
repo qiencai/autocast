@@ -164,7 +164,7 @@ def _minutes_to_slurm_time(timeout_min: int) -> str:
 
 def _resolve_detach_slurm_resources(
     train_overrides: list[str],
-) -> tuple[str, int, int, str, str | None, str | None]:
+) -> tuple[str, int, int, int, str, str | None, str | None]:
     """Resolve detached sbatch resources from hydra launcher config + overrides."""
     slurm_cfg_path = (
         Path(get_default_config_path()) / "hydra" / "launcher" / "slurm.yaml"
@@ -177,6 +177,7 @@ def _resolve_detach_slurm_resources(
     timeout_min = int(raw_cfg.get("timeout_min", 1440))
     cpus = int(raw_cfg.get("cpus_per_task", 16))
     gpus = int(raw_cfg.get("gpus_per_node", 1))
+    tasks_per_node = int(raw_cfg.get("tasks_per_node", 1))
     additional_cfg = raw_cfg.get("additional_parameters")
     additional = additional_cfg if isinstance(additional_cfg, DictConfig) else {}
     mem = str(additional.get("mem", 0))
@@ -191,6 +192,9 @@ def _resolve_detach_slurm_resources(
     )
     gpus_override = _extract_override_value(
         train_overrides, "hydra.launcher.gpus_per_node"
+    )
+    tasks_override = _extract_override_value(
+        train_overrides, "hydra.launcher.tasks_per_node"
     )
     mem_override = _extract_override_value(
         train_overrides, "hydra.launcher.additional_parameters.mem"
@@ -208,6 +212,8 @@ def _resolve_detach_slurm_resources(
         cpus = int(cpus_override)
     if gpus_override is not None:
         gpus = int(gpus_override)
+    if tasks_override is not None:
+        tasks_per_node = int(tasks_override)
     if mem_override is not None:
         mem = str(mem_override)
     if account_override is not None:
@@ -215,7 +221,15 @@ def _resolve_detach_slurm_resources(
     if partition_override is not None:
         partition = partition_override
 
-    return _minutes_to_slurm_time(timeout_min), cpus, gpus, mem, account, partition
+    return (
+        _minutes_to_slurm_time(timeout_min),
+        cpus,
+        gpus,
+        tasks_per_node,
+        mem,
+        account,
+        partition,
+    )
 
 
 def _contains_override(overrides: list[str], key_prefix: str) -> bool:
@@ -382,6 +396,7 @@ def _write_sbatch_script(
     time: str,
     cpus: int,
     gpus: int,
+    tasks_per_node: int,
     mem: str,
     account: str | None,
     partition: str | None,
@@ -395,6 +410,7 @@ def _write_sbatch_script(
         f"#SBATCH --error={err_path}",
         f"#SBATCH --time={time}",
         f"#SBATCH --cpus-per-task={cpus}",
+        f"#SBATCH --ntasks-per-node={tasks_per_node}",
         f"#SBATCH --gpus={gpus}",
         f"#SBATCH --mem={mem}",
     ]
@@ -402,7 +418,9 @@ def _write_sbatch_script(
         lines.append(f"#SBATCH --account={account}")
     if partition:
         lines.append(f"#SBATCH --partition={partition}")
-    lines.extend(["", "set -e", "", f"srun {command_str}", ""])
+    lines.extend(
+        ["", "set -e", "", f"srun --ntasks-per-node={tasks_per_node} {command_str}", ""]
+    )
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -465,8 +483,8 @@ def _submit_train_eval_chain(
     train_cmd = _run_module_command(TRAIN_MODULES["epd"], train_command_overrides)
     eval_cmd = _run_module_command(EVAL_MODULE, eval_command_overrides)
 
-    time, cpus, gpus, mem, account, partition = _resolve_detach_slurm_resources(
-        train_overrides
+    time, cpus, gpus, tasks_per_node, mem, account, partition = (
+        _resolve_detach_slurm_resources(train_overrides)
     )
 
     slurm_dir = workdir / ".slurm"
@@ -482,6 +500,7 @@ def _submit_train_eval_chain(
         time=time,
         cpus=cpus,
         gpus=gpus,
+        tasks_per_node=tasks_per_node,
         mem=mem,
         account=account,
         partition=partition,
@@ -495,6 +514,7 @@ def _submit_train_eval_chain(
         time=time,
         cpus=cpus,
         gpus=gpus,
+        tasks_per_node=tasks_per_node,
         mem=mem,
         account=account,
         partition=partition,
