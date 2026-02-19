@@ -70,7 +70,7 @@ uv run train_autoencoder \
 
 Or alternatively with the unified workflow CLI:
 ```bash
-uv run autocast_run ae \
+uv run autocast ae \
 	--dataset reaction_diffusion \
 	--date rd \
 	--run-name 00
@@ -80,19 +80,19 @@ Unified workflow CLI supports both local and SLURM launch modes:
 
 ```bash
 # Local (default)
-uv run autocast_run epd \
+uv run autocast epd \
 	--dataset reaction_diffusion \
 	--date my_label \
 	--run-name my_run \
-	--override trainer.max_epochs=5
+	trainer.max_epochs=5
 
 # SLURM via Hydra submitit launcher
-uv run autocast_run epd \
+uv run autocast epd \
 	--mode slurm \
 	--dataset reaction_diffusion \
 	--date my_label \
 	--run-name my_run \
-	--override trainer.max_epochs=5
+	trainer.max_epochs=5
 ```
 
 When `--mode slurm`, jobs submit through Hydra's SLURM launcher and write
@@ -100,7 +100,7 @@ outputs under `outputs/<run_label>/<run_id>` (no extra `run/` layer).
 
 Resume training from a checkpoint:
 ```bash
-uv run autocast_run epd \
+uv run autocast epd \
 	--dataset reaction_diffusion \
 	--workdir outputs/rd/00 \
 	--resume-from outputs/rd/00/encoder_processor_decoder.ckpt
@@ -108,10 +108,36 @@ uv run autocast_run epd \
 
 Train + evaluate in one command:
 ```bash
-uv run autocast_run train-eval \
+uv run autocast train-eval \
 	--dataset reaction_diffusion \
 	--date rd \
 	--run-name 00
+```
+
+For `train-eval`, evaluation starts only after training has completed successfully
+(including in `--mode slurm`).
+
+To submit non-blocking train→eval from a login node, use:
+```bash
+uv run autocast train-eval \
+	--mode slurm \
+	--detach \
+	--dataset reaction_diffusion \
+	--date rd \
+	--run-name 00
+```
+This submits two sbatch jobs with `afterok` dependency and returns immediately.
+
+Use `--dry-run` to print resolved commands/scripts without executing.
+
+Date handling is automatic: if `--date` is omitted, current date is used.
+Pass `--date` only to reproduce an exact legacy path.
+
+Multi-GPU is supported by passing trainer/Hydra overrides, e.g.:
+```bash
+uv run autocast epd --mode slurm --dataset reaction_diffusion \
+	trainer.devices=4 trainer.strategy=ddp hydra.launcher.gpus_per_node=4
+```
 ```
 
 ### Train processor
@@ -129,7 +155,7 @@ uv run train_encoder_processor_decoder \
 
 Or alternatively with the unified workflow CLI:
 ```bash
-uv run autocast_run epd \
+uv run autocast epd \
 	--dataset reaction_diffusion \
 	--date rd \
 	--run-name 00
@@ -148,7 +174,7 @@ uv run evaluate_encoder_processor_decoder \
 
 Or alternatively with the unified workflow CLI:
 ```bash
-uv run autocast_run eval \
+uv run autocast eval \
 	--dataset reaction_diffusion \
 	--workdir outputs/rd/00
 ```

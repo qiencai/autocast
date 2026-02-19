@@ -127,34 +127,59 @@ uv run train_encoder_processor_decoder \
 See `slurm_templates/encoder-processor-decoder-parameter_sweep.sh` for an example of how to run sweeps using SLURM arrays and Hydra overrides.
 
 ## Workflow CLI
-Use the unified Python workflow command `autocast_run` instead of bash wrappers.
+Use the unified Python workflow command `autocast` instead of bash wrappers.
 
 Example usage:
 ```bash
 # Train autoencoder locally
-uv run autocast_run ae \
+uv run autocast ae \
     --dataset reaction_diffusion \
     --date rd \
     --run-name 00
 
 # Train EPD on SLURM
-uv run autocast_run epd \
+uv run autocast epd \
     --mode slurm \
     --dataset reaction_diffusion \
     --date rd \
     --run-name 00 \
-    --override trainer.max_epochs=10
+    trainer.max_epochs=10
 
 # Re-run evaluation from an existing workdir
-uv run autocast_run eval \
+uv run autocast eval \
     --dataset reaction_diffusion \
     --workdir outputs/rd/00
 ```
 
 For restart training, pass:
 ```bash
-uv run autocast_run epd \
+uv run autocast epd \
     --dataset reaction_diffusion \
     --workdir outputs/rd/00 \
     --resume-from outputs/rd/00/encoder_processor_decoder.ckpt
+```
+
+For `train-eval`, direct overrides are applied to training by default; split eval
+overrides with `::eval::`, e.g.:
+```bash
+uv run autocast train-eval \
+    --dataset reaction_diffusion \
+    --date rd \
+    --run-name 00 \
+    trainer.max_epochs=1 \
+    ::eval:: eval.batch_indices=[0,1]
+
+For non-blocking SLURM train+eval submission from login nodes:
+```bash
+uv run autocast train-eval \
+    --mode slurm \
+    --detach \
+    --dataset reaction_diffusion \
+    --date rd \
+    --run-name 00
+```
+This submits two sbatch jobs with `afterok` dependency and returns immediately.
+
+Use `--dry-run` with any command to print resolved commands/scripts without
+executing them.
 ```
