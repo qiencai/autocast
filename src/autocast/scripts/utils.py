@@ -16,6 +16,33 @@ DATASET_ALIASES: dict[str, str] = {
 }
 
 
+def determine_epd_run_prefix(cfg: DictConfig) -> str:
+    """Determine the run-name prefix for encoder-processor-decoder training.
+
+    Prefix rules (kept intentionally simple):
+    - ``crps`` when the configured loss target contains ``crps``.
+    - ``diff`` when the processor target contains ``flow_matching`` or ``diffusion``.
+    - ``epd`` otherwise.
+    """
+    model_cfg = cfg.get("model", {})
+
+    loss_target = ""
+    loss_cfg = model_cfg.get("loss_func", {})
+    if isinstance(loss_cfg, Mapping):
+        loss_target = str(loss_cfg.get("_target_", "")).lower()
+
+    processor_target = ""
+    processor_cfg = model_cfg.get("processor", {})
+    if isinstance(processor_cfg, Mapping):
+        processor_target = str(processor_cfg.get("_target_", "")).lower()
+
+    if "crps" in loss_target:
+        return "crps"
+    if "flow_matching" in processor_target or "diffusion" in processor_target:
+        return "diff"
+    return "epd"
+
+
 def generate_run_name(cfg: DictConfig, prefix: str) -> str:
     """Build a descriptive run name from a resolved Hydra config.
 

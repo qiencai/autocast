@@ -9,7 +9,11 @@ from omegaconf import DictConfig
 
 from autocast.scripts.setup import setup_datamodule, setup_epd_model
 from autocast.scripts.training import run_training
-from autocast.scripts.utils import generate_run_name, get_default_config_path
+from autocast.scripts.utils import (
+    determine_epd_run_prefix,
+    generate_run_name,
+    get_default_config_path,
+)
 
 log = logging.getLogger(__name__)
 
@@ -36,26 +40,7 @@ def main(cfg: DictConfig) -> None:
     # Setup Model (includes AE loading, processor creation, ensemble logic)
     model = setup_epd_model(cfg, stats, datamodule=datamodule)
 
-    # Determine run name prefix from loss function
-    model_cfg = cfg.get("model", {})
-    loss_target = ""
-    loss_cfg = model_cfg.get("loss_func", {})
-    if isinstance(loss_cfg, dict):
-        loss_target = loss_cfg.get("_target_", "")
-
-    processor_cfg = model_cfg.get("processor", {})
-    processor_target = ""
-    if isinstance(processor_cfg, dict):
-        processor_target = processor_cfg.get("_target_", "")
-
-    if "crps" in loss_target.lower():
-        prefix = "crps"
-    elif "flow_matching" in processor_target or "diffusion" in processor_target:
-        prefix = "diff"
-    else:
-        prefix = "epd"
-
-    run_name = generate_run_name(cfg, prefix=prefix)
+    run_name = generate_run_name(cfg, prefix=determine_epd_run_prefix(cfg))
 
     # Get output config
     output_cfg = cfg.get("output", {})
