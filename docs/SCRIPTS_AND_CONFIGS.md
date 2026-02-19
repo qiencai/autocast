@@ -134,14 +134,14 @@ Example usage:
 # Train autoencoder locally
 uv run autocast ae \
     --dataset reaction_diffusion \
-    --date rd \
+    --run-label rd \
     --run-name 00
 
 # Train EPD on SLURM
 uv run autocast epd \
     --mode slurm \
     --dataset reaction_diffusion \
-    --date rd \
+    --run-label rd \
     --run-name 00 \
     trainer.max_epochs=10
 
@@ -164,7 +164,7 @@ overrides with `::eval::`, e.g.:
 ```bash
 uv run autocast train-eval \
     --dataset reaction_diffusion \
-    --date rd \
+    --run-label rd \
     --run-name 00 \
     trainer.max_epochs=1 \
     ::eval:: eval.batch_indices=[0,1]
@@ -176,10 +176,13 @@ uv run autocast train-eval \
     --mode slurm \
     --detach \
     --dataset reaction_diffusion \
-    --date rd \
+    --run-label rd \
     --run-name 00
 ```
 This submits two sbatch jobs with `afterok` dependency and returns immediately.
+
+`--run-label` controls the top-level output folder (defaults to current date).
+`--date` remains available as a backward-compatible alias.
 
 Use `--dry-run` with any command to print resolved commands/scripts without
 executing them.

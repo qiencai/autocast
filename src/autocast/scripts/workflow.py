@@ -432,7 +432,15 @@ def build_parser() -> argparse.ArgumentParser:
         train_parser.add_argument("--dataset", required=True)
         train_parser.add_argument("--mode", choices=["local", "slurm"], default="local")
         train_parser.add_argument("--output-base", default="outputs")
-        train_parser.add_argument("--date", dest="date_str")
+        train_parser.add_argument(
+            "--run-label",
+            "--date",
+            dest="date_str",
+            help=(
+                "Top-level output folder label (defaults to current date). "
+                "--date is kept as a backward-compatible alias."
+            ),
+        )
         train_parser.add_argument("--run-name")
         train_parser.add_argument("--workdir")
         train_parser.add_argument("--wandb-name")
@@ -486,7 +494,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode", choices=["local", "slurm"], default="local"
     )
     train_eval_parser.add_argument("--output-base", default="outputs")
-    train_eval_parser.add_argument("--date", dest="date_str")
+    train_eval_parser.add_argument(
+        "--run-label",
+        "--date",
+        dest="date_str",
+        help=(
+            "Top-level output folder label (defaults to current date). "
+            "--date is kept as a backward-compatible alias."
+        ),
+    )
     train_eval_parser.add_argument("--run-name")
     train_eval_parser.add_argument("--workdir")
     train_eval_parser.add_argument("--wandb-name")

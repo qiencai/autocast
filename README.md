@@ -72,7 +72,7 @@ Or alternatively with the unified workflow CLI:
 ```bash
 uv run autocast ae \
 	--dataset reaction_diffusion \
-	--date rd \
+	--run-label rd \
 	--run-name 00
 ```
 
@@ -82,7 +82,7 @@ Unified workflow CLI supports both local and SLURM launch modes:
 # Local (default)
 uv run autocast epd \
 	--dataset reaction_diffusion \
-	--date my_label \
+	--run-label my_label \
 	--run-name my_run \
 	trainer.max_epochs=5
 
@@ -90,7 +90,7 @@ uv run autocast epd \
 uv run autocast epd \
 	--mode slurm \
 	--dataset reaction_diffusion \
-	--date my_label \
+	--run-label my_label \
 	--run-name my_run \
 	trainer.max_epochs=5
 ```
@@ -110,7 +110,7 @@ Train + evaluate in one command:
 ```bash
 uv run autocast train-eval \
 	--dataset reaction_diffusion \
-	--date rd \
+	--run-label rd \
 	--run-name 00
 ```
 
@@ -123,7 +123,7 @@ uv run autocast train-eval \
 	--mode slurm \
 	--detach \
 	--dataset reaction_diffusion \
-	--date rd \
+	--run-label rd \
 	--run-name 00
 ```
 This submits two sbatch jobs with `afterok` dependency and returns immediately.
@@ -141,7 +141,7 @@ bash scripts/launch_from_manifest.sh configs/run_manifests/example_runs.txt
 ```
 
 Date handling is automatic: if `--date` is omitted, current date is used.
-Pass `--date` only to reproduce an exact legacy path.
+Pass `--run-label` (or legacy alias `--date`) only to override the top-level folder label.
 
 Multi-GPU is supported by passing trainer/Hydra overrides, e.g.:
 ```bash
@@ -167,7 +167,7 @@ Or alternatively with the unified workflow CLI:
 ```bash
 uv run autocast epd \
 	--dataset reaction_diffusion \
-	--date rd \
+	--run-label rd \
 	--run-name 00
 ```
 
