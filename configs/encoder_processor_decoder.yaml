@@ -1,6 +1,7 @@
 defaults:
   - datamodule: advection_diffusion_multichannel
   - optional simulator: null
+  - optional experiment: null
   - optimizer: adamw
   - model: encoder_processor_decoder
   - trainer: default
@@ -10,6 +11,7 @@ defaults:
 
 seed: 42
 experiment_name: epd
+autoencoder_checkpoint: null
 
 output:
   checkpoint_name: encoder_processor_decoder.ckpt

@@ -201,6 +201,20 @@ uv run autocast train-eval --mode slurm --detach \
     --eval-overrides hydra.launcher.timeout_min=10 eval.batch_indices=[0,1]
 ```
 
+To avoid long CLI override lists, put experiment defaults in a preset config
+under `configs/experiment/` and enable it with `experiment=<name>`.
+
+Example preset: `configs/experiment/epd_flow_matching_64_fast.yaml`
+
+```bash
+uv run autocast train-eval --mode slurm --detach \
+    --dataset advection_diffusion_multichannel_64_64 \
+    experiment=epd_flow_matching_64_fast \
+    autoencoder_checkpoint=/path/to/autoencoder.ckpt \
+    hydra.launcher.timeout_min=30 \
+    --eval-overrides hydra.launcher.timeout_min=10 +model.n_members=10
+```
+
 `--run-label` controls the top-level output folder (defaults to current date).
 `--date` remains available as a backward-compatible alias.
 If `--run-name` is omitted, `autocast` auto-generates a legacy-style run id and
