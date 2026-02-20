@@ -545,6 +545,7 @@ def main() -> None:
 
     if args.command == "train-eval":
         train_overrides = [*args.overrides]
+        eval_overrides_cli = [*args.eval_overrides]
 
         _final_work_dir, _run_name = _train_eval_single_job_command(
             mode=args.mode,
@@ -560,7 +561,7 @@ def main() -> None:
             video_dir=args.video_dir,
             batch_indices=args.batch_indices,
             train_overrides=train_overrides,
-            eval_overrides=[*args.eval_overrides],
+            eval_overrides=eval_overrides_cli,
             dry_run=args.dry_run,
         )
         return
