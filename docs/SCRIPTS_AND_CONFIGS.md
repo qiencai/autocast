@@ -177,6 +177,30 @@ uv run autocast train-eval \
 ```
 This submits two sbatch jobs with `afterok` dependency and returns immediately.
 
+### Config-to-CLI mapping (to avoid override confusion)
+
+- Hydra launcher config path: `configs/hydra/launcher/slurm.yaml`
+- Mapping rule: config key `X` maps to CLI override `hydra.launcher.X=<value>`
+    - `timeout_min` -> `hydra.launcher.timeout_min=...`
+    - `cpus_per_task` -> `hydra.launcher.cpus_per_task=...`
+    - `gpus_per_node` -> `hydra.launcher.gpus_per_node=...`
+    - `tasks_per_node` -> `hydra.launcher.tasks_per_node=...`
+    - `additional_parameters.mem` -> `hydra.launcher.additional_parameters.mem=...`
+
+- For `autocast train-eval` specifically:
+    - Positional overrides apply to **train**.
+    - `--eval-overrides` applies to **eval**.
+    - If the same key appears in both, eval uses the eval value.
+
+Example with different train/eval time limits:
+```bash
+uv run autocast train-eval --mode slurm --detach \
+    --dataset reaction_diffusion \
+    hydra.launcher.timeout_min=30 \
+    trainer.max_epochs=1 \
+    --eval-overrides hydra.launcher.timeout_min=10 eval.batch_indices=[0,1]
+```
+
 `--run-label` controls the top-level output folder (defaults to current date).
 `--date` remains available as a backward-compatible alias.
 If `--run-name` is omitted, `autocast` auto-generates a legacy-style run id and

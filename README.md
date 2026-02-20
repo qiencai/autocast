@@ -123,6 +123,14 @@ uv run autocast train-eval \
 ```
 This submits two sbatch jobs with `afterok` dependency and returns immediately.
 
+Override mapping quick reference:
+- `configs/hydra/launcher/slurm.yaml` key `X` maps to CLI `hydra.launcher.X=...`
+- In `autocast train-eval`, positional overrides are train-only.
+- Eval-only overrides go in `--eval-overrides ...`.
+- Different train/eval timeouts example:
+	- train: `hydra.launcher.timeout_min=30`
+	- eval: `--eval-overrides hydra.launcher.timeout_min=10`
+
 Use `--dry-run` to print resolved commands/scripts without executing.
 
 Equivalent CLI commands for removed `slurm_scripts/*.sh` examples:

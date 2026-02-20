@@ -514,9 +514,25 @@ def _submit_train_eval_chain(
     train_cmd = _run_module_command(TRAIN_MODULES["epd"], train_command_overrides)
     eval_cmd = _run_module_command(EVAL_MODULE, eval_command_overrides)
 
-    time, cpus, gpus, tasks_per_node, mem, account, partition = (
-        _resolve_detach_slurm_resources(train_overrides)
-    )
+    (
+        train_time,
+        train_cpus,
+        train_gpus,
+        train_tasks_per_node,
+        train_mem,
+        train_account,
+        train_partition,
+    ) = _resolve_detach_slurm_resources(train_overrides)
+    eval_resource_overrides = [*train_overrides, *eval_overrides]
+    (
+        eval_time,
+        eval_cpus,
+        eval_gpus,
+        eval_tasks_per_node,
+        eval_mem,
+        eval_account,
+        eval_partition,
+    ) = _resolve_detach_slurm_resources(eval_resource_overrides)
 
     slurm_dir = workdir / ".slurm"
     train_script = slurm_dir / "train.sbatch"
@@ -528,13 +544,13 @@ def _submit_train_eval_chain(
         out_path=workdir / "slurm_train_%j.out",
         err_path=workdir / "slurm_train_%j.err",
         command=train_cmd,
-        time=time,
-        cpus=cpus,
-        gpus=gpus,
-        tasks_per_node=tasks_per_node,
-        mem=mem,
-        account=account,
-        partition=partition,
+        time=train_time,
+        cpus=train_cpus,
+        gpus=train_gpus,
+        tasks_per_node=train_tasks_per_node,
+        mem=train_mem,
+        account=train_account,
+        partition=train_partition,
     )
     _write_sbatch_script(
         script_path=eval_script,
@@ -542,13 +558,13 @@ def _submit_train_eval_chain(
         out_path=eval_dir / "slurm_eval_%j.out",
         err_path=eval_dir / "slurm_eval_%j.err",
         command=eval_cmd,
-        time=time,
-        cpus=cpus,
-        gpus=gpus,
-        tasks_per_node=tasks_per_node,
-        mem=mem,
-        account=account,
-        partition=partition,
+        time=eval_time,
+        cpus=eval_cpus,
+        gpus=eval_gpus,
+        tasks_per_node=eval_tasks_per_node,
+        mem=eval_mem,
+        account=eval_account,
+        partition=eval_partition,
     )
 
     if dry_run:
@@ -657,12 +673,6 @@ def build_parser() -> argparse.ArgumentParser:
     train_eval_parser.add_argument("--batch-indices", default="[0,1,2,3]")
     train_eval_parser.add_argument("--dry-run", action="store_true")
     train_eval_parser.add_argument(
-        "--train-override",
-        action="append",
-        default=[],
-        help="Hydra override for the training step; can be passed multiple times.",
-    )
-    train_eval_parser.add_argument(
         "--eval-overrides",
         nargs="+",
         default=[],
@@ -726,7 +736,7 @@ def main() -> None:
         return
 
     if args.command == "train-eval":
-        train_overrides = [*args.train_override, *args.overrides]
+        train_overrides = [*args.overrides]
         eval_overrides = _build_effective_eval_overrides(
             train_overrides, [*args.eval_overrides]
         )
