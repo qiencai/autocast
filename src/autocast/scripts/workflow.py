@@ -434,6 +434,7 @@ def _write_sbatch_script(
 ) -> None:
     """Write a minimal sbatch script executing the given command via srun."""
     command_str = " ".join(shlex.quote(part) for part in command)
+    umask_value = os.environ.get("AUTOCAST_UMASK", "0002")
     lines = [
         "#!/bin/bash",
         f"#SBATCH --job-name={job_name}",
@@ -450,7 +451,14 @@ def _write_sbatch_script(
     if partition:
         lines.append(f"#SBATCH --partition={partition}")
     lines.extend(
-        ["", "set -e", "", f"srun --ntasks-per-node={tasks_per_node} {command_str}", ""]
+        [
+            "",
+            "set -e",
+            f"umask {umask_value}",
+            "",
+            f"srun --ntasks-per-node={tasks_per_node} {command_str}",
+            "",
+        ]
     )
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("\n".join(lines), encoding="utf-8")
