@@ -26,6 +26,18 @@ TRAIN_MODULES = {
 EVAL_MODULE = "autocast.scripts.eval.encoder_processor_decoder"
 TRAIN_EVAL_MODULE = "autocast.scripts.train_eval.encoder_processor_decoder"
 
+NAMING_DEFAULT_KEYS = {
+    "processor@model.processor",
+    "input_noise_injector@model.input_noise_injector",
+}
+
+DATASET_NAME_TOKENS = {
+    "advection_diffusion_multichannel_64_64": "adm64",
+    "advection_diffusion_multichannel": "adm32",
+    "advection_diffusion_singlechannel": "ad32",
+    "reaction_diffusion": "rd32",
+}
+
 
 def _sanitize_name_part(value: str) -> str:
     """Sanitize a run-name token to filesystem-friendly characters."""
@@ -54,25 +66,119 @@ def _short_uuid() -> str:
     return uuid.uuid4().hex[:7]
 
 
+def _normalized_override(override: str) -> str:
+    return override[1:] if override.startswith("+") else override
+
+
+def _naming_hints_from_defaults(defaults: object) -> list[str]:
+    if not isinstance(defaults, list):
+        return []
+
+    hints: list[str] = []
+    for item in defaults:
+        if not isinstance(item, dict):
+            continue
+        for key, value in item.items():
+            if not isinstance(value, str):
+                continue
+            normalized_key = key.removeprefix("override ").lstrip("/")
+            if normalized_key in NAMING_DEFAULT_KEYS:
+                hints.append(f"{normalized_key}={value}")
+    return hints
+
+
+def _naming_hints_from_model(model_cfg: object) -> list[str]:
+    if not isinstance(model_cfg, dict):
+        return []
+
+    hints: list[str] = []
+    processor_cfg = model_cfg.get("processor")
+    if isinstance(processor_cfg, dict):
+        processor_target = processor_cfg.get("_target_")
+        if isinstance(processor_target, str):
+            hints.append(f"model.processor._target_={processor_target}")
+
+    loss_cfg = model_cfg.get("loss_func")
+    if isinstance(loss_cfg, dict):
+        loss_target = loss_cfg.get("_target_")
+        if isinstance(loss_target, str):
+            hints.append(f"model.loss_func._target_={loss_target}")
+
+    return hints
+
+
+def _extract_naming_hints_from_preset(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+
+    loaded = OmegaConf.to_container(OmegaConf.load(path), resolve=True)
+    if not isinstance(loaded, dict):
+        return []
+
+    return [
+        *_naming_hints_from_defaults(loaded.get("defaults", [])),
+        *_naming_hints_from_model(loaded.get("model")),
+    ]
+
+
+def _preset_overrides_for_naming(overrides: list[str]) -> list[str]:
+    """Collect naming-relevant override hints from experiment presets.
+
+    This allows auto naming to reflect processor/loss choices even when they are
+    provided via `experiment=` or `local_experiment=` preset YAMLs rather than
+    directly on the CLI.
+    """
+    local_experiment = _extract_override_value(overrides, "local_experiment")
+    experiment = _extract_override_value(overrides, "experiment")
+
+    hints: list[str] = []
+    if experiment:
+        hints.extend(
+            _extract_naming_hints_from_preset(
+                Path(__file__).resolve().parents[1]
+                / "configs"
+                / "experiment"
+                / f"{experiment}.yaml"
+            )
+        )
+    if local_experiment:
+        hints.extend(
+            _extract_naming_hints_from_preset(
+                Path.cwd()
+                / "local_hydra"
+                / "local_experiment"
+                / f"{local_experiment}.yaml"
+            )
+        )
+
+    return hints
+
+
+def _dataset_name_token(dataset: str, overrides: list[str]) -> str:
+    datamodule_cfg = _extract_override_value(overrides, "datamodule") or dataset
+    return _sanitize_name_part(DATASET_NAME_TOKENS.get(datamodule_cfg, datamodule_cfg))
+
+
 def _auto_run_name(kind: str, dataset: str, overrides: list[str]) -> str:
     """Build legacy-style run name without requiring manual --run-name.
 
     Pattern:
       <prefix>_<dataset>_<model>[_<noise>][_<hidden>]_<git>_<uuid>
     """
-    dataset_part = _sanitize_name_part(dataset)
+    naming_overrides = [*overrides, *_preset_overrides_for_naming(overrides)]
+    dataset_part = _dataset_name_token(dataset, naming_overrides)
 
     if kind == "ae":
         prefix = "ae"
     else:
         loss_target = (
-            _extract_override_value(overrides, "model.loss_func._target_") or ""
+            _extract_override_value(naming_overrides, "model.loss_func._target_") or ""
         ).lower()
         processor_ref = (
-            _extract_override_value(overrides, "processor@model.processor") or ""
+            _extract_override_value(naming_overrides, "processor@model.processor") or ""
         ).lower()
         processor_target = (
-            _extract_override_value(overrides, "model.processor._target_") or ""
+            _extract_override_value(naming_overrides, "model.processor._target_") or ""
         ).lower()
         processor_text = processor_ref or processor_target
 
@@ -83,21 +189,23 @@ def _auto_run_name(kind: str, dataset: str, overrides: list[str]) -> str:
         else:
             prefix = "epd"
 
-    model_name = _extract_override_value(overrides, "processor@model.processor")
+    model_name = _extract_override_value(naming_overrides, "processor@model.processor")
     if model_name is None:
         processor_target = _extract_override_value(
-            overrides, "model.processor._target_"
+            naming_overrides, "model.processor._target_"
         )
         if processor_target:
             model_name = processor_target.split(".")[-2]
 
     noise_name = _extract_override_value(
-        overrides, "input_noise_injector@model.input_noise_injector"
+        naming_overrides, "input_noise_injector@model.input_noise_injector"
     )
     hidden = (
-        _extract_override_value(overrides, "model.processor.hidden_dim")
-        or _extract_override_value(overrides, "model.processor.hidden_channels")
-        or _extract_override_value(overrides, "model.processor.backbone.hid_channels")
+        _extract_override_value(naming_overrides, "model.processor.hidden_dim")
+        or _extract_override_value(naming_overrides, "model.processor.hidden_channels")
+        or _extract_override_value(
+            naming_overrides, "model.processor.backbone.hid_channels"
+        )
     )
 
     parts = [prefix, dataset_part]
@@ -195,7 +303,7 @@ def _extract_launcher_overrides(overrides: list[str]) -> tuple[str, dict, list[s
     remaining: list[str] = []
 
     for override in overrides:
-        normalized = override[1:] if override.startswith("+") else override
+        normalized = _normalized_override(override)
         if normalized.startswith("hydra/launcher="):
             launcher_name = normalized.split("=", 1)[1]
             continue
@@ -271,7 +379,7 @@ def _temporary_umask(umask_value: int):
 def _strip_hydra_sweep_controls(overrides: list[str]) -> list[str]:
     filtered: list[str] = []
     for override in overrides:
-        normalized = override[1:] if override.startswith("+") else override
+        normalized = _normalized_override(override)
         if normalized.startswith("hydra.mode="):
             continue
         if normalized.startswith("hydra.sweep."):
@@ -342,7 +450,7 @@ def _expand_sweep_overrides(overrides: list[str]) -> list[list[str]]:
     choice_groups: list[list[str]] = []
 
     for override in overrides:
-        normalized = override[1:] if override.startswith("+") else override
+        normalized = _normalized_override(override)
         if "=" not in normalized:
             choice_groups.append([override])
             continue
@@ -372,7 +480,7 @@ def _set_override(overrides: list[str], key: str, value: str) -> list[str]:
     updated = []
     key_prefix = f"{key}="
     for override in overrides:
-        normalized = override[1:] if override.startswith("+") else override
+        normalized = _normalized_override(override)
         if normalized.startswith(key_prefix):
             continue
         updated.append(override)
@@ -603,7 +711,7 @@ def _run_module_command(module: str, overrides: list[str]) -> list[str]:
 def _extract_override_value(overrides: list[str], key: str) -> str | None:
     """Extract latest override value for key from Hydra-style overrides list."""
     for override in reversed(overrides):
-        normalized = override[1:] if override.startswith("+") else override
+        normalized = _normalized_override(override)
         if normalized.startswith(f"{key}="):
             return normalized.split("=", 1)[1]
     return None
