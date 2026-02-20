@@ -2,6 +2,7 @@ defaults:
   - datamodule: advection_diffusion_multichannel
   - optional simulator: null
   - optional experiment: null
+  - optional experiment_local: null
   - optimizer: adamw
   - model: encoder_processor_decoder
   - trainer: default

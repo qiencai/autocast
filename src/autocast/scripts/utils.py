@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime
+from importlib import resources
 from pathlib import Path
 
 
@@ -38,10 +40,15 @@ def resolve_work_dir(
 
 
 def get_default_config_path() -> str:
-    """Find the configs directory by searching upward for project root.
+    """Resolve default Hydra config path.
 
-    Searches upward from this file for pyproject.toml (project root marker),
-    then returns the path to the configs directory.
+    Resolution order:
+    1. ``AUTOCAST_CONFIG_PATH`` environment variable (if set and exists).
+    2. Repository ``configs/`` directory (detected via ``pyproject.toml``).
+    3. Packaged ``autocast/configs`` resources (for wheel/sdist installs).
+
+    This allows local development with repository configs while supporting
+    installed-package layouts.
 
     Returns
     -------
@@ -51,8 +58,16 @@ def get_default_config_path() -> str:
     Raises
     ------
     FileNotFoundError
-        If project root (pyproject.toml) cannot be found.
+        If no valid config directory can be resolved.
     """
+    env_path = os.environ.get("AUTOCAST_CONFIG_PATH")
+    if env_path:
+        config_dir = Path(env_path).expanduser().resolve()
+        if config_dir.exists():
+            return str(config_dir)
+        msg = f"AUTOCAST_CONFIG_PATH was set but does not exist: {config_dir}"
+        raise FileNotFoundError(msg)
+
     current = Path(__file__).resolve().parent
     while current != current.parent:  # Stop at filesystem root
         if (current / "pyproject.toml").exists():
@@ -63,5 +78,15 @@ def get_default_config_path() -> str:
             return str(config_dir)
         current = current.parent
 
-    msg = "Could not find project root (pyproject.toml)"
+    try:
+        packaged_configs = resources.files("autocast") / "configs"
+        if packaged_configs.is_dir():
+            return str(Path(str(packaged_configs)).resolve())
+    except (ModuleNotFoundError, FileNotFoundError, TypeError):
+        pass
+
+    msg = (
+        "Could not resolve configs directory. Set AUTOCAST_CONFIG_PATH or install "
+        "package data including autocast/configs."
+    )
     raise FileNotFoundError(msg)

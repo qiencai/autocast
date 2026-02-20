@@ -229,6 +229,20 @@ uv run autocast train-eval --mode slurm --detach \
 If `--run-name` is omitted, `autocast` auto-generates a legacy-style run id and
 uses it for both output folder naming and default `logging.wandb.name`.
 
+Private/local experiment presets can be placed under
+`configs/experiment_local/` and enabled with `experiment_local=<name>`.
+YAML files in this folder are git-ignored by default.
+
+If you keep configs outside this repository (or when running from an installed
+package), set:
+
+```bash
+export AUTOCAST_CONFIG_PATH=/absolute/path/to/configs
+```
+
+This directory should contain the same Hydra group layout (e.g.
+`datamodule/`, `model/`, `experiment/`) expected by AutoCast.
+
 Use `--dry-run` with any command to print resolved commands/scripts without
 executing them.
 

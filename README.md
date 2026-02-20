@@ -127,6 +127,16 @@ uv run autocast train-eval \
 ```
 This submits two sbatch jobs with `afterok` dependency and returns immediately.
 
+Keep private experiment presets in `configs/experiment_local/` and select them
+with `experiment_local=<name>`. Files in that folder are ignored by git by
+default.
+
+To load configs from a separate directory (including packaged installs), set:
+
+```bash
+export AUTOCAST_CONFIG_PATH=/absolute/path/to/configs
+```
+
 Override mapping quick reference:
 - `configs/hydra/launcher/slurm.yaml` key `X` maps to CLI `hydra.launcher.X=...`
 - In `autocast train-eval`, positional overrides are train-only.
