@@ -12,6 +12,14 @@ defaults:
 seed: 42
 experiment_name: epd
 autoencoder_checkpoint: null
+umask: "0002"
+
+train_eval:
+  checkpoint: null
+  eval_subdir: eval
+  video_dir: null
+  batch_indices: null
+  eval_overrides: []
 
 output:
   checkpoint_name: encoder_processor_decoder.ckpt

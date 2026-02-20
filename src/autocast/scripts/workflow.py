@@ -21,6 +21,7 @@ TRAIN_MODULES = {
     "processor": "autocast.scripts.train.processor",
 }
 EVAL_MODULE = "autocast.scripts.eval.encoder_processor_decoder"
+TRAIN_EVAL_MODULE = "autocast.scripts.train_eval.encoder_processor_decoder"
 
 
 def _sanitize_name_part(value: str) -> str:
@@ -133,6 +134,14 @@ def _datasets_root() -> Path:
 
 def _format_command(command: list[str]) -> str:
     return " ".join(shlex.quote(part) for part in command)
+
+
+def _hydra_string_list_literal(values: list[str]) -> str:
+    escaped_values = [
+        value.replace("\\", "\\\\").replace('"', '\\"') for value in values
+    ]
+    quoted = [f'"{value}"' for value in escaped_values]
+    return f"[{','.join(quoted)}]"
 
 
 def _run_module(module: str, overrides: list[str], dry_run: bool = False) -> None:
@@ -415,6 +424,52 @@ def _eval_command(
     )
 
     _run_module(EVAL_MODULE, command_overrides, dry_run=dry_run)
+
+
+def _train_eval_single_job_command(
+    *,
+    mode: str,
+    dataset: str,
+    output_base: str,
+    date_str: str | None,
+    run_name: str | None,
+    work_dir: str | None,
+    wandb_name: str | None,
+    resume_from: str | None,
+    checkpoint: str | None,
+    eval_subdir: str,
+    video_dir: str | None,
+    batch_indices: str,
+    train_overrides: list[str],
+    eval_overrides: list[str],
+    dry_run: bool = False,
+) -> tuple[Path, str]:
+    final_work_dir, resolved_run_name, command_overrides = _build_train_overrides(
+        kind="epd",
+        mode=mode,
+        dataset=dataset,
+        output_base=output_base,
+        date_str=date_str,
+        run_name=run_name,
+        work_dir=work_dir,
+        wandb_name=wandb_name,
+        resume_from=resume_from,
+        overrides=train_overrides,
+    )
+
+    command_overrides.append(f"train_eval.eval_subdir={eval_subdir}")
+    command_overrides.append(f"train_eval.batch_indices={batch_indices}")
+    if checkpoint is not None:
+        command_overrides.append(f"train_eval.checkpoint={checkpoint}")
+    if video_dir is not None:
+        command_overrides.append(f"train_eval.video_dir={video_dir}")
+    if eval_overrides:
+        command_overrides.append(
+            f"train_eval.eval_overrides={_hydra_string_list_literal(eval_overrides)}"
+        )
+
+    _run_module(TRAIN_EVAL_MODULE, command_overrides, dry_run=dry_run)
+    return final_work_dir, resolved_run_name
 
 
 def _write_sbatch_script(
@@ -745,14 +800,15 @@ def main() -> None:
 
     if args.command == "train-eval":
         train_overrides = [*args.overrides]
-        eval_overrides = _build_effective_eval_overrides(
-            train_overrides, [*args.eval_overrides]
-        )
 
         if args.detach:
             if args.mode != "slurm":
                 msg = "--detach is only supported with --mode slurm"
                 raise ValueError(msg)
+
+            eval_overrides = _build_effective_eval_overrides(
+                train_overrides, [*args.eval_overrides]
+            )
 
             train_job_id, eval_job_id, workdir = _submit_train_eval_chain(
                 dataset=args.dataset,
@@ -776,8 +832,7 @@ def main() -> None:
             )
             return
 
-        final_work_dir, _run_name = _train_command(
-            kind="epd",
+        _final_work_dir, _run_name = _train_eval_single_job_command(
             mode=args.mode,
             dataset=args.dataset,
             output_base=args.output_base,
@@ -786,18 +841,12 @@ def main() -> None:
             work_dir=args.workdir,
             wandb_name=args.wandb_name,
             resume_from=args.resume_from,
-            overrides=train_overrides,
-            dry_run=args.dry_run,
-        )
-        _eval_command(
-            mode=args.mode,
-            dataset=args.dataset,
-            work_dir=str(final_work_dir),
             checkpoint=args.checkpoint,
             eval_subdir=args.eval_subdir,
             video_dir=args.video_dir,
             batch_indices=args.batch_indices,
-            overrides=eval_overrides,
+            train_overrides=train_overrides,
+            eval_overrides=[*args.eval_overrides],
             dry_run=args.dry_run,
         )
         return

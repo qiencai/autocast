@@ -1,6 +1,7 @@
 """Train an encoder-processor-decoder with optional pretrained autoencoder."""
 
 import logging
+import os
 from pathlib import Path
 
 import hydra
@@ -23,6 +24,11 @@ def main(cfg: DictConfig) -> None:
     """CLI entrypoint for training the encoder-processor-decoder."""
     # Setup logging
     logging.basicConfig(level=logging.INFO)
+
+    umask_value = cfg.get("umask")
+    if umask_value is not None:
+        os.umask(int(str(umask_value), 8))
+        log.info("Applied process umask %s", umask_value)
 
     # Work directory is managed by Hydra
     work_dir = Path.cwd()

@@ -177,6 +177,9 @@ uv run autocast train-eval \
 ```
 This submits two sbatch jobs with `afterok` dependency and returns immediately.
 
+By default (without `--detach`), `autocast train-eval --mode slurm` runs train and
+eval inside a single Hydra/Submitit SLURM job.
+
 ### Config-to-CLI mapping (to avoid override confusion)
 
 - Hydra launcher config path: `configs/hydra/launcher/slurm.yaml`
@@ -191,6 +194,7 @@ This submits two sbatch jobs with `afterok` dependency and returns immediately.
     - Positional overrides apply to **train**.
     - `--eval-overrides` applies to **eval**.
     - If the same key appears in both, eval uses the eval value.
+    - Different train/eval SLURM resources are only supported in `--detach` mode.
 
 Example with different train/eval time limits:
 ```bash
@@ -200,6 +204,11 @@ uv run autocast train-eval --mode slurm --detach \
     trainer.max_epochs=1 \
     --eval-overrides hydra.launcher.timeout_min=10 eval.batch_indices=[0,1]
 ```
+
+File permissions / group-write:
+- Submitit path reads config key `umask` (default `0002` in
+    `configs/encoder_processor_decoder.yaml`).
+- Detached sbatch path reads env var `AUTOCAST_UMASK` (default `0002`).
 
 To avoid long CLI override lists, put experiment defaults in a preset config
 under `configs/experiment/` and enable it with `experiment=<name>`.

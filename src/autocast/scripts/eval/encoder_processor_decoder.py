@@ -1,6 +1,7 @@
 """Evaluation CLI for encoder-processor-decoder checkpoints."""
 
 import logging
+import os
 from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -306,12 +307,21 @@ def _load_state_dict(checkpoint_path: Path) -> OrderedDict[str, torch.Tensor]:
     config_path=get_default_config_path(),
     config_name="encoder_processor_decoder",
 )
-def main(cfg: DictConfig) -> None:  # noqa: PLR0912, PLR0915
+def main(cfg: DictConfig) -> None:
     """Entry point for CLI-based evaluation."""
+    run_evaluation(cfg)
+
+
+def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # noqa: PLR0912, PLR0915
+    """Run evaluation using an already-composed config."""
     logging.basicConfig(level=logging.INFO)
 
-    # Work directory is managed by Hydra
-    work_dir = Path.cwd()
+    umask_value = cfg.get("umask")
+    if umask_value is not None:
+        os.umask(int(str(umask_value), 8))
+        log.info("Applied process umask %s", umask_value)
+
+    work_dir = work_dir or Path.cwd()
 
     # Get eval config
     eval_cfg = cfg.get("eval", {})

@@ -113,6 +113,10 @@ uv run autocast train-eval \
 For `train-eval`, evaluation starts only after training has completed successfully
 (including in `--mode slurm`).
 
+Execution modes for `train-eval`:
+- default (no `--detach`): one Hydra/Submitit SLURM job runs train then eval.
+- `--detach`: writes two sbatch scripts and links them with `afterok`.
+
 To submit non-blocking train→eval from a login node, use:
 ```bash
 uv run autocast train-eval \
@@ -130,6 +134,10 @@ Override mapping quick reference:
 - Different train/eval timeouts example:
 	- train: `hydra.launcher.timeout_min=30`
 	- eval: `--eval-overrides hydra.launcher.timeout_min=10`
+
+Permissions quick reference:
+- Submitit path uses config key `umask` (default `0002` in `encoder_processor_decoder`).
+- Detached sbatch path uses env var `AUTOCAST_UMASK` (default `0002`).
 
 Use `--dry-run` to print resolved commands/scripts without executing.
 
