@@ -4,10 +4,9 @@ defaults:
   - override /encoder@model.encoder: dc_deep_256_v2
   - override /decoder@model.decoder: dc_deep_256_v2
   - override /processor@model.processor: vit_latent
-  - override /input_noise_injector@model.input_noise_injector: concat
   - _self_
 
-experiment_name: epd_crps_vit_latent_768_ps4_concat
+experiment_name: epd_crps_vit_latent_768_ps4_noise_32
 
 datamodule:
   use_normalization: false
@@ -25,6 +24,7 @@ model:
   n_members: 10
   processor:
     hidden_dim: 768
+    n_noise_channels: 32
     spatial_resolution: auto
     patch_size: 4
   loss_func:
