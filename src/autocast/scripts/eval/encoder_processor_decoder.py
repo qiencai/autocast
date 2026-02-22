@@ -303,6 +303,25 @@ def _write_csv(rows: list[dict[str, float | str]], csv_path: Path):
     pd.DataFrame(rows).to_csv(csv_path, index=False)
 
 
+def _is_metadata_row(row: Mapping[str, float | str]) -> bool:
+    return row.get("window") == "meta" or "category" in row
+
+
+def _split_metric_and_metadata_rows(
+    rows: list[dict[str, float | str]],
+) -> tuple[list[dict[str, float | str]], list[dict[str, float | str]]]:
+    metric_rows: list[dict[str, float | str]] = []
+    metadata_rows: list[dict[str, float | str]] = []
+
+    for row in rows:
+        if _is_metadata_row(row):
+            metadata_rows.append(row)
+        else:
+            metric_rows.append(row)
+
+    return metric_rows, metadata_rows
+
+
 def _load_checkpoint_payload(checkpoint_path: Path) -> Mapping[str, Any]:
     checkpoint_real = checkpoint_path.expanduser().resolve()
     checkpoint = torch.load(
@@ -857,13 +876,30 @@ def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # no
 
             # Save rollout metrics to CSV
             rollout_csv_path = csv_path.parent / "rollout_metrics.csv"
-            rollout_csv_rows.extend(rollout_runtime_rows)
-            if rollout_csv_rows:
-                _write_csv(rollout_csv_rows, rollout_csv_path)
+            rollout_combined_rows = [*rollout_csv_rows, *rollout_runtime_rows]
+            rollout_metric_rows, rollout_metadata_rows = (
+                _split_metric_and_metadata_rows(rollout_combined_rows)
+            )
+
+            if rollout_metric_rows:
+                _write_csv(rollout_metric_rows, rollout_csv_path)
                 log.info("Wrote rollout metrics to %s", rollout_csv_path)
 
-    _write_csv(evaluation_rows, csv_path)
-    log.info("Wrote metrics CSV to %s", csv_path)
+            rollout_metadata_csv_path = csv_path.parent / "rollout_metadata.csv"
+            if rollout_metadata_rows:
+                _write_csv(rollout_metadata_rows, rollout_metadata_csv_path)
+                log.info("Wrote rollout metadata to %s", rollout_metadata_csv_path)
+
+    metric_rows, metadata_rows = _split_metric_and_metadata_rows(evaluation_rows)
+
+    if metric_rows:
+        _write_csv(metric_rows, csv_path)
+        log.info("Wrote metrics CSV to %s", csv_path)
+
+    metadata_csv_path = csv_path.parent / "evaluation_metadata.csv"
+    if metadata_rows:
+        _write_csv(metadata_rows, metadata_csv_path)
+        log.info("Wrote evaluation metadata to %s", metadata_csv_path)
 
 
 if __name__ == "__main__":
