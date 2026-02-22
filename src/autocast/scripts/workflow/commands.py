@@ -73,6 +73,34 @@ def _load_resolved_config_from_workdir(work_dir: str | Path) -> dict | None:
     return None
 
 
+def infer_hydra_config_from_workdir(work_dir: str | Path) -> tuple[str, str] | None:
+    """Infer ``(--config-path, --config-name)`` from a work directory.
+
+    Prefers ``resolved_config.yaml`` and falls back to other resolved config
+    variants, including those under ``run/``.
+    """
+    base = Path(work_dir).expanduser().resolve()
+    candidates = [
+        base / "resolved_config.yaml",
+        base / "resolved_autoencoder_config.yaml",
+        base / "resolved_eval_config.yaml",
+        base / "run" / "resolved_config.yaml",
+        base / "run" / "resolved_autoencoder_config.yaml",
+        base / "run" / "resolved_eval_config.yaml",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate.parent), candidate.stem
+
+    return None
+
+
+def _has_cli_flag(overrides: list[str], flag: str) -> bool:
+    """Return whether a passthrough CLI flag is already present."""
+    return any(item == flag or item.startswith(f"{flag}=") for item in overrides)
+
+
 def infer_dataset_from_workdir(work_dir: str | Path) -> str | None:
     """Infer dataset name from a run work directory.
 
@@ -326,6 +354,22 @@ def eval_command(
     dry_run: bool = False,
 ) -> None:
     """Run an evaluation command."""
+    effective_overrides = list(overrides)
+    has_config_name = _has_cli_flag(effective_overrides, "--config-name")
+    has_config_path = _has_cli_flag(effective_overrides, "--config-path")
+
+    if not (has_config_name or has_config_path):
+        inferred_config = infer_hydra_config_from_workdir(work_dir)
+        if inferred_config is not None:
+            config_path, config_name = inferred_config
+            effective_overrides = [
+                "--config-name",
+                config_name,
+                "--config-path",
+                config_path,
+                *effective_overrides,
+            ]
+
     _eval_dir, command_overrides = build_eval_overrides(
         mode=mode,
         dataset=dataset,
@@ -334,7 +378,7 @@ def eval_command(
         eval_subdir=eval_subdir,
         video_dir=video_dir,
         batch_indices=batch_indices,
-        overrides=overrides,
+        overrides=effective_overrides,
     )
 
     run_module(EVAL_MODULE, command_overrides, dry_run=dry_run, mode=mode)

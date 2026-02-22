@@ -13,7 +13,9 @@ from autocast.scripts.workflow.cli import build_parser
 from autocast.scripts.workflow.commands import (
     build_effective_eval_overrides,
     build_train_overrides,
+    eval_command,
     infer_dataset_from_workdir,
+    infer_hydra_config_from_workdir,
     infer_resume_checkpoint,
     resolve_eval_checkpoint,
 )
@@ -323,6 +325,92 @@ def test_infer_resume_checkpoint_kind_specific(tmp_path):
 
 def test_infer_resume_checkpoint_returns_none_when_missing(tmp_path):
     assert infer_resume_checkpoint("epd", tmp_path) is None
+
+
+def test_infer_hydra_config_from_workdir_prefers_resolved_config(tmp_path):
+    (tmp_path / "resolved_autoencoder_config.yaml").write_text(
+        "x: 1\n", encoding="utf-8"
+    )
+    (tmp_path / "resolved_config.yaml").write_text("x: 2\n", encoding="utf-8")
+
+    result = infer_hydra_config_from_workdir(tmp_path)
+    assert result == (str(tmp_path.resolve()), "resolved_config")
+
+
+def test_infer_hydra_config_from_workdir_uses_run_subdir(tmp_path):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "resolved_config.yaml").write_text("x: 1\n", encoding="utf-8")
+
+    result = infer_hydra_config_from_workdir(tmp_path)
+    assert result == (str(run_dir.resolve()), "resolved_config")
+
+
+def test_eval_command_auto_infers_hydra_config(monkeypatch, tmp_path):
+    (tmp_path / "resolved_config.yaml").write_text("x: 1\n", encoding="utf-8")
+    (tmp_path / "encoder_processor_decoder.ckpt").touch()
+    captured: dict[str, object] = {}
+
+    def _fake_run_module(module, overrides, dry_run=False, mode="local"):
+        captured["module"] = module
+        captured["overrides"] = overrides
+        captured["dry_run"] = dry_run
+        captured["mode"] = mode
+
+    monkeypatch.setattr(
+        "autocast.scripts.workflow.commands.run_module", _fake_run_module
+    )
+
+    eval_command(
+        mode="local",
+        dataset="reaction_diffusion",
+        work_dir=str(tmp_path),
+        checkpoint=None,
+        eval_subdir="eval",
+        video_dir=None,
+        batch_indices="[0]",
+        overrides=["datamodule.batch_size=8"],
+        dry_run=True,
+    )
+
+    overrides = captured["overrides"]
+    assert isinstance(overrides, list)
+    assert "--config-name" in overrides
+    assert "--config-path" in overrides
+    assert "resolved_config" in overrides
+    assert str(tmp_path.resolve()) in overrides
+
+
+def test_eval_command_keeps_explicit_hydra_config(monkeypatch, tmp_path):
+    (tmp_path / "resolved_config.yaml").write_text("x: 1\n", encoding="utf-8")
+    (tmp_path / "encoder_processor_decoder.ckpt").touch()
+    captured: dict[str, object] = {}
+
+    def _fake_run_module(module, overrides, dry_run=False, mode="local"):
+        captured["overrides"] = overrides
+
+    monkeypatch.setattr(
+        "autocast.scripts.workflow.commands.run_module", _fake_run_module
+    )
+
+    eval_command(
+        mode="local",
+        dataset="reaction_diffusion",
+        work_dir=str(tmp_path),
+        checkpoint=None,
+        eval_subdir="eval",
+        video_dir=None,
+        batch_indices="[0]",
+        overrides=["--config-name", "custom", "--config-path", "custom/path"],
+        dry_run=True,
+    )
+
+    overrides = captured["overrides"]
+    assert isinstance(overrides, list)
+    assert overrides.count("--config-name") == 1
+    assert overrides.count("--config-path") == 1
+    assert "custom" in overrides
+    assert "custom/path" in overrides
 
 
 def test_build_train_overrides_normalizes_relative_resume_path(tmp_path, monkeypatch):
