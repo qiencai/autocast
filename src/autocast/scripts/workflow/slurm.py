@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 from omegaconf import OmegaConf
@@ -129,6 +130,10 @@ def _format_sbatch_time(timeout_min: int | str | None) -> str | None:
     return f"{hours:02d}:{minutes:02d}:00"
 
 
+def _submission_timestamp() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+
+
 def _submit_one_sbatch_job(
     *,
     module: str,
@@ -243,9 +248,10 @@ def submit_via_sbatch(
         setup_commands = []
 
     expanded_jobs = expand_sweep_overrides(module_run_overrides)
+    submission_ts = _submission_timestamp()
 
     if len(expanded_jobs) == 1:
-        batch_script_path = (output_dir / "submit_job.sh").resolve()
+        batch_script_path = (output_dir / f"submit_job_{submission_ts}.sh").resolve()
         job_id, job_name = _submit_one_sbatch_job(
             module=module,
             output_dir=output_dir,
@@ -277,7 +283,7 @@ def submit_via_sbatch(
             )
 
         batch_script_path = (
-            output_dir / ".sbatch" / f"submit_{index:04d}.sh"
+            output_dir / ".sbatch" / f"submit_{submission_ts}_{index:04d}.sh"
         ).resolve()
         job_id, job_name = _submit_one_sbatch_job(
             module=module,
