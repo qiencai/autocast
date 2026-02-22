@@ -10,7 +10,7 @@ experiment_name: epd_diffusion_dm_128
 
 datamodule:
   use_normalization: false
-  batch_size: 128
+  batch_size: 512
 
 logging:
   wandb:
