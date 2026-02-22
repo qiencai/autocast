@@ -7,6 +7,7 @@ import shlex
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from omegaconf import OmegaConf
 
@@ -31,12 +32,17 @@ from autocast.scripts.workflow.overrides import (
 # ---------------------------------------------------------------------------
 
 
-def _parse_override_scalar(value: str) -> int | str:
+def _parse_override_scalar(value: str) -> int | str | bool:
     stripped = value.strip().strip('"').strip("'")
+    lowered = stripped.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
     return int(stripped) if stripped.isdigit() else stripped
 
 
-def _nested_set(target: dict, dotted_key: str, value: int | str) -> None:
+def _nested_set(target: dict, dotted_key: str, value: int | str | bool) -> None:
     parts = dotted_key.split(".")
     current = target
     for part in parts[:-1]:
@@ -134,6 +140,33 @@ def _submission_timestamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
 
+def _coerce_positive_int(value: Any) -> int:
+    if isinstance(value, bool):
+        return 1 if value else 0
+    if isinstance(value, int):
+        return value if value > 0 else 0
+    if isinstance(value, str) and value.isdigit():
+        parsed = int(value)
+        return parsed if parsed > 0 else 0
+    return 0
+
+
+def _should_use_srun(launcher_cfg: dict) -> bool:
+    explicit = launcher_cfg.get("use_srun")
+    if isinstance(explicit, bool):
+        return explicit
+    if isinstance(explicit, str):
+        lowered = explicit.strip().lower()
+        if lowered in {"true", "1", "yes", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "off"}:
+            return False
+
+    tasks_per_node = _coerce_positive_int(launcher_cfg.get("tasks_per_node"))
+    gpus_per_node = _coerce_positive_int(launcher_cfg.get("gpus_per_node"))
+    return tasks_per_node > 1 or gpus_per_node > 1
+
+
 def _submit_one_sbatch_job(
     *,
     module: str,
@@ -152,13 +185,18 @@ def _submit_one_sbatch_job(
             job_name = f"{job_name}_{suffix}"[:120]
 
     command_text = format_command(run_module_command(module, job_overrides))
+    launch_command = (
+        f"exec srun {command_text}"
+        if _should_use_srun(merged_launcher_cfg)
+        else f"exec {command_text}"
+    )
     script_lines = [
         "#!/bin/bash",
         "set -euo pipefail",
         f"cd {shlex.quote(str(Path.cwd().resolve()))}",
     ]
     script_lines.extend(str(line) for line in setup_commands)
-    script_lines.append(f"exec {command_text}")
+    script_lines.append(launch_command)
 
     with temporary_umask(umask_value):
         output_dir.mkdir(parents=True, exist_ok=True)

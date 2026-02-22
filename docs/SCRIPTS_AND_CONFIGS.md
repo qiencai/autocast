@@ -186,7 +186,12 @@ submission.
     - `cpus_per_task` -> `hydra.launcher.cpus_per_task=...`
     - `gpus_per_node` -> `hydra.launcher.gpus_per_node=...`
     - `tasks_per_node` -> `hydra.launcher.tasks_per_node=...`
+    - `use_srun` -> `hydra.launcher.use_srun=<true|false>`
     - `additional_parameters.mem` -> `hydra.launcher.additional_parameters.mem=...`
+
+- SLURM launch behavior:
+    - Default is auto: batch script uses `srun` when `tasks_per_node > 1` or `gpus_per_node > 1`.
+    - Override explicitly with `hydra.launcher.use_srun=true` or `hydra.launcher.use_srun=false`.
 
 - For `autocast train-eval` specifically:
     - Positional overrides apply to **train**.

@@ -35,6 +35,7 @@ from autocast.scripts.workflow.overrides import (
     split_top_level_csv,
     strip_hydra_sweep_controls,
 )
+from autocast.scripts.workflow.slurm import _parse_override_scalar, _should_use_srun
 
 
 @pytest.fixture
@@ -148,6 +149,31 @@ def test_hydra_string_list_literal_escaping():
 
 def test_hydra_string_list_literal_empty():
     assert hydra_string_list_literal([]) == "[]"
+
+
+def test_parse_override_scalar_parses_bool_true_false():
+    assert _parse_override_scalar("true") is True
+    assert _parse_override_scalar("false") is False
+
+
+def test_should_use_srun_auto_for_multi_task_or_gpu():
+    assert _should_use_srun({"tasks_per_node": 2, "gpus_per_node": 1}) is True
+    assert _should_use_srun({"tasks_per_node": 1, "gpus_per_node": 2}) is True
+
+
+def test_should_use_srun_auto_false_for_single_task_single_gpu():
+    assert _should_use_srun({"tasks_per_node": 1, "gpus_per_node": 1}) is False
+
+
+def test_should_use_srun_respects_explicit_override():
+    assert (
+        _should_use_srun({"tasks_per_node": 1, "gpus_per_node": 1, "use_srun": True})
+        is True
+    )
+    assert (
+        _should_use_srun({"tasks_per_node": 2, "gpus_per_node": 2, "use_srun": False})
+        is False
+    )
 
 
 # ---------------------------------------------------------------------------
