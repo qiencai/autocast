@@ -449,6 +449,41 @@ def test_eval_command_keeps_explicit_hydra_config(monkeypatch, tmp_path):
     assert "custom/path" in overrides
 
 
+def test_eval_command_explicit_resolved_config_skips_defaults(monkeypatch, tmp_path):
+    (tmp_path / "encoder_processor_decoder.ckpt").touch()
+    captured: dict[str, object] = {}
+
+    def _fake_run_module(module, overrides, dry_run=False, mode="local"):
+        captured["overrides"] = overrides
+
+    monkeypatch.setattr(
+        "autocast.scripts.workflow.commands.run_module", _fake_run_module
+    )
+
+    eval_command(
+        mode="local",
+        dataset="reaction_diffusion",
+        work_dir=str(tmp_path),
+        checkpoint=None,
+        eval_subdir="eval",
+        video_dir=None,
+        batch_indices="[0]",
+        overrides=[
+            "--config-name",
+            "resolved_config",
+            "--config-path",
+            str(tmp_path),
+        ],
+        dry_run=True,
+    )
+
+    overrides = captured["overrides"]
+    assert isinstance(overrides, list)
+    assert "eval=encoder_processor_decoder" not in overrides
+    assert not any(o.startswith("datamodule=") for o in overrides)
+    assert any(o.startswith("datamodule.data_path=") for o in overrides)
+
+
 def test_build_train_overrides_normalizes_relative_resume_path(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     relative_ckpt = "outputs/2026-02-22/run/autoencoder.ckpt"

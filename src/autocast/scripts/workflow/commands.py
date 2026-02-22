@@ -26,6 +26,12 @@ from autocast.scripts.workflow.slurm import submit_via_sbatch
 # Shared building blocks
 # ---------------------------------------------------------------------------
 
+_RESOLVED_CONFIG_STEMS = {
+    "resolved_config",
+    "resolved_autoencoder_config",
+    "resolved_eval_config",
+}
+
 
 def build_common_launch_overrides(mode: str, work_dir: Path) -> list[str]:
     """Return Hydra overrides for directory routing in *mode*."""
@@ -52,16 +58,16 @@ def datasets_root() -> Path:
     return Path(os.environ.get("AUTOCAST_DATASETS", Path.cwd() / "datasets"))
 
 
+def _resolved_config_candidates(base: Path) -> list[Path]:
+    return [
+        *(base / f"{stem}.yaml" for stem in _RESOLVED_CONFIG_STEMS),
+        *(base / "run" / f"{stem}.yaml" for stem in _RESOLVED_CONFIG_STEMS),
+    ]
+
+
 def _load_resolved_config_from_workdir(work_dir: str | Path) -> dict | None:
     base = Path(work_dir).expanduser().resolve()
-    candidates = [
-        base / "resolved_config.yaml",
-        base / "resolved_autoencoder_config.yaml",
-        base / "resolved_eval_config.yaml",
-        base / "run" / "resolved_config.yaml",
-        base / "run" / "resolved_autoencoder_config.yaml",
-        base / "run" / "resolved_eval_config.yaml",
-    ]
+    candidates = _resolved_config_candidates(base)
 
     for candidate in candidates:
         if not candidate.exists():
@@ -80,14 +86,7 @@ def infer_hydra_config_from_workdir(work_dir: str | Path) -> tuple[str, str] | N
     variants, including those under ``run/``.
     """
     base = Path(work_dir).expanduser().resolve()
-    candidates = [
-        base / "resolved_config.yaml",
-        base / "resolved_autoencoder_config.yaml",
-        base / "resolved_eval_config.yaml",
-        base / "run" / "resolved_config.yaml",
-        base / "run" / "resolved_autoencoder_config.yaml",
-        base / "run" / "resolved_eval_config.yaml",
-    ]
+    candidates = _resolved_config_candidates(base)
 
     for candidate in candidates:
         if candidate.exists():
@@ -99,6 +98,20 @@ def infer_hydra_config_from_workdir(work_dir: str | Path) -> tuple[str, str] | N
 def _has_cli_flag(overrides: list[str], flag: str) -> bool:
     """Return whether a passthrough CLI flag is already present."""
     return any(item == flag or item.startswith(f"{flag}=") for item in overrides)
+
+
+def _extract_cli_flag_value(overrides: list[str], flag: str) -> str | None:
+    for index, item in enumerate(overrides):
+        if item == flag and index + 1 < len(overrides):
+            return overrides[index + 1]
+        if item.startswith(f"{flag}="):
+            return item.split("=", 1)[1]
+    return None
+
+
+def _uses_resolved_config(overrides: list[str]) -> bool:
+    config_name = _extract_cli_flag_value(overrides, "--config-name")
+    return config_name in _RESOLVED_CONFIG_STEMS
 
 
 def infer_dataset_from_workdir(work_dir: str | Path) -> str | None:
@@ -374,7 +387,7 @@ def eval_command(
     has_config_name = _has_cli_flag(effective_overrides, "--config-name")
     has_config_path = _has_cli_flag(effective_overrides, "--config-path")
 
-    using_resolved_config = False
+    using_resolved_config = _uses_resolved_config(effective_overrides)
     if not (has_config_name or has_config_path):
         inferred_config = infer_hydra_config_from_workdir(work_dir)
         if inferred_config is not None:

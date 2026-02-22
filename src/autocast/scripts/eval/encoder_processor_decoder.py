@@ -12,6 +12,7 @@ import hydra
 import lightning as L
 import pandas as pd
 import torch
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, open_dict
 from torchmetrics import Metric
 
@@ -597,6 +598,18 @@ def _rollout_metadata_rows(
     )
 
 
+def _resolve_work_dir(work_dir: Path | None) -> Path:
+    if work_dir is not None:
+        return work_dir
+
+    if HydraConfig.initialized():
+        output_dir = HydraConfig.get().runtime.output_dir
+        if output_dir:
+            return Path(output_dir).resolve()
+
+    return Path.cwd()
+
+
 @hydra.main(
     version_base=None,
     config_path=get_default_config_path(),
@@ -616,7 +629,7 @@ def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # no
         os.umask(int(str(umask_value), 8))
         log.info("Applied process umask %s", umask_value)
 
-    work_dir = work_dir or Path.cwd()
+    work_dir = _resolve_work_dir(work_dir)
 
     # Get eval config
     eval_cfg = cfg.get("eval", {})
