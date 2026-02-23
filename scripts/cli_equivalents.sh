@@ -18,7 +18,7 @@ export AUTOCAST_DATASETS="${AUTOCAST_DATASETS:-$PWD/datasets}"
 AE_DATAPATH="advection_diffusion_multichannel_64_64"
 
 echo "# Autoencoder equivalent"
-echo "uv run autocast ae --mode slurm --dataset ${AE_DATAPATH} datamodule.use_normalization=false logging.wandb.enabled=true trainer.max_epochs=200 optimizer.learning_rate=0.00002 encoder@model.encoder=dc_deep_256_v2 decoder@model.decoder=dc_deep_256_v2"
+echo "uv run autocast ae --mode slurm datamodule=${AE_DATAPATH} datamodule.use_normalization=false logging.wandb.enabled=true trainer.max_epochs=200 optimizer.learning_rate=0.00002 encoder@model.encoder=dc_deep_256_v2 decoder@model.decoder=dc_deep_256_v2"
 
 # -----------------------------------------------------------------------------
 # 2) train_and_eval_epd_crps_fno_additive.sh
@@ -45,7 +45,7 @@ CRPS_COMMON=(
 
 echo
 echo "# EPD CRPS FNO additive equivalent"
-echo "uv run autocast train-eval --mode slurm --dataset ${CRPS_DATAPATH} ${CRPS_COMMON[*]} --eval-overrides eval.batch_indices=[0,1,2,3]"
+echo "uv run autocast train-eval --mode slurm datamodule=${CRPS_DATAPATH} ${CRPS_COMMON[*]} --eval-overrides eval.batch_indices=[0,1,2,3]"
 
 # -----------------------------------------------------------------------------
 # 3) train_and_eval_epd_diffusion_flow_matching_200.sh
@@ -71,4 +71,4 @@ DIFF_COMMON=(
 
 echo
 echo "# EPD diffusion flow-matching equivalent"
-echo "uv run autocast train-eval --mode slurm --dataset ${DIFF_DATAPATH} ${DIFF_COMMON[*]} --eval-overrides +model.n_members=10 eval.batch_indices=[0,1,2,3]"
+echo "uv run autocast train-eval --mode slurm datamodule=${DIFF_DATAPATH} ${DIFF_COMMON[*]} --eval-overrides +model.n_members=10 eval.batch_indices=[0,1,2,3]"

@@ -124,7 +124,7 @@ uv run train_encoder_processor_decoder \
 ```
 
 ### 3. Hyperparameter Sweep (SLURM)
-Use Hydra multi-run directly (or the manifest launcher) for sweeps, e.g. `uv run autocast epd --mode slurm --dataset reaction_diffusion trainer.max_epochs=5,10`.
+Use Hydra multi-run directly (or the manifest launcher) for sweeps, e.g. `uv run autocast epd --mode slurm datamodule=reaction_diffusion trainer.max_epochs=5,10`.
 
 ## Workflow CLI
 Use the unified Python workflow command `autocast` instead of bash wrappers.
@@ -133,26 +133,26 @@ Example usage:
 ```bash
 # Train autoencoder locally
 uv run autocast ae \
-    --dataset reaction_diffusion \
+    datamodule=reaction_diffusion \
     --run-label rd
 
 # Train EPD on SLURM
 uv run autocast epd \
     --mode slurm \
-    --dataset reaction_diffusion \
+    datamodule=reaction_diffusion \
     --run-label rd \
     trainer.max_epochs=10
 
 # Re-run evaluation from an existing workdir
 uv run autocast eval \
-    --dataset reaction_diffusion \
+    datamodule=reaction_diffusion \
     --workdir outputs/rd/00
 ```
 
 For restart training, pass:
 ```bash
 uv run autocast epd \
-    --dataset reaction_diffusion \
+    datamodule=reaction_diffusion \
     --workdir outputs/rd/00 \
     --resume-from outputs/rd/00/encoder_processor_decoder.ckpt
 ```
@@ -161,7 +161,7 @@ For `train-eval`, direct overrides are applied to training by default. Pass eval
 settings with `--eval-overrides`, e.g.:
 ```bash
 uv run autocast train-eval \
-    --dataset reaction_diffusion \
+    datamodule=reaction_diffusion \
     --run-label rd \
     trainer.max_epochs=1 \
     --eval-overrides eval.batch_indices=[0,1]
@@ -171,7 +171,7 @@ For SLURM train+eval submission:
 ```bash
 uv run autocast train-eval \
     --mode slurm \
-    --dataset reaction_diffusion \
+    datamodule=reaction_diffusion \
     --run-label rd
 ```
 This submits one SLURM job via `sbatch`; the CLI exits immediately after
@@ -209,7 +209,7 @@ Example preset: `src/autocast/configs/experiment/epd_flow_matching_64_fast.yaml`
 
 ```bash
 uv run autocast train-eval --mode slurm \
-    --dataset advection_diffusion_multichannel_64_64 \
+    datamodule=advection_diffusion_multichannel_64_64 \
     experiment=epd_flow_matching_64_fast \
     autoencoder_checkpoint=/path/to/autoencoder.ckpt \
     hydra.launcher.timeout_min=30 \
@@ -219,7 +219,7 @@ uv run autocast train-eval --mode slurm \
 To use Baskerville module setup + scheduler defaults:
 
 ```bash
-uv run autocast epd --mode slurm --dataset reaction_diffusion \
+uv run autocast epd --mode slurm datamodule=reaction_diffusion \
     hydra/launcher=slurm_baskerville
 ```
 

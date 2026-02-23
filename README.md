@@ -71,7 +71,7 @@ uv run train_autoencoder \
 Or alternatively with the unified workflow CLI:
 ```bash
 uv run autocast ae \
-	--dataset reaction_diffusion \
+	datamodule=reaction_diffusion \
 	--run-label rd
 ```
 
@@ -80,14 +80,14 @@ Unified workflow CLI supports both local and SLURM launch modes:
 ```bash
 # Local (default)
 uv run autocast epd \
-	--dataset reaction_diffusion \
+	datamodule=reaction_diffusion \
 	--run-label my_label \
 	trainer.max_epochs=5
 
 # SLURM submit-and-exit via sbatch
 uv run autocast epd \
 	--mode slurm \
-	--dataset reaction_diffusion \
+	datamodule=reaction_diffusion \
 	--run-label my_label \
 	trainer.max_epochs=5
 ```
@@ -98,7 +98,7 @@ immediately. Outputs are written under `outputs/<run_label>/<run_id>`.
 Resume training from a checkpoint:
 ```bash
 uv run autocast epd \
-	--dataset reaction_diffusion \
+	datamodule=reaction_diffusion \
 	--workdir outputs/rd/00 \
 	--resume-from outputs/rd/00/encoder_processor_decoder.ckpt
 ```
@@ -106,7 +106,7 @@ uv run autocast epd \
 Train + evaluate in one command:
 ```bash
 uv run autocast train-eval \
-	--dataset reaction_diffusion \
+	datamodule=reaction_diffusion \
 	--run-label rd
 ```
 
@@ -156,7 +156,8 @@ Pass `--run-label` only to override the top-level folder label.
 
 Multi-GPU is supported by passing trainer/Hydra overrides, e.g.:
 ```bash
-uv run autocast epd --mode slurm --dataset reaction_diffusion \
+uv run autocast epd --mode slurm \
+	datamodule=reaction_diffusion \
 	trainer.devices=4 trainer.strategy=ddp hydra.launcher.gpus_per_node=4
 ```
 
@@ -176,7 +177,7 @@ uv run train_encoder_processor_decoder \
 Or alternatively with the unified workflow CLI:
 ```bash
 uv run autocast epd \
-	--dataset reaction_diffusion \
+	datamodule=reaction_diffusion \
 	--run-label rd
 ```
 
@@ -194,7 +195,7 @@ uv run evaluate_encoder_processor_decoder \
 Or alternatively with the unified workflow CLI:
 ```bash
 uv run autocast eval \
-	--dataset reaction_diffusion \
+	datamodule=reaction_diffusion \
 	--workdir outputs/rd/00
 ```
 
@@ -228,7 +229,7 @@ maintenance overhead. Use the unified `autocast` CLI workflows instead:
 
 ```bash
 # train->eval in one SLURM job
-uv run autocast train-eval --mode slurm --dataset reaction_diffusion
+uv run autocast train-eval --mode slurm datamodule=reaction_diffusion
 
 # run many prewritten jobs from a manifest
 bash scripts/launch_from_manifest.sh run_manifests/example_runs.txt
@@ -238,13 +239,13 @@ bash scripts/launch_from_manifest.sh run_manifests/example_runs.txt
 
 To run a single job from this repository, use `autocast` directly, for example:
 
-`uv run autocast epd --mode slurm --dataset reaction_diffusion trainer.max_epochs=10`
+`uv run autocast epd --mode slurm datamodule=reaction_diffusion trainer.max_epochs=10`
 
 This submits one training job and exits immediately.
 
 For train+eval in one SLURM job, use:
 
-`uv run autocast train-eval --mode slurm --dataset reaction_diffusion`
+`uv run autocast train-eval --mode slurm datamodule=reaction_diffusion`
 
 Outputs are written under:
 
@@ -256,7 +257,7 @@ where `run_label` defaults to the current date (or `--run-label`) and
 ### Multiple Jobs
 
 Use Hydra multi-run directly for sweeps (or the manifest launcher), e.g.
-`uv run autocast epd --mode slurm --dataset reaction_diffusion trainer.max_epochs=5,10`.
+`uv run autocast epd --mode slurm datamodule=reaction_diffusion trainer.max_epochs=5,10`.
 
 ## Contributors ✨
 

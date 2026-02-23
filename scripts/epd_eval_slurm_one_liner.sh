@@ -1,6 +1,6 @@
 #!/bin/bash
 uv run autocast train-eval --mode slurm \
-	--dataset advection_diffusion_multichannel_64_64 \
+	datamodule=advection_diffusion_multichannel_64_64 \
 	datamodule.use_normalization=false \
 	logging.wandb.enabled=false \
 	processor@model.processor=flow_matching_vit \
