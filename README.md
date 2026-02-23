@@ -26,30 +26,21 @@ For detailed documentation on the available scripts and configuration system, se
 
 ## Quickstart
 
-Train an encoder-decoder stack and evaluate the resulting checkpoint:
+The `autocast` CLI is built on top of [Hydra](https://hydra.cc/), meaning you can pass configuration overrides directly to the commands.
+
+Train an encoder-decoder stack:
 
 ```bash
-# Train
-uv run train_autoencoder
+uv run autocast ae trainer.max_epochs=5
 ```
 
-Train an encoder-processor-decoder stack and evaluate the resulting checkpoint:
+Train and evaluate an encoder-processor-decoder stack:
 
 ```bash
-# Train
-uv run train_encoder_processor_decoder \
-	hydra.run.dir=outputs/encoder_processor_decoder_run
-	
-# Evaluate
-uv run evaluate_encoder_processor_decoder \
-	hydra.run.dir=outputs/processor_eval \
-	eval.checkpoint=outputs/encoder_processor_decoder_run/encoder_processor_decoder.ckpt \
-	eval.batch_indices=[0,1] \
-	eval.video_dir=outputs/encoder_processor_decoder_run/videos
+uv run autocast train-eval datamodule=reaction_diffusion
 ```
 
-Evaluation writes a CSV of aggregate metrics to `eval.csv_path` (defaults to
-`<work-dir>/evaluation_metrics.csv`) and, when `eval.batch_indices` is provided,
+Evaluation writes a CSV of aggregate metrics to `eval.csv_path` and, when `eval.batch_indices` is provided,
 stores rollout animations for the specified test batches.
 
 ## Example pipeline
@@ -57,23 +48,13 @@ stores rollout animations for the specified test batches.
 This assumes you have the `reaction_diffusion` dataset stored at the path specified by
 the `AUTOCAST_DATASETS` environment variable.
 
-### Train autoencoder
-With the unified workflow CLI (primary API):
+### Autocast API
+
+#### Core commands and workflow options
 ```bash
 uv run autocast ae \
 	datamodule=reaction_diffusion \
 	--run-group rd
-```
-
-For advanced usage with the lower-level script:
-```bash
-uv run train_autoencoder \
-	hydra.run.dir=outputs/rd/00 \
-	datamodule.data_path=$AUTOCAST_DATASETS/reaction_diffusion \
-	datamodule.use_simulator=false \
-	optimizer.learning_rate=0.00005 \
-	trainer.max_epochs=10 \
-	logging.wandb.enabled=true
 ```
 
 Unified workflow CLI supports both local and SLURM launch modes:
@@ -130,14 +111,14 @@ export AUTOCAST_CONFIG_PATH=/absolute/path/to/configs
 Override mapping quick reference:
 - `configs/hydra/launcher/slurm.yaml` key `X` maps to CLI `hydra.launcher.X=...`
 - Use `hydra/launcher=slurm_baskerville` for Baskerville module/setup defaults
-	from `local_hydra/hydra/launcher/slurm_baskerville.yaml`.
+from `local_hydra/hydra/launcher/slurm_baskerville.yaml`.
 - In `autocast train-eval`, positional overrides are train-only.
 - Eval-only overrides go in `--eval-overrides ...`.
 - `--eval-overrides` is a separator: place train overrides before it and eval
-	overrides after it.
+overrides after it.
 
 Permissions quick reference:
-- Training/eval scripts use config key `umask` (default `0002` in `encoder_processor_decoder`).
+- Lower-level Hydra training/evaluation scripts use config key `umask` (default `0002` in `encoder_processor_decoder`).
 
 Use `--dry-run` to print resolved commands/scripts without executing.
 
@@ -170,16 +151,36 @@ uv run autocast epd --mode slurm \
 	trainer.devices=4 trainer.strategy=ddp hydra.launcher.gpus_per_node=4
 ```
 
-### Train processor
-With the unified workflow CLI (primary API):
+#### Train processor
 ```bash
 uv run autocast epd \
 	datamodule=reaction_diffusion \
 	--run-group rd
 ```
 
-For advanced usage with the lower-level script:
+#### Evaluation
+```bash
+uv run autocast eval \
+	datamodule=reaction_diffusion \
+	--workdir outputs/rd/00
+```
 
+### Direct usage of lower-level Hydra scripts
+
+The `autocast` CLI is a convenient wrapper around the lower-level Hydra scripts in `src/autocast/scripts/`. You can run those directly if you prefer, for example:
+
+#### Train autoencoder script
+```bash
+uv run train_autoencoder \
+	hydra.run.dir=outputs/rd/00 \
+	datamodule.data_path=$AUTOCAST_DATASETS/reaction_diffusion \
+	datamodule.use_simulator=false \
+	optimizer.learning_rate=0.00005 \
+	trainer.max_epochs=10 \
+	logging.wandb.enabled=true
+```
+
+#### Train processor script
 ```bash
 uv run train_encoder_processor_decoder \
 	hydra.run.dir=outputs/rd/00 \
@@ -191,15 +192,7 @@ uv run train_encoder_processor_decoder \
 	'autoencoder_checkpoint=outputs/rd/00/autoencoder.ckpt'
 ```
 
-### Evaluation
-With the unified workflow CLI (primary API):
-```bash
-uv run autocast eval \
-	datamodule=reaction_diffusion \
-	--workdir outputs/rd/00
-```
-
-For advanced usage with the lower-level script:
+#### Evaluation script
 ```bash
 uv run evaluate_encoder_processor_decoder \
 	hydra.run.dir=outputs/rd/00/eval \
@@ -212,20 +205,20 @@ uv run evaluate_encoder_processor_decoder \
 
 ## Experiment Tracking with Weights & Biases
 
-AutoCast now ships with an optional [Weights & Biases](https://wandb.ai/) integration that is
-fully driven by the Hydra config under `src/autocast/configs/logging/wandb.yaml`.
+AutoCast optionally integrates with [Weights & Biases](https://wandb.ai/) that is
+ driven by the Hydra config under `src/autocast/configs/logging/wandb.yaml`.
 
-- Enable logging for CLI workflows by passing Hydra config overrides as positional arguments:
+Enable logging by passing Hydra config overrides as positional arguments:
 
-	```bash
-	uv run train_encoder_processor_decoder \
-		logging.wandb.enabled=true \
-		logging.wandb.project=autocast-experiments \
-		logging.wandb.name=processor-baseline
-	```
+```bash
+uv run autocast epd \
+	logging.wandb.enabled=true \
+	logging.wandb.project=autocast-experiments \
+	logging.wandb.name=processor-baseline
+```
 
-- The autoencoder/processor training CLIs pass the configured `WandbLogger` directly into Lightning so that metrics, checkpoints, and artifacts are synchronized automatically.
-- The evaluation CLI reports aggregate test metrics to the same run when logging is enabled, making it easy to compare training and evaluation outputs in one dashboard.
+- The lower-level Hydra training scripts pass the configured `WandbLogger` directly into Lightning so that metrics, checkpoints, and artifacts are synchronized automatically.
+- The lower-level Hydra evaluation script reports aggregate test metrics to the same run when logging is enabled, making it easy to compare training and evaluation outputs in one dashboard.
 - All notebooks contain a dedicated cell that instantiates a `wandb_logger` via `autocast.logging.create_wandb_logger`. Toggle the `enabled` flag in that cell to control tracking when experimenting interactively.
 
 When `enabled` remains `false` (the default), the logger is skipped entirely, so the stack can
@@ -233,28 +226,16 @@ be used without a W&B account.
 
 ## Running on HPC 
 
-### Legacy SLURM Scripts
-
-Legacy scripts under `slurm_scripts/` have been retired to reduce duplication and
-maintenance overhead. Use the unified `autocast` CLI workflows instead:
-
-```bash
-# train->eval in one SLURM job
-uv run autocast train-eval --mode slurm datamodule=reaction_diffusion
-
-# run many prewritten jobs from a manifest
-bash scripts/launch_from_manifest.sh run_manifests/example_runs.txt
-```
+The `autocast` CLI directly supports SLURM submission via `--mode slurm`.
+This section is a quick reference for common HPC usage.
 
 ### Single Job 
 
-To run a single job from this repository, use `autocast` directly, for example:
+To run one training job:
 
 `uv run autocast epd --mode slurm datamodule=reaction_diffusion trainer.max_epochs=10`
 
-This submits one training job and exits immediately.
-
-For train+eval in one SLURM job, use:
+To run train+eval in one SLURM job:
 
 `uv run autocast train-eval --mode slurm datamodule=reaction_diffusion`
 
@@ -267,8 +248,11 @@ where `run_group` defaults to the current date (or `--run-group`) and
 
 ### Multiple Jobs
 
-Use Hydra multi-run directly for sweeps (or the manifest launcher), e.g.
+Use Hydra multi-run directly for sweeps, e.g.
 `uv run autocast epd --mode slurm datamodule=reaction_diffusion trainer.max_epochs=5,10`.
+
+Or launch prewritten jobs from a manifest:
+`bash scripts/launch_from_manifest.sh run_manifests/example_runs.txt`.
 
 ## Contributors ✨
 
