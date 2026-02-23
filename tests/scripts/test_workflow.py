@@ -523,7 +523,6 @@ def test_build_train_overrides_normalizes_relative_resume_path(tmp_path, monkeyp
         run_group="2026-02-22",
         run_id="ae_test",
         work_dir=str(tmp_path / "my_workdir"),
-        wandb_name=None,
         resume_from=relative_ckpt,
         overrides=[],
     )
@@ -540,7 +539,6 @@ def test_build_train_overrides_default_wandb_name_uses_run_id():
         run_group="2026-02-23",
         run_id="explicit_run",
         work_dir=None,
-        wandb_name=None,
         resume_from=None,
         overrides=[],
     )
@@ -549,7 +547,7 @@ def test_build_train_overrides_default_wandb_name_uses_run_id():
     assert "logging.wandb.name=explicit_run" in command_overrides
 
 
-def test_build_train_overrides_explicit_wandb_name_wins_default():
+def test_build_train_overrides_explicit_logging_override_wins_default():
     _work_dir, _resolved_run_id, command_overrides = build_train_overrides(
         kind="epd",
         mode="local",
@@ -558,16 +556,15 @@ def test_build_train_overrides_explicit_wandb_name_wins_default():
         run_group="2026-02-23",
         run_id="explicit_run",
         work_dir=None,
-        wandb_name="wb_custom",
         resume_from=None,
-        overrides=[],
+        overrides=["logging.wandb.name=from_override"],
     )
 
-    assert "logging.wandb.name=wb_custom" in command_overrides
+    assert "logging.wandb.name=from_override" in command_overrides
     assert "logging.wandb.name=explicit_run" not in command_overrides
 
 
-def test_build_train_overrides_explicit_logging_override_wins_wandb_flag():
+def test_build_train_overrides_explicit_logging_override_only_once():
     _work_dir, _resolved_run_id, command_overrides = build_train_overrides(
         kind="epd",
         mode="local",
@@ -576,7 +573,6 @@ def test_build_train_overrides_explicit_logging_override_wins_wandb_flag():
         run_group="2026-02-23",
         run_id="explicit_run",
         work_dir=None,
-        wandb_name="wb_custom",
         resume_from=None,
         overrides=["logging.wandb.name=from_override"],
     )
@@ -584,10 +580,7 @@ def test_build_train_overrides_explicit_logging_override_wins_wandb_flag():
     wandb_entries = [
         o for o in command_overrides if o.startswith("logging.wandb.name=")
     ]
-    assert wandb_entries == [
-        "logging.wandb.name=wb_custom",
-        "logging.wandb.name=from_override",
-    ]
+    assert wandb_entries == ["logging.wandb.name=from_override"]
 
 
 def test_run_module_command_places_config_flags_before_overrides():

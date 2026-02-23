@@ -160,9 +160,7 @@ Backward-compatible aliases remain available: `--run-label` and `--run-name`.
 W&B naming behavior:
 - `--run-group` only changes the parent output folder (`outputs/<run_group>/...`).
 - `--run-id` sets the run folder name and, by default, `logging.wandb.name`.
-- `--wandb-name` sets `logging.wandb.name` explicitly.
-- If `logging.wandb.name=...` is passed as a Hydra override, that explicit
-	override takes precedence.
+- Set `logging.wandb.name=...` via Hydra overrides to explicitly name the W&B run.
 
 Multi-GPU is supported by passing trainer/Hydra overrides, e.g.:
 ```bash

@@ -244,7 +244,6 @@ def build_train_overrides(
     dataset: str | None,
     output_base: str,
     work_dir: str | None,
-    wandb_name: str | None,
     resume_from: str | None,
     overrides: list[str],
     run_group: str | None = None,
@@ -280,9 +279,7 @@ def build_train_overrides(
         resolved_resume_from = Path(resume_from).expanduser().resolve()
         command_overrides.append(f"+resume_from_checkpoint={resolved_resume_from}")
 
-    if wandb_name is not None:
-        command_overrides.append(f"logging.wandb.name={wandb_name}")
-    elif not contains_override(overrides, "logging.wandb.name="):
+    if not contains_override(overrides, "logging.wandb.name="):
         command_overrides.append(f"logging.wandb.name={resolved_run_id}")
 
     command_overrides.extend(overrides)
@@ -350,7 +347,6 @@ def train_command(
     dataset: str | None,
     output_base: str,
     work_dir: str | None,
-    wandb_name: str | None,
     resume_from: str | None,
     overrides: list[str],
     run_group: str | None = None,
@@ -366,7 +362,6 @@ def train_command(
         run_group=run_group,
         run_id=run_id,
         work_dir=work_dir,
-        wandb_name=wandb_name,
         resume_from=resume_from,
         overrides=overrides,
     )
@@ -427,7 +422,6 @@ def train_eval_single_job_command(
     dataset: str | None,
     output_base: str,
     work_dir: str | None,
-    wandb_name: str | None,
     resume_from: str | None,
     checkpoint: str | None,
     eval_subdir: str,
@@ -448,7 +442,6 @@ def train_eval_single_job_command(
         run_group=run_group,
         run_id=run_id,
         work_dir=work_dir,
-        wandb_name=wandb_name,
         resume_from=resume_from,
         overrides=train_overrides,
     )

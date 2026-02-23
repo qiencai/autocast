@@ -234,9 +234,8 @@ Backward-compatible aliases remain available: `--run-label` and `--run-name`.
 W&B naming behavior:
 - `--run-group` does not set W&B naming.
 - `--run-id` sets the run folder name and default `logging.wandb.name`.
-- `--wandb-name` sets `logging.wandb.name` explicitly.
-- If `logging.wandb.name=...` is passed directly as a Hydra override, that
-    explicit override wins.
+- Set `logging.wandb.name=...` directly as a Hydra override to explicitly name
+    the W&B run.
 
 Private/local experiment presets can be placed under repo-level
 `local_hydra/local_experiment/` and enabled with `local_experiment=<name>`.

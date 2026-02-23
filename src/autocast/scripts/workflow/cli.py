@@ -53,16 +53,12 @@ def _add_train_args(parser: argparse.ArgumentParser) -> None:
         "--run-id",
         "--run-name",
         dest="run_id",
-        help="Run folder identifier; also default W&B name when --wandb-name is not set.",
-    )
-    parser.add_argument("--workdir")
-    parser.add_argument(
-        "--wandb-name",
         help=(
-            "Explicit W&B run name. If omitted, defaults to resolved run name "
-            "(run-id, auto-generated name, or workdir basename)."
+            "Run folder identifier; also default W&B name when not "
+            "set explicitly via Hydra overrides."
         ),
     )
+    parser.add_argument("--workdir")
     parser.add_argument("--resume-from")
 
 
@@ -198,7 +194,6 @@ def main() -> None:
             run_group=args.run_group,
             run_id=args.run_id,
             work_dir=args.workdir,
-            wandb_name=args.wandb_name,
             resume_from=resume_from,
             overrides=combined_overrides,
             dry_run=args.dry_run,
@@ -242,7 +237,6 @@ def main() -> None:
             run_group=args.run_group,
             run_id=args.run_id,
             work_dir=args.workdir,
-            wandb_name=args.wandb_name,
             resume_from=resume_from,
             checkpoint=args.checkpoint,
             eval_subdir=args.eval_subdir,
