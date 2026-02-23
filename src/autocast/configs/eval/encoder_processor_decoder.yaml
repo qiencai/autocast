@@ -4,6 +4,9 @@
 defaults:
   - default
 
+# Default to the standard EPD training checkpoint filename.
+checkpoint: encoder_processor_decoder.ckpt
+
 # Override with EPD-specific metrics and settings
 metrics:
   - mse

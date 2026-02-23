@@ -168,25 +168,6 @@ def infer_resume_checkpoint(kind: str, work_dir: str | Path) -> Path | None:
     return None
 
 
-def resolve_eval_checkpoint(work_dir: Path, checkpoint: str | None) -> Path:
-    """Resolve the evaluation checkpoint path.
-
-    Searches for common checkpoint filenames when *checkpoint* is ``None``.
-    """
-    if checkpoint is not None:
-        return Path(checkpoint).expanduser().resolve()
-    candidates = [
-        work_dir / "encoder_processor_decoder.ckpt",
-        work_dir / "run" / "encoder_processor_decoder.ckpt",
-        work_dir / "autoencoder.ckpt",
-        work_dir / "model.ckpt",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return candidates[0]
-
-
 def run_module(
     module: str,
     overrides: list[str],
@@ -291,21 +272,12 @@ def build_eval_overrides(
     mode: str,
     dataset: str | None,
     work_dir: str,
-    checkpoint: str | None,
-    eval_subdir: str,
-    video_dir: str | None,
-    batch_indices: str,
     overrides: list[str],
     using_resolved_config: bool = False,
 ) -> tuple[Path, list[str]]:
     """Build evaluation overrides from CLI arguments."""
     base_work_dir = Path(work_dir).expanduser().resolve()
-    eval_dir = (base_work_dir / eval_subdir).resolve()
-
-    ckpt = resolve_eval_checkpoint(work_dir=base_work_dir, checkpoint=checkpoint)
-    resolved_video_dir = (
-        Path(video_dir).expanduser().resolve() if video_dir else (eval_dir / "videos")
-    )
+    eval_dir = (base_work_dir / "eval").resolve()
 
     command_overrides = [
         *build_common_launch_overrides(mode=mode, work_dir=eval_dir),
@@ -324,14 +296,7 @@ def build_eval_overrides(
     elif dataset is not None:
         command_overrides.append(f"datamodule.data_path={datasets_root() / dataset}")
 
-    command_overrides.extend(
-        [
-            f"eval.checkpoint={ckpt}",
-            f"eval.batch_indices={batch_indices}",
-            f"eval.video_dir={resolved_video_dir}",
-            *overrides,
-        ]
-    )
+    command_overrides.extend(overrides)
     return eval_dir, command_overrides
 
 
@@ -375,10 +340,6 @@ def eval_command(
     mode: str,
     dataset: str | None,
     work_dir: str,
-    checkpoint: str | None,
-    eval_subdir: str,
-    video_dir: str | None,
-    batch_indices: str,
     overrides: list[str],
     dry_run: bool = False,
 ) -> None:
@@ -405,10 +366,6 @@ def eval_command(
         mode=mode,
         dataset=dataset,
         work_dir=work_dir,
-        checkpoint=checkpoint,
-        eval_subdir=eval_subdir,
-        video_dir=video_dir,
-        batch_indices=batch_indices,
         overrides=effective_overrides,
         using_resolved_config=using_resolved_config,
     )
@@ -423,10 +380,6 @@ def train_eval_single_job_command(
     output_base: str,
     work_dir: str | None,
     resume_from: str | None,
-    checkpoint: str | None,
-    eval_subdir: str,
-    video_dir: str | None,
-    batch_indices: str,
     train_overrides: list[str],
     eval_overrides: list[str],
     run_group: str | None = None,
@@ -446,12 +399,6 @@ def train_eval_single_job_command(
         overrides=train_overrides,
     )
 
-    command_overrides.append(f"train_eval.eval_subdir={eval_subdir}")
-    command_overrides.append(f"train_eval.batch_indices={batch_indices}")
-    if checkpoint is not None:
-        command_overrides.append(f"train_eval.checkpoint={checkpoint}")
-    if video_dir is not None:
-        command_overrides.append(f"train_eval.video_dir={video_dir}")
     if eval_overrides:
         command_overrides.append(
             f"train_eval.eval_overrides={hydra_string_list_literal(eval_overrides)}"

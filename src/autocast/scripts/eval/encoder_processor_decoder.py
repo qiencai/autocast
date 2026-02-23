@@ -652,6 +652,17 @@ def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # no
         )
         raise ValueError(msg)
     checkpoint_path = Path(checkpoint_path)
+    if not checkpoint_path.is_absolute():
+        # i.e. training workdir/eval/checkpoint
+        workdir_candidate = (work_dir / checkpoint_path).resolve()
+        # i.e. training workdir/checkpoint
+        parent_candidate = (work_dir.parent / checkpoint_path).resolve()
+        if workdir_candidate.exists():
+            checkpoint_path = workdir_candidate
+        elif parent_candidate.exists():
+            checkpoint_path = parent_candidate
+        else:
+            checkpoint_path = workdir_candidate
 
     if cfg.get("output", {}).get("save_config"):
         save_resolved_config(cfg, work_dir, filename="resolved_eval_config.yaml")

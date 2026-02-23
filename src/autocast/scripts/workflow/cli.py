@@ -62,14 +62,6 @@ def _add_train_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--resume-from")
 
 
-def _add_eval_args(parser: argparse.ArgumentParser) -> None:
-    """Arguments shared by eval subcommands (eval, train-eval)."""
-    parser.add_argument("--checkpoint")
-    parser.add_argument("--eval-subdir", default="eval")
-    parser.add_argument("--video-dir")
-    parser.add_argument("--batch-indices", default="[0,1,2,3]")
-
-
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------
@@ -92,13 +84,11 @@ def build_parser() -> argparse.ArgumentParser:
     # -- eval --------------------------------------------------------------
     eval_parser = subparsers.add_parser("eval")
     eval_parser.add_argument("--workdir", required=True)
-    _add_eval_args(eval_parser)
     _add_common_args(eval_parser)
 
     # -- train-eval --------------------------------------------------------
     te_parser = subparsers.add_parser("train-eval")
     _add_train_args(te_parser)
-    _add_eval_args(te_parser)
     te_parser.add_argument(
         "--eval-overrides",
         nargs="+",
@@ -210,10 +200,6 @@ def main() -> None:
             mode=args.mode,
             dataset=dataset,
             work_dir=args.workdir,
-            checkpoint=args.checkpoint,
-            eval_subdir=args.eval_subdir,
-            video_dir=args.video_dir,
-            batch_indices=args.batch_indices,
             overrides=combined_overrides,
             dry_run=args.dry_run,
         )
@@ -238,10 +224,6 @@ def main() -> None:
             run_id=args.run_id,
             work_dir=args.workdir,
             resume_from=resume_from,
-            checkpoint=args.checkpoint,
-            eval_subdir=args.eval_subdir,
-            video_dir=args.video_dir,
-            batch_indices=args.batch_indices,
             train_overrides=combined_overrides,
             eval_overrides=[*args.eval_overrides],
             dry_run=args.dry_run,

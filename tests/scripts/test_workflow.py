@@ -17,7 +17,6 @@ from autocast.scripts.workflow.commands import (
     infer_dataset_from_workdir,
     infer_hydra_config_from_workdir,
     infer_resume_checkpoint,
-    resolve_eval_checkpoint,
 )
 from autocast.scripts.workflow.helpers import run_module_command
 from autocast.scripts.workflow.naming import (
@@ -274,39 +273,6 @@ def test_auto_run_name_hidden_dim_included():
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_eval_checkpoint_explicit(tmp_path):
-    ckpt = tmp_path / "my.ckpt"
-    ckpt.touch()
-    result = resolve_eval_checkpoint(tmp_path, str(ckpt))
-    assert result == ckpt.resolve()
-
-
-def test_resolve_eval_checkpoint_auto_epd(tmp_path):
-    ckpt = tmp_path / "encoder_processor_decoder.ckpt"
-    ckpt.touch()
-    result = resolve_eval_checkpoint(tmp_path, None)
-    assert result == ckpt
-
-
-def test_resolve_eval_checkpoint_auto_ae(tmp_path):
-    ckpt = tmp_path / "autoencoder.ckpt"
-    ckpt.touch()
-    result = resolve_eval_checkpoint(tmp_path, None)
-    assert result == ckpt
-
-
-def test_resolve_eval_checkpoint_auto_model(tmp_path):
-    ckpt = tmp_path / "model.ckpt"
-    ckpt.touch()
-    result = resolve_eval_checkpoint(tmp_path, None)
-    assert result == ckpt
-
-
-def test_resolve_eval_checkpoint_fallback_when_nothing_exists(tmp_path):
-    result = resolve_eval_checkpoint(tmp_path, None)
-    assert result == tmp_path / "encoder_processor_decoder.ckpt"
-
-
 def test_build_effective_eval_overrides_filters_train_only():
     train = ["trainer.max_epochs=5", "model.x=1", "optimizer.lr=1e-3"]
     result = build_effective_eval_overrides(train, [])
@@ -392,10 +358,6 @@ def test_eval_command_auto_infers_hydra_config(monkeypatch, tmp_path):
         mode="local",
         dataset="reaction_diffusion",
         work_dir=str(tmp_path),
-        checkpoint=None,
-        eval_subdir="eval",
-        video_dir=None,
-        batch_indices="[0]",
         overrides=["datamodule.batch_size=8"],
         dry_run=True,
     )
@@ -429,10 +391,6 @@ def test_eval_command_includes_defaults_without_resolved_config(monkeypatch, tmp
         mode="local",
         dataset="reaction_diffusion",
         work_dir=str(tmp_path),
-        checkpoint=None,
-        eval_subdir="eval",
-        video_dir=None,
-        batch_indices="[0]",
         overrides=[],
         dry_run=True,
     )
@@ -459,10 +417,6 @@ def test_eval_command_keeps_explicit_hydra_config(monkeypatch, tmp_path):
         mode="local",
         dataset="reaction_diffusion",
         work_dir=str(tmp_path),
-        checkpoint=None,
-        eval_subdir="eval",
-        video_dir=None,
-        batch_indices="[0]",
         overrides=["--config-name", "custom", "--config-path", "custom/path"],
         dry_run=True,
     )
@@ -490,10 +444,6 @@ def test_eval_command_explicit_resolved_config_skips_defaults(monkeypatch, tmp_p
         mode="local",
         dataset="reaction_diffusion",
         work_dir=str(tmp_path),
-        checkpoint=None,
-        eval_subdir="eval",
-        video_dir=None,
-        batch_indices="[0]",
         overrides=[
             "--config-name",
             "resolved_config",
