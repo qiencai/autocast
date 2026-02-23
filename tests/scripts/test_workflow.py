@@ -558,24 +558,23 @@ def test_run_module_command_places_config_flags_before_overrides():
 
 
 def test_build_parser_ae_basic(parser: argparse.ArgumentParser):
-    args = parser.parse_args(["ae", "--dataset", "mydata"])
+    args = parser.parse_args(["ae"])
     assert args.command == "ae"
-    assert args.dataset == "mydata"
     assert args.mode == "local"
 
 
 def test_build_parser_epd_slurm(parser: argparse.ArgumentParser):
-    args = parser.parse_args(["epd", "--dataset", "d", "--mode", "slurm"])
+    args = parser.parse_args(["epd", "--mode", "slurm"])
     assert args.mode == "slurm"
 
 
 def test_build_parser_processor_subcommand(parser: argparse.ArgumentParser):
-    args = parser.parse_args(["processor", "--dataset", "d"])
+    args = parser.parse_args(["processor"])
     assert args.command == "processor"
 
 
 def test_build_parser_eval_basic(parser: argparse.ArgumentParser):
-    args = parser.parse_args(["eval", "--dataset", "d", "--workdir", "/tmp/w"])
+    args = parser.parse_args(["eval", "--workdir", "/tmp/w"])
     assert args.command == "eval"
     assert args.workdir == "/tmp/w"
 
@@ -586,8 +585,6 @@ def test_build_parser_train_eval_with_eval_overrides(
     args = parser.parse_args(
         [
             "train-eval",
-            "--dataset",
-            "d",
             "trainer.z=3",
             "--eval-overrides",
             "eval.x=1",
@@ -602,8 +599,6 @@ def test_build_parser_override_flag(parser: argparse.ArgumentParser):
     args = parser.parse_args(
         [
             "ae",
-            "--dataset",
-            "d",
             "--override",
             "k1=v1",
             "--override",
@@ -619,8 +614,6 @@ def test_build_parser_override_and_positional_combined(
     args = parser.parse_args(
         [
             "ae",
-            "--dataset",
-            "d",
             "--override",
             "k1=v1",
             "k2=v2",
@@ -634,8 +627,6 @@ def test_build_parser_config_name_passthrough(parser: argparse.ArgumentParser):
     args = parser.parse_args(
         [
             "ae",
-            "--dataset",
-            "d",
             "--config-name",
             "custom_autoencoder",
         ]
@@ -647,8 +638,6 @@ def test_build_parser_config_path_passthrough(parser: argparse.ArgumentParser):
     args = parser.parse_args(
         [
             "ae",
-            "--dataset",
-            "d",
             "--config-path",
             "src/autocast/configs/variants",
         ]
@@ -662,8 +651,6 @@ def test_build_parser_train_eval_has_override(
     args = parser.parse_args(
         [
             "train-eval",
-            "--dataset",
-            "d",
             "--override",
             "my_key=my_val",
         ]
@@ -672,12 +659,12 @@ def test_build_parser_train_eval_has_override(
 
 
 def test_build_parser_dry_run(parser: argparse.ArgumentParser):
-    args = parser.parse_args(["ae", "--dataset", "d", "--dry-run"])
+    args = parser.parse_args(["ae", "--dry-run"])
     assert args.dry_run is True
 
 
 def test_build_parser_resume_from(parser: argparse.ArgumentParser):
-    args = parser.parse_args(["epd", "--dataset", "d", "--resume-from", "/ckpt"])
+    args = parser.parse_args(["epd", "--resume-from", "/ckpt"])
     assert args.resume_from == "/ckpt"
 
 
@@ -697,10 +684,10 @@ def test_main_train_eval_dispatches_combined_overrides(monkeypatch):
         [
             "autocast",
             "train-eval",
-            "--dataset",
-            "demo_dataset",
+            "datamodule=demo_dataset",
             "--mode",
             "slurm",
+            "--override",
             "trainer.max_epochs=1",
             "--override",
             "optimizer.learning_rate=0.001",
@@ -716,10 +703,9 @@ def test_main_train_eval_dispatches_combined_overrides(monkeypatch):
     assert captured["dataset"] == "demo_dataset"
     assert captured["mode"] == "slurm"
     assert captured["dry_run"] is True
-    assert captured["train_overrides"] == [
-        "optimizer.learning_rate=0.001",
-        "trainer.max_epochs=1",
-    ]
+    assert "optimizer.learning_rate=0.001" in captured["train_overrides"]
+    assert "trainer.max_epochs=1" in captured["train_overrides"]
+    assert "datamodule=demo_dataset" in captured["train_overrides"]
     assert captured["eval_overrides"] == [
         "eval.batch_indices=[0,1]",
         "eval.n_members=10",
@@ -743,12 +729,12 @@ def test_main_ae_dispatches_hydra_config_passthrough(monkeypatch):
         [
             "autocast",
             "ae",
-            "--dataset",
-            "demo_dataset",
+            "datamodule=demo_dataset",
             "--config-name",
             "my_ae_top_level",
             "--config-path",
             "src/autocast/configs",
+            "--override",
             "trainer.max_epochs=1",
         ],
     )
@@ -761,6 +747,7 @@ def test_main_ae_dispatches_hydra_config_passthrough(monkeypatch):
         "--config-path",
         "src/autocast/configs",
         "trainer.max_epochs=1",
+        "datamodule=demo_dataset",
     ]
 
 
@@ -789,6 +776,51 @@ def test_main_eval_dispatches_inferred_dataset_from_workdir(monkeypatch, tmp_pat
 
     assert captured["dataset"] == "reaction_diffusion"
     assert captured["work_dir"] == str(tmp_path)
+
+
+def test_resolve_dataset_from_datamodule_override():
+    dataset = workflow_cli._resolve_dataset(
+        work_dir=None,
+        overrides=["datamodule=reaction_diffusion"],
+    )
+
+    assert dataset == "reaction_diffusion"
+
+
+def test_resolve_dataset_from_datamodule_data_path_override():
+    dataset = workflow_cli._resolve_dataset(
+        work_dir=None,
+        overrides=["datamodule.data_path=/tmp/datasets/advection_diffusion"],
+    )
+
+    assert dataset == "advection_diffusion"
+
+
+def test_main_train_dispatches_dataset_from_datamodule_override(monkeypatch):
+    captured = {}
+
+    def _fake_train_command(**kwargs):
+        captured.update(kwargs)
+        return None, "dummy"
+
+    monkeypatch.setattr(
+        "autocast.scripts.workflow.cli.train_command",
+        _fake_train_command,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "autocast",
+            "ae",
+            "datamodule=reaction_diffusion",
+            "--dry-run",
+        ],
+    )
+
+    workflow_cli.main()
+
+    assert captured["dataset"] == "reaction_diffusion"
 
 
 def test_main_train_dispatches_inferred_dataset_and_resume(monkeypatch, tmp_path):

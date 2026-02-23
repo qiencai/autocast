@@ -241,7 +241,7 @@ def build_train_overrides(
     *,
     kind: str,
     mode: str,
-    dataset: str,
+    dataset: str | None,
     output_base: str,
     run_label: str | None,
     run_name: str | None,
@@ -253,8 +253,9 @@ def build_train_overrides(
     """Resolve workdir/name and build final overrides for a training command."""
     effective_run_name = run_name
     if effective_run_name is None and work_dir is None:
+        dataset_for_name = dataset or "default"
         effective_run_name = auto_run_name(
-            kind=kind, dataset=dataset, overrides=overrides
+            kind=kind, dataset=dataset_for_name, overrides=overrides
         )
 
     final_work_dir, resolved_run_name = resolve_work_dir(
@@ -267,8 +268,11 @@ def build_train_overrides(
 
     command_overrides = [
         *build_common_launch_overrides(mode=mode, work_dir=final_work_dir),
-        *dataset_overrides(dataset=dataset, datasets_root=datasets_root()),
     ]
+    if dataset is not None:
+        command_overrides.extend(
+            dataset_overrides(dataset=dataset, datasets_root=datasets_root())
+        )
 
     if resume_from is not None and not contains_override(
         overrides, "resume_from_checkpoint="
@@ -288,7 +292,7 @@ def build_train_overrides(
 def build_eval_overrides(
     *,
     mode: str,
-    dataset: str,
+    dataset: str | None,
     work_dir: str,
     checkpoint: str | None,
     eval_subdir: str,
@@ -316,10 +320,11 @@ def build_eval_overrides(
     # skip group selectors and only emit dot-path value overrides.
     if not using_resolved_config:
         command_overrides.append("eval=encoder_processor_decoder")
-        command_overrides.extend(
-            dataset_overrides(dataset=dataset, datasets_root=datasets_root())
-        )
-    else:
+        if dataset is not None:
+            command_overrides.extend(
+                dataset_overrides(dataset=dataset, datasets_root=datasets_root())
+            )
+    elif dataset is not None:
         command_overrides.append(f"datamodule.data_path={datasets_root() / dataset}")
 
     command_overrides.extend(
@@ -342,7 +347,7 @@ def train_command(
     *,
     kind: str,
     mode: str,
-    dataset: str,
+    dataset: str | None,
     output_base: str,
     run_label: str | None,
     run_name: str | None,
@@ -373,7 +378,7 @@ def train_command(
 def eval_command(
     *,
     mode: str,
-    dataset: str,
+    dataset: str | None,
     work_dir: str,
     checkpoint: str | None,
     eval_subdir: str,
@@ -419,7 +424,7 @@ def eval_command(
 def train_eval_single_job_command(
     *,
     mode: str,
-    dataset: str,
+    dataset: str | None,
     output_base: str,
     run_label: str | None,
     run_name: str | None,

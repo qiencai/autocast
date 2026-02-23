@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from autocast.scripts.workflow.commands import (
     eval_command,
@@ -11,6 +12,7 @@ from autocast.scripts.workflow.commands import (
     train_command,
     train_eval_single_job_command,
 )
+from autocast.scripts.workflow.overrides import extract_override_value
 
 # ---------------------------------------------------------------------------
 # Shared argument groups
@@ -44,10 +46,6 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
 def _add_train_args(parser: argparse.ArgumentParser) -> None:
     """Arguments shared by training subcommands (ae, epd, processor, train-eval)."""
-    parser.add_argument(
-        "--dataset",
-        help="Dataset config name (required unless --workdir has resolved config).",
-    )
     parser.add_argument("--output-base", default="outputs")
     parser.add_argument(
         "--run-label",
@@ -89,10 +87,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     # -- eval --------------------------------------------------------------
     eval_parser = subparsers.add_parser("eval")
-    eval_parser.add_argument(
-        "--dataset",
-        help="Dataset config name (required unless --workdir has resolved config).",
-    )
     eval_parser.add_argument("--workdir", required=True)
     _add_eval_args(eval_parser)
     _add_common_args(eval_parser)
@@ -120,22 +114,27 @@ def build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_dataset_or_raise(
+def _resolve_dataset(
     *,
-    dataset: str | None,
     work_dir: str | None,
-    command_name: str,
-) -> str:
+    overrides: list[str],
+    dataset: str | None = None,
+) -> str | None:
     resolved_dataset = dataset
-    if resolved_dataset is None and work_dir is not None:
-        resolved_dataset = infer_dataset_from_workdir(work_dir)
 
     if resolved_dataset is None:
-        msg = (
-            f"Dataset is required for {command_name} unless --workdir contains "
-            "a resolved config from which dataset can be inferred."
-        )
-        raise ValueError(msg)
+        resolved_dataset = extract_override_value(overrides, "datamodule")
+
+    if resolved_dataset is None:
+        data_path = extract_override_value(overrides, "datamodule.data_path")
+        if data_path:
+            resolved_dataset = Path(data_path).name
+
+    if resolved_dataset is None:
+        resolved_dataset = extract_override_value(overrides, "dataset")
+
+    if resolved_dataset is None and work_dir is not None:
+        resolved_dataset = infer_dataset_from_workdir(work_dir)
 
     return resolved_dataset
 
@@ -167,10 +166,9 @@ def main() -> None:
     combined_overrides.extend([*args.override, *args.overrides])
 
     if args.command in {"ae", "epd", "processor"}:
-        dataset = _resolve_dataset_or_raise(
-            dataset=args.dataset,
+        dataset = _resolve_dataset(
             work_dir=args.workdir,
-            command_name="training",
+            overrides=combined_overrides,
         )
         resume_from = _resolve_resume_from(
             kind=args.command,
@@ -194,10 +192,9 @@ def main() -> None:
         return
 
     if args.command == "eval":
-        dataset = _resolve_dataset_or_raise(
-            dataset=args.dataset,
+        dataset = _resolve_dataset(
             work_dir=args.workdir,
-            command_name="eval",
+            overrides=combined_overrides,
         )
 
         eval_command(
@@ -214,10 +211,9 @@ def main() -> None:
         return
 
     if args.command == "train-eval":
-        dataset = _resolve_dataset_or_raise(
-            dataset=args.dataset,
+        dataset = _resolve_dataset(
             work_dir=args.workdir,
-            command_name="train-eval",
+            overrides=combined_overrides,
         )
         resume_from = _resolve_resume_from(
             kind="epd",
