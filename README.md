@@ -93,7 +93,7 @@ uv run autocast epd \
 ```
 
 When `--mode slurm`, `autocast` writes an sbatch script, submits it, and exits
-immediately. Outputs are written under `outputs/<run_label>/<run_id>`.
+immediately. Outputs are written under `outputs/<run_group>/<run_id>`.
 
 Resume training from a checkpoint:
 ```bash
@@ -257,7 +257,7 @@ For train+eval in one SLURM job, use:
 
 Outputs are written under:
 
-`outputs/<run_label>/<run_id>`
+`outputs/<run_group>/<run_id>`
 
 where `run_group` defaults to the current date (or `--run-group`) and
 `run_id` defaults to the auto-generated run name (or `--run-id`).
