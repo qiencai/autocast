@@ -224,22 +224,9 @@ be used without a W&B account.
 The `autocast` CLI directly supports SLURM submission via `--mode slurm`.
 This section is a quick reference for common HPC usage.
 
-### Single Job 
-
-To run one training job:
-
-`uv run autocast epd --mode slurm datamodule=reaction_diffusion trainer.max_epochs=10`
-
-To run train+eval in one SLURM job:
-
-`uv run autocast train-eval --mode slurm datamodule=reaction_diffusion`
-
-Outputs are written under:
-
-`outputs/<run_group>/<run_id>`
-
-where `run_group` defaults to the current date (or `--run-group`) and
-`run_id` defaults to the auto-generated run name (or `--run-id`).
+For single-job SLURM usage (`autocast epd --mode slurm` or
+`autocast train-eval --mode slurm`), see the examples above in
+`Example pipeline`.
 
 ### Multiple Jobs
 
