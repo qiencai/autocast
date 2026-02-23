@@ -751,6 +751,53 @@ def test_main_ae_dispatches_hydra_config_passthrough(monkeypatch):
     ]
 
 
+def test_main_ae_allows_bare_overrides_before_options(monkeypatch):
+    captured = {}
+
+    def _fake_train_command(**kwargs):
+        captured.update(kwargs)
+        return None, "dummy"
+
+    monkeypatch.setattr(
+        "autocast.scripts.workflow.cli.train_command",
+        _fake_train_command,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "autocast",
+            "ae",
+            "datamodule=demo_dataset",
+            "--mode",
+            "slurm",
+            "trainer.max_epochs=1",
+            "--dry-run",
+        ],
+    )
+
+    workflow_cli.main()
+
+    assert captured["mode"] == "slurm"
+    assert captured["dataset"] == "demo_dataset"
+    assert "trainer.max_epochs=1" in captured["overrides"]
+
+
+def test_main_unknown_dashed_flag_still_errors(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "autocast",
+            "ae",
+            "--not-a-real-flag",
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        workflow_cli.main()
+
+
 def test_main_eval_dispatches_inferred_dataset_from_workdir(monkeypatch, tmp_path):
     (tmp_path / "resolved_config.yaml").write_text(
         "datamodule:\n  data_path: /tmp/datasets/reaction_diffusion\n",

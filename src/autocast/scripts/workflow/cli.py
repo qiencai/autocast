@@ -155,7 +155,11 @@ def _resolve_resume_from(
 def main() -> None:
     """Parse command-line args and execute the selected workflow command."""
     parser = build_parser()
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+
+    unknown_flags = [token for token in unknown if token.startswith("-")]
+    if unknown_flags:
+        parser.error(f"unrecognized arguments: {' '.join(unknown_flags)}")
 
     # Merge passthrough Hydra globals and both override mechanisms consistently.
     combined_overrides = []
@@ -163,7 +167,7 @@ def main() -> None:
         combined_overrides.extend(["--config-name", args.config_name])
     if args.config_path is not None:
         combined_overrides.extend(["--config-path", args.config_path])
-    combined_overrides.extend([*args.override, *args.overrides])
+    combined_overrides.extend([*args.override, *args.overrides, *unknown])
 
     if args.command in {"ae", "epd", "processor"}:
         dataset = _resolve_dataset(
