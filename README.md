@@ -122,11 +122,6 @@ Permissions quick reference:
 
 Use `--dry-run` to print resolved commands/scripts without executing.
 
-Equivalent CLI commands for removed `slurm_scripts/*.sh` examples:
-```bash
-bash scripts/cli_equivalents.sh
-```
-
 Launch many prewritten runs from a manifest file:
 ```bash
 bash scripts/launch_from_manifest.sh run_manifests/example_runs.txt
