@@ -95,9 +95,12 @@ uv run autocast train-eval \
 For `train-eval`, evaluation starts only after training has completed successfully
 (including in `--mode slurm`).
 
-Execution modes for `train-eval`:
-- one SLURM job runs train then eval.
+To run  `eval` on a previously trained model, set `--workdir` to the run folder containing the configuration and checkpoint to evaluate:
+```bash
+uv run autocast eval --workdir outputs/rd/00
+```
 
+#### Configuration and overrides
 Keep private experiment presets in `local_hydra/local_experiment/` and select
 them with `local_experiment=<name>`. YAML files in that folder are ignored by
 git by default.
