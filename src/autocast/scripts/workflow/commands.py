@@ -243,25 +243,25 @@ def build_train_overrides(
     mode: str,
     dataset: str | None,
     output_base: str,
-    run_label: str | None,
-    run_name: str | None,
     work_dir: str | None,
     wandb_name: str | None,
     resume_from: str | None,
     overrides: list[str],
+    run_group: str | None = None,
+    run_id: str | None = None,
 ) -> tuple[Path, str, list[str]]:
     """Resolve workdir/name and build final overrides for a training command."""
-    effective_run_name = run_name
-    if effective_run_name is None and work_dir is None:
+    effective_run_id = run_id
+    if effective_run_id is None and work_dir is None:
         dataset_for_name = dataset or "default"
-        effective_run_name = auto_run_name(
+        effective_run_id = auto_run_name(
             kind=kind, dataset=dataset_for_name, overrides=overrides
         )
 
-    final_work_dir, resolved_run_name = resolve_work_dir(
+    final_work_dir, resolved_run_id = resolve_work_dir(
         output_base=output_base,
-        run_label=run_label,
-        run_name=effective_run_name,
+        run_group=run_group,
+        run_id=effective_run_id,
         work_dir=work_dir,
         prefix=kind,
     )
@@ -283,10 +283,10 @@ def build_train_overrides(
     if wandb_name is not None:
         command_overrides.append(f"logging.wandb.name={wandb_name}")
     elif not contains_override(overrides, "logging.wandb.name="):
-        command_overrides.append(f"logging.wandb.name={resolved_run_name}")
+        command_overrides.append(f"logging.wandb.name={resolved_run_id}")
 
     command_overrides.extend(overrides)
-    return final_work_dir, resolved_run_name, command_overrides
+    return final_work_dir, resolved_run_id, command_overrides
 
 
 def build_eval_overrides(
@@ -349,22 +349,22 @@ def train_command(
     mode: str,
     dataset: str | None,
     output_base: str,
-    run_label: str | None,
-    run_name: str | None,
     work_dir: str | None,
     wandb_name: str | None,
     resume_from: str | None,
     overrides: list[str],
+    run_group: str | None = None,
+    run_id: str | None = None,
     dry_run: bool = False,
 ) -> tuple[Path, str]:
     """Run a training command."""
-    final_work_dir, resolved_run_name, command_overrides = build_train_overrides(
+    final_work_dir, resolved_run_id, command_overrides = build_train_overrides(
         kind=kind,
         mode=mode,
         dataset=dataset,
         output_base=output_base,
-        run_label=run_label,
-        run_name=run_name,
+        run_group=run_group,
+        run_id=run_id,
         work_dir=work_dir,
         wandb_name=wandb_name,
         resume_from=resume_from,
@@ -372,7 +372,7 @@ def train_command(
     )
 
     run_module(TRAIN_MODULES[kind], command_overrides, dry_run=dry_run, mode=mode)
-    return final_work_dir, resolved_run_name
+    return final_work_dir, resolved_run_id
 
 
 def eval_command(
@@ -426,8 +426,6 @@ def train_eval_single_job_command(
     mode: str,
     dataset: str | None,
     output_base: str,
-    run_label: str | None,
-    run_name: str | None,
     work_dir: str | None,
     wandb_name: str | None,
     resume_from: str | None,
@@ -437,16 +435,18 @@ def train_eval_single_job_command(
     batch_indices: str,
     train_overrides: list[str],
     eval_overrides: list[str],
+    run_group: str | None = None,
+    run_id: str | None = None,
     dry_run: bool = False,
 ) -> tuple[Path, str]:
     """Run train→eval in a single Hydra job."""
-    final_work_dir, resolved_run_name, command_overrides = build_train_overrides(
+    final_work_dir, resolved_run_id, command_overrides = build_train_overrides(
         kind="epd",
         mode=mode,
         dataset=dataset,
         output_base=output_base,
-        run_label=run_label,
-        run_name=run_name,
+        run_group=run_group,
+        run_id=run_id,
         work_dir=work_dir,
         wandb_name=wandb_name,
         resume_from=resume_from,
@@ -465,4 +465,4 @@ def train_eval_single_job_command(
         )
 
     run_module(TRAIN_EVAL_MODULE, command_overrides, dry_run=dry_run, mode=mode)
-    return final_work_dir, resolved_run_name
+    return final_work_dir, resolved_run_id

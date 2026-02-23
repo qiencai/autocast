@@ -134,13 +134,13 @@ Example usage:
 # Train autoencoder locally
 uv run autocast ae \
     datamodule=reaction_diffusion \
-    --run-label rd
+    --run-group rd
 
 # Train EPD on SLURM
 uv run autocast epd \
     --mode slurm \
     datamodule=reaction_diffusion \
-    --run-label rd \
+    --run-group rd \
     trainer.max_epochs=10
 
 # Re-run evaluation from an existing workdir
@@ -162,7 +162,7 @@ settings with `--eval-overrides`, e.g.:
 ```bash
 uv run autocast train-eval \
     datamodule=reaction_diffusion \
-    --run-label rd \
+    --run-group rd \
     trainer.max_epochs=1 \
     --eval-overrides eval.batch_indices=[0,1]
 ```
@@ -172,7 +172,7 @@ For SLURM train+eval submission:
 uv run autocast train-eval \
     --mode slurm \
     datamodule=reaction_diffusion \
-    --run-label rd
+    --run-group rd
 ```
 This submits one SLURM job via `sbatch`; the CLI exits immediately after
 submission.
@@ -225,14 +225,15 @@ uv run autocast epd --mode slurm datamodule=reaction_diffusion \
     hydra/launcher=slurm_baskerville
 ```
 
-`--run-label` controls the top-level output folder (defaults to current date).
-Use `--run-label` to set the top-level output folder label.
-If `--run-name` is omitted, `autocast` auto-generates a legacy-style run id and
+`--run-group` controls the top-level output folder (defaults to current date).
+Use `--run-group` to set the top-level output folder label.
+If `--run-id` is omitted, `autocast` auto-generates a legacy-style run id and
 uses it for both output folder naming and default `logging.wandb.name`.
+Backward-compatible aliases remain available: `--run-label` and `--run-name`.
 
 W&B naming behavior:
-- `--run-label` does not set W&B naming.
-- `--run-name` sets the run folder name and default `logging.wandb.name`.
+- `--run-group` does not set W&B naming.
+- `--run-id` sets the run folder name and default `logging.wandb.name`.
 - `--wandb-name` sets `logging.wandb.name` explicitly.
 - If `logging.wandb.name=...` is passed directly as a Hydra override, that
     explicit override wins.

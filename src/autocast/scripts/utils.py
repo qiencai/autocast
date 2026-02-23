@@ -24,8 +24,8 @@ def default_run_name(prefix: str = "run") -> str:
 def resolve_work_dir(
     *,
     output_base: str | Path = "outputs",
-    run_label: str | None = None,
-    run_name: str | None = None,
+    run_group: str | None = None,
+    run_id: str | None = None,
     work_dir: str | Path | None = None,
     prefix: str = "run",
 ) -> tuple[Path, str]:
@@ -33,22 +33,25 @@ def resolve_work_dir(
 
     Priority:
     1. If ``work_dir`` is provided, use it directly.
-    2. Otherwise build ``<output_base>/<run_label>/<run_name>``.
-    3. If ``run_name`` is missing, generate a short default.
+    2. Otherwise build ``<output_base>/<run_group>/<run_id>``.
+    3. If ``run_id`` is missing, generate a short default.
 
     Parameters
     ----------
-    run_label
-        Preferred top-level output folder label.
+    run_group
+        Preferred top-level output folder grouping label.
+    run_id
+        Preferred run folder identifier.
+
     """
     if work_dir is not None:
         resolved = Path(work_dir).expanduser().resolve()
-        return resolved, (run_name or resolved.name)
+        return resolved, (run_id or resolved.name)
 
-    date_value = run_label or datetime.now().strftime("%Y-%m-%d")
-    resolved_name = run_name or default_run_name(prefix=prefix)
-    resolved = (Path(output_base) / date_value / resolved_name).expanduser().resolve()
-    return resolved, resolved_name
+    resolved_group = run_group or datetime.now().strftime("%Y-%m-%d")
+    resolved_id = run_id or default_run_name(prefix=prefix)
+    resolved = (Path(output_base) / resolved_group / resolved_id).expanduser().resolve()
+    return resolved, resolved_id
 
 
 def get_default_config_path() -> str:

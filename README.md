@@ -72,7 +72,7 @@ Or alternatively with the unified workflow CLI:
 ```bash
 uv run autocast ae \
 	datamodule=reaction_diffusion \
-	--run-label rd
+	--run-group rd
 ```
 
 Unified workflow CLI supports both local and SLURM launch modes:
@@ -81,14 +81,14 @@ Unified workflow CLI supports both local and SLURM launch modes:
 # Local (default)
 uv run autocast epd \
 	datamodule=reaction_diffusion \
-	--run-label my_label \
+	--run-group my_label \
 	trainer.max_epochs=5
 
 # SLURM submit-and-exit via sbatch
 uv run autocast epd \
 	--mode slurm \
 	datamodule=reaction_diffusion \
-	--run-label my_label \
+	--run-group my_label \
 	trainer.max_epochs=5
 ```
 
@@ -107,7 +107,7 @@ Train + evaluate in one command:
 ```bash
 uv run autocast train-eval \
 	datamodule=reaction_diffusion \
-	--run-label rd
+	--run-group rd
 ```
 
 For `train-eval`, evaluation starts only after training has completed successfully
@@ -150,15 +150,16 @@ Launch many prewritten runs from a manifest file:
 bash scripts/launch_from_manifest.sh run_manifests/example_runs.txt
 ```
 
-Date handling is automatic: if `--run-label` is omitted, current date is used.
-Run naming is also automatic: if `--run-name` is omitted, `autocast` generates
+Date handling is automatic: if `--run-group` is omitted, current date is used.
+Run naming is also automatic: if `--run-id` is omitted, `autocast` generates
 a legacy-style run id (dataset/model/hash/uuid based) and uses it for both
 the run folder and default `logging.wandb.name`.
-Pass `--run-label` only to override the top-level folder label.
+Pass `--run-group` only to override the top-level folder label.
+Backward-compatible aliases remain available: `--run-label` and `--run-name`.
 
 W&B naming behavior:
-- `--run-label` only changes the parent output folder (`outputs/<run_label>/...`).
-- `--run-name` sets the run folder name and, by default, `logging.wandb.name`.
+- `--run-group` only changes the parent output folder (`outputs/<run_group>/...`).
+- `--run-id` sets the run folder name and, by default, `logging.wandb.name`.
 - `--wandb-name` sets `logging.wandb.name` explicitly.
 - If `logging.wandb.name=...` is passed as a Hydra override, that explicit
 	override takes precedence.
@@ -187,7 +188,7 @@ Or alternatively with the unified workflow CLI:
 ```bash
 uv run autocast epd \
 	datamodule=reaction_diffusion \
-	--run-label rd
+	--run-group rd
 ```
 
 ### Evaluation
@@ -260,8 +261,8 @@ Outputs are written under:
 
 `outputs/<run_label>/<run_id>`
 
-where `run_label` defaults to the current date (or `--run-label`) and
-`run_id` defaults to the auto-generated run name (or `--run-name`).
+where `run_group` defaults to the current date (or `--run-group`) and
+`run_id` defaults to the auto-generated run name (or `--run-id`).
 
 ### Multiple Jobs
 

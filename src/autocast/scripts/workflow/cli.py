@@ -42,20 +42,25 @@ def _add_train_args(parser: argparse.ArgumentParser) -> None:
     """Arguments shared by training subcommands (ae, epd, processor, train-eval)."""
     parser.add_argument("--output-base", default="outputs")
     parser.add_argument(
+        "--run-group",
         "--run-label",
-        dest="run_label",
-        help="Top-level output folder label only (defaults to current date).",
+        dest="run_group",
+        help=(
+            "Top-level output folder grouping label only (defaults to current date)."
+        ),
     )
     parser.add_argument(
+        "--run-id",
         "--run-name",
-        help="Run folder name; also default W&B name when --wandb-name is not set.",
+        dest="run_id",
+        help="Run folder identifier; also default W&B name when --wandb-name is not set.",
     )
     parser.add_argument("--workdir")
     parser.add_argument(
         "--wandb-name",
         help=(
             "Explicit W&B run name. If omitted, defaults to resolved run name "
-            "(run-name, auto-generated name, or workdir basename)."
+            "(run-id, auto-generated name, or workdir basename)."
         ),
     )
     parser.add_argument("--resume-from")
@@ -190,8 +195,8 @@ def main() -> None:
             mode=args.mode,
             dataset=dataset,
             output_base=args.output_base,
-            run_label=args.run_label,
-            run_name=args.run_name,
+            run_group=args.run_group,
+            run_id=args.run_id,
             work_dir=args.workdir,
             wandb_name=args.wandb_name,
             resume_from=resume_from,
@@ -234,8 +239,8 @@ def main() -> None:
             mode=args.mode,
             dataset=dataset,
             output_base=args.output_base,
-            run_label=args.run_label,
-            run_name=args.run_name,
+            run_group=args.run_group,
+            run_id=args.run_id,
             work_dir=args.workdir,
             wandb_name=args.wandb_name,
             resume_from=resume_from,

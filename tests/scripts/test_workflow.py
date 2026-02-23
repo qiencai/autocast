@@ -515,13 +515,13 @@ def test_build_train_overrides_normalizes_relative_resume_path(tmp_path, monkeyp
     relative_ckpt = "outputs/2026-02-22/run/autoencoder.ckpt"
     expected_ckpt = (tmp_path / relative_ckpt).resolve()
 
-    _work_dir, _run_name, command_overrides = build_train_overrides(
+    _work_dir, _run_id, command_overrides = build_train_overrides(
         kind="ae",
         mode="local",
         dataset="reaction_diffusion",
         output_base="outputs",
-        run_label="2026-02-22",
-        run_name="ae_test",
+        run_group="2026-02-22",
+        run_id="ae_test",
         work_dir=str(tmp_path / "my_workdir"),
         wandb_name=None,
         resume_from=relative_ckpt,
@@ -531,32 +531,32 @@ def test_build_train_overrides_normalizes_relative_resume_path(tmp_path, monkeyp
     assert f"+resume_from_checkpoint={expected_ckpt}" in command_overrides
 
 
-def test_build_train_overrides_default_wandb_name_uses_run_name():
-    _work_dir, resolved_run_name, command_overrides = build_train_overrides(
+def test_build_train_overrides_default_wandb_name_uses_run_id():
+    _work_dir, resolved_run_id, command_overrides = build_train_overrides(
         kind="epd",
         mode="local",
         dataset="reaction_diffusion",
         output_base="outputs",
-        run_label="2026-02-23",
-        run_name="explicit_run",
+        run_group="2026-02-23",
+        run_id="explicit_run",
         work_dir=None,
         wandb_name=None,
         resume_from=None,
         overrides=[],
     )
 
-    assert resolved_run_name == "explicit_run"
+    assert resolved_run_id == "explicit_run"
     assert "logging.wandb.name=explicit_run" in command_overrides
 
 
 def test_build_train_overrides_explicit_wandb_name_wins_default():
-    _work_dir, _resolved_run_name, command_overrides = build_train_overrides(
+    _work_dir, _resolved_run_id, command_overrides = build_train_overrides(
         kind="epd",
         mode="local",
         dataset="reaction_diffusion",
         output_base="outputs",
-        run_label="2026-02-23",
-        run_name="explicit_run",
+        run_group="2026-02-23",
+        run_id="explicit_run",
         work_dir=None,
         wandb_name="wb_custom",
         resume_from=None,
@@ -568,13 +568,13 @@ def test_build_train_overrides_explicit_wandb_name_wins_default():
 
 
 def test_build_train_overrides_explicit_logging_override_wins_wandb_flag():
-    _work_dir, _resolved_run_name, command_overrides = build_train_overrides(
+    _work_dir, _resolved_run_id, command_overrides = build_train_overrides(
         kind="epd",
         mode="local",
         dataset="reaction_diffusion",
         output_base="outputs",
-        run_label="2026-02-23",
-        run_name="explicit_run",
+        run_group="2026-02-23",
+        run_id="explicit_run",
         work_dir=None,
         wandb_name="wb_custom",
         resume_from=None,
@@ -709,6 +709,26 @@ def test_build_parser_dry_run(parser: argparse.ArgumentParser):
 def test_build_parser_resume_from(parser: argparse.ArgumentParser):
     args = parser.parse_args(["epd", "--resume-from", "/ckpt"])
     assert args.resume_from == "/ckpt"
+
+
+def test_build_parser_run_group_alias(parser: argparse.ArgumentParser):
+    args = parser.parse_args(["epd", "--run-group", "my_group"])
+    assert args.run_group == "my_group"
+
+
+def test_build_parser_run_id_alias(parser: argparse.ArgumentParser):
+    args = parser.parse_args(["epd", "--run-id", "my_run"])
+    assert args.run_id == "my_run"
+
+
+def test_build_parser_run_label_backward_compatible(parser: argparse.ArgumentParser):
+    args = parser.parse_args(["epd", "--run-label", "my_label"])
+    assert args.run_group == "my_label"
+
+
+def test_build_parser_run_name_backward_compatible(parser: argparse.ArgumentParser):
+    args = parser.parse_args(["epd", "--run-name", "my_name"])
+    assert args.run_id == "my_name"
 
 
 def test_main_train_eval_dispatches_combined_overrides(monkeypatch):
