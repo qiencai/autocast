@@ -157,7 +157,7 @@ uv run autocast epd \
     --resume-from outputs/rd/00/encoder_processor_decoder.ckpt
 ```
 
-For `train-eval`, direct overrides are applied to training by default. Pass eval
+When running training and evaluation in a single command (`train-eval`), the provided arguments override training settings by default. Pass eval
 settings with `--eval-overrides`, e.g.:
 ```bash
 uv run autocast train-eval \
