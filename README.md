@@ -58,6 +58,14 @@ This assumes you have the `reaction_diffusion` dataset stored at the path specif
 the `AUTOCAST_DATASETS` environment variable.
 
 ### Train autoencoder
+With the unified workflow CLI (primary API):
+```bash
+uv run autocast ae \
+	datamodule=reaction_diffusion \
+	--run-group rd
+```
+
+For advanced usage with the lower-level script:
 ```bash
 uv run train_autoencoder \
 	hydra.run.dir=outputs/rd/00 \
@@ -66,13 +74,6 @@ uv run train_autoencoder \
 	optimizer.learning_rate=0.00005 \
 	trainer.max_epochs=10 \
 	logging.wandb.enabled=true
-```
-
-Or alternatively with the unified workflow CLI:
-```bash
-uv run autocast ae \
-	datamodule=reaction_diffusion \
-	--run-group rd
 ```
 
 Unified workflow CLI supports both local and SLURM launch modes:
@@ -170,6 +171,14 @@ uv run autocast epd --mode slurm \
 ```
 
 ### Train processor
+With the unified workflow CLI (primary API):
+```bash
+uv run autocast epd \
+	datamodule=reaction_diffusion \
+	--run-group rd
+```
+
+For advanced usage with the lower-level script:
 
 ```bash
 uv run train_encoder_processor_decoder \
@@ -182,14 +191,15 @@ uv run train_encoder_processor_decoder \
 	'autoencoder_checkpoint=outputs/rd/00/autoencoder.ckpt'
 ```
 
-Or alternatively with the unified workflow CLI:
+### Evaluation
+With the unified workflow CLI (primary API):
 ```bash
-uv run autocast epd \
+uv run autocast eval \
 	datamodule=reaction_diffusion \
-	--run-group rd
+	--workdir outputs/rd/00
 ```
 
-### Evaluation
+For advanced usage with the lower-level script:
 ```bash
 uv run evaluate_encoder_processor_decoder \
 	hydra.run.dir=outputs/rd/00/eval \
@@ -198,13 +208,6 @@ uv run evaluate_encoder_processor_decoder \
 	eval.video_dir=outputs/rd/00/eval/videos \
 	datamodule.data_path=$AUTOCAST_DATASETS/reaction_diffusion \
 	datamodule.use_simulator=false
-```
-
-Or alternatively with the unified workflow CLI:
-```bash
-uv run autocast eval \
-	datamodule=reaction_diffusion \
-	--workdir outputs/rd/00
 ```
 
 ## Experiment Tracking with Weights & Biases
