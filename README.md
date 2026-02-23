@@ -149,21 +149,25 @@ uv run autocast epd --mode slurm \
 	trainer.devices=4 trainer.strategy=ddp hydra.launcher.gpus_per_node=4
 ```
 
-#### Train processor
+### Experiment Tracking with Weights & Biases
+
+AutoCast optionally integrates with [Weights & Biases](https://wandb.ai/) that is
+ driven by the Hydra config under `src/autocast/configs/logging/wandb.yaml`.
+
+Enable logging by passing Hydra config overrides as positional arguments:
+
 ```bash
 uv run autocast epd \
-	datamodule=reaction_diffusion \
-	--run-group rd
+	logging.wandb.enabled=true \
+	logging.wandb.project=autocast-experiments \
+	logging.wandb.name=processor-baseline
 ```
 
-#### Evaluation
-```bash
-uv run autocast eval \
-	datamodule=reaction_diffusion \
-	--workdir outputs/rd/00
-```
+All example notebooks contain a dedicated cell that instantiates a `wandb_logger` via `autocast.logging.create_wandb_logger`. Toggle the `enabled` flag in that cell to control tracking when experimenting interactively.
 
-### Direct usage of lower-level Hydra scripts
+When `enabled` remains `false` (the default), the logger is skipped entirely, so the stack can be used without a W&B account.
+
+## Direct usage of lower-level Hydra scripts
 
 The `autocast` CLI is a convenient wrapper around the lower-level Hydra scripts in `src/autocast/scripts/`. You can run those directly if you prefer, for example:
 
@@ -200,27 +204,6 @@ uv run evaluate_encoder_processor_decoder \
 	datamodule.data_path=$AUTOCAST_DATASETS/reaction_diffusion \
 	datamodule.use_simulator=false
 ```
-
-## Experiment Tracking with Weights & Biases
-
-AutoCast optionally integrates with [Weights & Biases](https://wandb.ai/) that is
- driven by the Hydra config under `src/autocast/configs/logging/wandb.yaml`.
-
-Enable logging by passing Hydra config overrides as positional arguments:
-
-```bash
-uv run autocast epd \
-	logging.wandb.enabled=true \
-	logging.wandb.project=autocast-experiments \
-	logging.wandb.name=processor-baseline
-```
-
-- The lower-level Hydra training scripts pass the configured `WandbLogger` directly into Lightning so that metrics, checkpoints, and artifacts are synchronized automatically.
-- The lower-level Hydra evaluation script reports aggregate test metrics to the same run when logging is enabled, making it easy to compare training and evaluation outputs in one dashboard.
-- All notebooks contain a dedicated cell that instantiates a `wandb_logger` via `autocast.logging.create_wandb_logger`. Toggle the `enabled` flag in that cell to control tracking when experimenting interactively.
-
-When `enabled` remains `false` (the default), the logger is skipped entirely, so the stack can
-be used without a W&B account.
 
 ## Running on HPC 
 
