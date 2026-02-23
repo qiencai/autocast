@@ -26,11 +26,11 @@ from autocast.scripts.workflow.slurm import submit_via_sbatch
 # Shared building blocks
 # ---------------------------------------------------------------------------
 
-_RESOLVED_CONFIG_STEMS = {
+_RESOLVED_CONFIG_STEMS = (
     "resolved_config",
     "resolved_autoencoder_config",
     "resolved_eval_config",
-}
+)
 
 
 def build_common_launch_overrides(mode: str, work_dir: Path) -> list[str]:
