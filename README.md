@@ -156,6 +156,13 @@ a legacy-style run id (dataset/model/hash/uuid based) and uses it for both
 the run folder and default `logging.wandb.name`.
 Pass `--run-label` only to override the top-level folder label.
 
+W&B naming behavior:
+- `--run-label` only changes the parent output folder (`outputs/<run_label>/...`).
+- `--run-name` sets the run folder name and, by default, `logging.wandb.name`.
+- `--wandb-name` sets `logging.wandb.name` explicitly.
+- If `logging.wandb.name=...` is passed as a Hydra override, that explicit
+	override takes precedence.
+
 Multi-GPU is supported by passing trainer/Hydra overrides, e.g.:
 ```bash
 uv run autocast epd --mode slurm \

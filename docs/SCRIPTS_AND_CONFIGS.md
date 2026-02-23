@@ -230,6 +230,13 @@ Use `--run-label` to set the top-level output folder label.
 If `--run-name` is omitted, `autocast` auto-generates a legacy-style run id and
 uses it for both output folder naming and default `logging.wandb.name`.
 
+W&B naming behavior:
+- `--run-label` does not set W&B naming.
+- `--run-name` sets the run folder name and default `logging.wandb.name`.
+- `--wandb-name` sets `logging.wandb.name` explicitly.
+- If `logging.wandb.name=...` is passed directly as a Hydra override, that
+    explicit override wins.
+
 Private/local experiment presets can be placed under repo-level
 `local_hydra/local_experiment/` and enabled with `local_experiment=<name>`.
 YAML files in this folder are git-ignored by default.

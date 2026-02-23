@@ -44,11 +44,20 @@ def _add_train_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--run-label",
         dest="run_label",
-        help="Top-level output folder label (defaults to current date).",
+        help="Top-level output folder label only (defaults to current date).",
     )
-    parser.add_argument("--run-name")
+    parser.add_argument(
+        "--run-name",
+        help="Run folder name; also default W&B name when --wandb-name is not set.",
+    )
     parser.add_argument("--workdir")
-    parser.add_argument("--wandb-name")
+    parser.add_argument(
+        "--wandb-name",
+        help=(
+            "Explicit W&B run name. If omitted, defaults to resolved run name "
+            "(run-name, auto-generated name, or workdir basename)."
+        ),
+    )
     parser.add_argument("--resume-from")
 
 
