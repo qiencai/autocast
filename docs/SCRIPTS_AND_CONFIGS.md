@@ -149,7 +149,7 @@ uv run autocast eval \
     --workdir outputs/rd/00
 ```
 
-For restart training, pass:
+To restart training, pass:
 ```bash
 uv run autocast epd \
     --dataset reaction_diffusion \
