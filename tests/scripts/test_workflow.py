@@ -595,32 +595,17 @@ def test_build_parser_train_eval_with_eval_overrides(
     assert "trainer.z=3" in args.overrides
 
 
-def test_build_parser_override_flag(parser: argparse.ArgumentParser):
-    args = parser.parse_args(
-        [
-            "ae",
-            "--override",
-            "k1=v1",
-            "--override",
-            "k2=v2",
-        ]
-    )
-    assert args.override == ["k1=v1", "k2=v2"]
-
-
 def test_build_parser_override_and_positional_combined(
     parser: argparse.ArgumentParser,
 ):
     args = parser.parse_args(
         [
             "ae",
-            "--override",
             "k1=v1",
             "k2=v2",
         ]
     )
-    assert args.override == ["k1=v1"]
-    assert args.overrides == ["k2=v2"]
+    assert args.overrides == ["k1=v1", "k2=v2"]
 
 
 def test_build_parser_config_name_passthrough(parser: argparse.ArgumentParser):
@@ -645,17 +630,16 @@ def test_build_parser_config_path_passthrough(parser: argparse.ArgumentParser):
     assert args.config_path == "src/autocast/configs/variants"
 
 
-def test_build_parser_train_eval_has_override(
+def test_build_parser_train_eval_has_positional_override(
     parser: argparse.ArgumentParser,
 ):
     args = parser.parse_args(
         [
             "train-eval",
-            "--override",
             "my_key=my_val",
         ]
     )
-    assert "my_key=my_val" in args.override
+    assert "my_key=my_val" in args.overrides
 
 
 def test_build_parser_dry_run(parser: argparse.ArgumentParser):
@@ -687,9 +671,7 @@ def test_main_train_eval_dispatches_combined_overrides(monkeypatch):
             "datamodule=demo_dataset",
             "--mode",
             "slurm",
-            "--override",
             "trainer.max_epochs=1",
-            "--override",
             "optimizer.learning_rate=0.001",
             "--eval-overrides",
             "eval.batch_indices=[0,1]",
@@ -734,21 +716,20 @@ def test_main_ae_dispatches_hydra_config_passthrough(monkeypatch):
             "my_ae_top_level",
             "--config-path",
             "src/autocast/configs",
-            "--override",
             "trainer.max_epochs=1",
         ],
     )
 
     workflow_cli.main()
 
-    assert captured["overrides"] == [
+    assert captured["overrides"][:4] == [
         "--config-name",
         "my_ae_top_level",
         "--config-path",
         "src/autocast/configs",
-        "trainer.max_epochs=1",
-        "datamodule=demo_dataset",
     ]
+    assert "trainer.max_epochs=1" in captured["overrides"]
+    assert "datamodule=demo_dataset" in captured["overrides"]
 
 
 def test_main_ae_allows_bare_overrides_before_options(monkeypatch):

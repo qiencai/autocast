@@ -32,12 +32,6 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         help="Hydra config path passthrough.",
     )
     parser.add_argument(
-        "--override",
-        action="append",
-        default=[],
-        help="Additional Hydra override; can be passed multiple times.",
-    )
-    parser.add_argument(
         "overrides",
         nargs="*",
         help="Additional Hydra overrides, e.g. trainer.max_epochs=5",
@@ -101,7 +95,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help=(
             "Hydra overrides for the eval step, e.g. "
-            "--eval-overrides eval.batch_indices=[0,1] eval.n_members=10"
+            "--eval-overrides eval.batch_indices=[0,1] eval.n_members=10. "
+            "Acts as a separator: put train overrides before this flag and "
+            "eval overrides after it."
         ),
     )
     _add_common_args(te_parser)
@@ -161,13 +157,13 @@ def main() -> None:
     if unknown_flags:
         parser.error(f"unrecognized arguments: {' '.join(unknown_flags)}")
 
-    # Merge passthrough Hydra globals and both override mechanisms consistently.
+    # Merge passthrough Hydra globals and positional/unknown overrides.
     combined_overrides = []
     if args.config_name is not None:
         combined_overrides.extend(["--config-name", args.config_name])
     if args.config_path is not None:
         combined_overrides.extend(["--config-path", args.config_path])
-    combined_overrides.extend([*args.override, *args.overrides, *unknown])
+    combined_overrides.extend([*args.overrides, *unknown])
 
     if args.command in {"ae", "epd", "processor"}:
         dataset = _resolve_dataset(

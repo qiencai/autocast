@@ -196,6 +196,8 @@ submission.
 - For `autocast train-eval` specifically:
     - Positional overrides apply to **train**.
     - `--eval-overrides` applies to **eval**.
+        - `--eval-overrides` acts as a separator: put train overrides before it and
+            eval overrides after it.
     - If the same key appears in both, eval uses the eval value.
 
 File permissions / group-write:

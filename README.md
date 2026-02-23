@@ -132,6 +132,8 @@ Override mapping quick reference:
 	from `local_hydra/hydra/launcher/slurm_baskerville.yaml`.
 - In `autocast train-eval`, positional overrides are train-only.
 - Eval-only overrides go in `--eval-overrides ...`.
+- `--eval-overrides` is a separator: place train overrides before it and eval
+	overrides after it.
 
 Permissions quick reference:
 - Training/eval scripts use config key `umask` (default `0002` in `encoder_processor_decoder`).
