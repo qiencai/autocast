@@ -380,7 +380,7 @@ def test_eval_command_includes_defaults_without_resolved_config(monkeypatch, tmp
     (tmp_path / "encoder_processor_decoder.ckpt").touch()
     captured: dict[str, object] = {}
 
-    def _fake_run_module(module, overrides, dry_run=False, mode="local"):
+    def _fake_run_module(module, overrides, dry_run=False, mode="local"):  # noqa: ARG001 unused but included for clarity
         captured["overrides"] = overrides
 
     monkeypatch.setattr(
@@ -406,7 +406,7 @@ def test_eval_command_keeps_explicit_hydra_config(monkeypatch, tmp_path):
     (tmp_path / "encoder_processor_decoder.ckpt").touch()
     captured: dict[str, object] = {}
 
-    def _fake_run_module(module, overrides, dry_run=False, mode="local"):
+    def _fake_run_module(module, overrides, dry_run=False, mode="local"):  # noqa: ARG001 unused but included for clarity
         captured["overrides"] = overrides
 
     monkeypatch.setattr(
@@ -433,7 +433,7 @@ def test_eval_command_explicit_resolved_config_skips_defaults(monkeypatch, tmp_p
     (tmp_path / "encoder_processor_decoder.ckpt").touch()
     captured: dict[str, object] = {}
 
-    def _fake_run_module(module, overrides, dry_run=False, mode="local"):
+    def _fake_run_module(module, overrides, dry_run=False, mode="local"):  # noqa: ARG001 unused but included for clarity
         captured["overrides"] = overrides
 
     monkeypatch.setattr(
