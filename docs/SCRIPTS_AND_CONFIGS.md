@@ -124,7 +124,7 @@ uv run train_encoder_processor_decoder \
 ```
 
 ### 3. Hyperparameter Sweep (SLURM)
-Use Hydra multi-run directly (or the manifest launcher) for sweeps, e.g. `uv run autocast epd --mode slurm --dataset reaction_diffusion trainer.max_epochs=5,10`.
+Use Hydra multi-run directly (or the manifest launcher) for sweeps, e.g. `uv run autocast epd --mode slurm datamodule=reaction_diffusion trainer.max_epochs=5,10`.
 
 ## Workflow CLI
 Use the unified Python workflow command `autocast` instead of bash wrappers.
@@ -133,26 +133,26 @@ Example usage:
 ```bash
 # Train autoencoder locally
 uv run autocast ae \
-    --dataset reaction_diffusion \
-    --run-label rd
+    datamodule=reaction_diffusion \
+    --run-group rd
 
 # Train EPD on SLURM
 uv run autocast epd \
     --mode slurm \
-    --dataset reaction_diffusion \
-    --run-label rd \
+    datamodule=reaction_diffusion \
+    --run-group rd \
     trainer.max_epochs=10
 
 # Re-run evaluation from an existing workdir
 uv run autocast eval \
-    --dataset reaction_diffusion \
+    datamodule=reaction_diffusion \
     --workdir outputs/rd/00
 ```
 
 To restart training, pass:
 ```bash
 uv run autocast epd \
-    --dataset reaction_diffusion \
+    datamodule=reaction_diffusion \
     --workdir outputs/rd/00 \
     --resume-from outputs/rd/00/encoder_processor_decoder.ckpt
 ```
@@ -161,8 +161,8 @@ When running training and evaluation in a single command (`train-eval`), the pro
 settings with `--eval-overrides`, e.g.:
 ```bash
 uv run autocast train-eval \
-    --dataset reaction_diffusion \
-    --run-label rd \
+    datamodule=reaction_diffusion \
+    --run-group rd \
     trainer.max_epochs=1 \
     --eval-overrides eval.batch_indices=[0,1]
 ```
@@ -171,8 +171,8 @@ For SLURM train+eval submission:
 ```bash
 uv run autocast train-eval \
     --mode slurm \
-    --dataset reaction_diffusion \
-    --run-label rd
+    datamodule=reaction_diffusion \
+    --run-group rd
 ```
 This submits one SLURM job via `sbatch`; the CLI exits immediately after
 submission.
@@ -186,11 +186,18 @@ submission.
     - `cpus_per_task` -> `hydra.launcher.cpus_per_task=...`
     - `gpus_per_node` -> `hydra.launcher.gpus_per_node=...`
     - `tasks_per_node` -> `hydra.launcher.tasks_per_node=...`
+    - `use_srun` -> `hydra.launcher.use_srun=<true|false>`
     - `additional_parameters.mem` -> `hydra.launcher.additional_parameters.mem=...`
+
+- SLURM launch behavior:
+    - Default is auto: batch script uses `srun` when `tasks_per_node > 1` or `gpus_per_node > 1`.
+    - Override explicitly with `hydra.launcher.use_srun=true` or `hydra.launcher.use_srun=false`.
 
 - For `autocast train-eval` specifically:
     - Positional overrides apply to **train**.
     - `--eval-overrides` applies to **eval**.
+        - `--eval-overrides` acts as a separator: put train overrides before it and
+            eval overrides after it.
     - If the same key appears in both, eval uses the eval value.
 
 File permissions / group-write:
@@ -204,7 +211,7 @@ Example preset: `src/autocast/configs/experiment/epd_flow_matching_64_fast.yaml`
 
 ```bash
 uv run autocast train-eval --mode slurm \
-    --dataset advection_diffusion_multichannel_64_64 \
+    datamodule=advection_diffusion_multichannel_64_64 \
     experiment=epd_flow_matching_64_fast \
     autoencoder_checkpoint=/path/to/autoencoder.ckpt \
     hydra.launcher.timeout_min=30 \
@@ -214,14 +221,21 @@ uv run autocast train-eval --mode slurm \
 To use Baskerville module setup + scheduler defaults:
 
 ```bash
-uv run autocast epd --mode slurm --dataset reaction_diffusion \
+uv run autocast epd --mode slurm datamodule=reaction_diffusion \
     hydra/launcher=slurm_baskerville
 ```
 
-`--run-label` controls the top-level output folder (defaults to current date).
-`--date` remains available as a backward-compatible alias.
-If `--run-name` is omitted, `autocast` auto-generates a legacy-style run id and
+`--run-group` controls the top-level output folder (defaults to current date).
+Use `--run-group` to set the top-level output folder label.
+If `--run-id` is omitted, `autocast` auto-generates a legacy-style run id and
 uses it for both output folder naming and default `logging.wandb.name`.
+Backward-compatible aliases remain available: `--run-label` and `--run-name`.
+
+W&B naming behavior:
+- `--run-group` does not set W&B naming.
+- `--run-id` sets the run folder name and default `logging.wandb.name`.
+- Set `logging.wandb.name=...` directly as a Hydra override to explicitly name
+    the W&B run.
 
 Private/local experiment presets can be placed under repo-level
 `local_hydra/local_experiment/` and enabled with `local_experiment=<name>`.

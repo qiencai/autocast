@@ -4,6 +4,9 @@
 defaults:
   - default
 
+# Default to the standard EPD training checkpoint filename.
+checkpoint: encoder_processor_decoder.ckpt
+
 # Override with EPD-specific metrics and settings
 metrics:
   - mse
@@ -21,4 +24,5 @@ n_members: 10
 compute_rollout_coverage: true
 compute_rollout_metrics: true
 metric_windows: [null]
-metric_windows_rollout: [[0, 1], [6, 12], [13, 30], [31, 99]]
+metric_windows_rollout: [[0, 1], [0, 4], [6, 12], [13, 30], [31, 99]]
+batch_indices: [0, 1, 2, 3, 4, 5, 6, 7]

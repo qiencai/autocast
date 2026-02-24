@@ -12,6 +12,7 @@ import hydra
 import lightning as L
 import pandas as pd
 import torch
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, open_dict
 from torchmetrics import Metric
 
@@ -78,6 +79,14 @@ def _limit_batches(dataloader, max_batches: int | None):
             yield batch
 
     return _generator()
+
+
+def _resolve_rollout_batch_limit(eval_cfg: DictConfig) -> int | None:
+    max_test_batches = eval_cfg.get("max_test_batches")
+    max_rollout_batches = eval_cfg.get("max_rollout_batches")
+    if max_rollout_batches is None:
+        return max_test_batches
+    return max_rollout_batches
 
 
 def _build_metrics(metric_names: Sequence[str]) -> dict[str, BaseMetric]:
@@ -293,6 +302,25 @@ def _write_csv(rows: list[dict[str, float | str]], csv_path: Path):
         return
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(csv_path, index=False)
+
+
+def _is_metadata_row(row: Mapping[str, float | str]) -> bool:
+    return row.get("window") == "meta" or "category" in row
+
+
+def _split_metric_and_metadata_rows(
+    rows: list[dict[str, float | str]],
+) -> tuple[list[dict[str, float | str]], list[dict[str, float | str]]]:
+    metric_rows: list[dict[str, float | str]] = []
+    metadata_rows: list[dict[str, float | str]] = []
+
+    for row in rows:
+        if _is_metadata_row(row):
+            metadata_rows.append(row)
+        else:
+            metric_rows.append(row)
+
+    return metric_rows, metadata_rows
 
 
 def _load_checkpoint_payload(checkpoint_path: Path) -> Mapping[str, Any]:
@@ -570,6 +598,18 @@ def _rollout_metadata_rows(
     )
 
 
+def _resolve_work_dir(work_dir: Path | None) -> Path:
+    if work_dir is not None:
+        return work_dir
+
+    if HydraConfig.initialized():
+        output_dir = HydraConfig.get().runtime.output_dir
+        if output_dir:
+            return Path(output_dir).resolve()
+
+    return Path.cwd()
+
+
 @hydra.main(
     version_base=None,
     config_path=get_default_config_path(),
@@ -589,13 +629,18 @@ def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # no
         os.umask(int(str(umask_value), 8))
         log.info("Applied process umask %s", umask_value)
 
-    work_dir = work_dir or Path.cwd()
+    work_dir = _resolve_work_dir(work_dir)
 
     # Get eval config
     eval_cfg = cfg.get("eval", {})
     eval_batch_size: int = eval_cfg.get("batch_size", 1)
     max_test_batches = eval_cfg.get("max_test_batches")
-    max_rollout_batches = eval_cfg.get("max_rollout_batches", max_test_batches)
+    max_rollout_batches = _resolve_rollout_batch_limit(eval_cfg)
+    log.info(
+        "Batch limits: max_test_batches=%s, max_rollout_batches=%s",
+        max_test_batches,
+        max_rollout_batches,
+    )
 
     # Validate that checkpoint is provided
     checkpoint_path = eval_cfg.get("checkpoint")
@@ -607,6 +652,17 @@ def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # no
         )
         raise ValueError(msg)
     checkpoint_path = Path(checkpoint_path)
+    if not checkpoint_path.is_absolute():
+        # i.e. training workdir/eval/checkpoint
+        workdir_candidate = (work_dir / checkpoint_path).resolve()
+        # i.e. training workdir/checkpoint
+        parent_candidate = (work_dir.parent / checkpoint_path).resolve()
+        if workdir_candidate.exists():
+            checkpoint_path = workdir_candidate
+        elif parent_candidate.exists():
+            checkpoint_path = parent_candidate
+        else:
+            checkpoint_path = workdir_candidate
 
     if cfg.get("output", {}).get("save_config"):
         save_resolved_config(cfg, work_dir, filename="resolved_eval_config.yaml")
@@ -844,13 +900,30 @@ def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # no
 
             # Save rollout metrics to CSV
             rollout_csv_path = csv_path.parent / "rollout_metrics.csv"
-            rollout_csv_rows.extend(rollout_runtime_rows)
-            if rollout_csv_rows:
-                _write_csv(rollout_csv_rows, rollout_csv_path)
+            rollout_combined_rows = [*rollout_csv_rows, *rollout_runtime_rows]
+            rollout_metric_rows, rollout_metadata_rows = (
+                _split_metric_and_metadata_rows(rollout_combined_rows)
+            )
+
+            if rollout_metric_rows:
+                _write_csv(rollout_metric_rows, rollout_csv_path)
                 log.info("Wrote rollout metrics to %s", rollout_csv_path)
 
-    _write_csv(evaluation_rows, csv_path)
-    log.info("Wrote metrics CSV to %s", csv_path)
+            rollout_metadata_csv_path = csv_path.parent / "rollout_metadata.csv"
+            if rollout_metadata_rows:
+                _write_csv(rollout_metadata_rows, rollout_metadata_csv_path)
+                log.info("Wrote rollout metadata to %s", rollout_metadata_csv_path)
+
+    metric_rows, metadata_rows = _split_metric_and_metadata_rows(evaluation_rows)
+
+    if metric_rows:
+        _write_csv(metric_rows, csv_path)
+        log.info("Wrote metrics CSV to %s", csv_path)
+
+    metadata_csv_path = csv_path.parent / "evaluation_metadata.csv"
+    if metadata_rows:
+        _write_csv(metadata_rows, metadata_csv_path)
+        log.info("Wrote evaluation metadata to %s", metadata_csv_path)
 
 
 if __name__ == "__main__":
