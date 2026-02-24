@@ -172,7 +172,8 @@ AutoCast uses [Hydra](https://hydra.cc/) for configuration management. All confi
 ```text
 src/autocast/configs/
 ├── autoencoder.yaml             # default config for train_autoencoder
-├── encoder_processor_decoder.yaml # default config for train_epd
+├── encoder_processor_decoder.yaml # default config for train_encoder_processor_decoder / autocast epd
+├── processor.yaml               # default config for autocast processor
 ├── backbone/                    # Architectures (UNet, ViT)
 ├── datamodule/                  # Datasets (ReactionDiffusion, The Well)
 ├── encoder/                     # Encoder components (DC, PermuteConcat)
@@ -181,8 +182,13 @@ src/autocast/configs/
 ├── model/                       # Model assembly configs
 ├── optimizer/                   # Optimizer settings (Adam, AdamW)
 ├── trainer/                     # Lightning Trainer settings
-├── logging/                     # WandB configuration
-└── eval/                        # Evaluation-specific settings
+├── logging/                     # Weights & Biases configuration
+├── eval/                        # Evaluation-specific settings
+├── experiment/                  # Reusable experiment presets
+├── hydra/                       # Hydra launcher/runtime configs
+├── input_noise_injector/        # Input perturbation configs
+├── simulator/                   # Simulator-related configs
+└── external/                    # External model/config integrations
 ```
 
 ### Composition and Overrides
