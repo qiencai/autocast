@@ -6,11 +6,14 @@ dist/
 *.egg-info/
 exploratory/data
 .DS_Store
-outputs/
-lightning_logs/
+outputs
+lightning_logs
 datasets
 slurm-*.out
 slurm-*.stats
 logs/
 wandb/
 slurm_scripts
+logs
+local_hydra/local_experiment/*.yaml
+!local_hydra/local_experiment/README.md
