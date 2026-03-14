@@ -11,6 +11,10 @@ metrics:
 csv_path: null
 video_dir: null
 
+# Path to climatology file (.pt) for metrics-vs-leadtime baseline comparison.
+# Expected shape: (365, W, H, C) — one entry per day of year.
+climatology_path: null
+
 # Batch indices to visualize
 batch_indices: []
 

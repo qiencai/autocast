@@ -124,4 +124,9 @@ def batch_to_device(batch: Batch, device: torch.device) -> Batch:
             if batch.boundary_conditions is not None
             else None
         ),
+        constant_doy_scalars=(
+            batch.constant_doy_scalars.to(device)
+            if batch.constant_doy_scalars is not None
+            else None
+        ),
     )

@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 import h5py
+import math
 import torch
 import yaml
 from omegaconf import DictConfig
@@ -25,6 +26,7 @@ class BatchMixin:
             constant_scalars=data.get("constant_scalars"),
             constant_fields=data.get("constant_fields"),
             boundary_conditions=data.get("boundary_conditions"),
+            constant_doy_scalars=data.get("constant_doy_scalars"),
         )
 
 
@@ -49,6 +51,7 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         normalization_type: type[ZScoreNormalization] | None = ZScoreNormalization,
         normalization_path: str | None = None,
         normalization_stats: dict | DictConfig | None = None,
+        doy_offset: int = 0,
     ):
         """
         Initialize the dataset.
@@ -97,6 +100,7 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         self.normalization_path = normalization_path
         self.normalization_stats = normalization_stats
         self.autoencoder_mode = autoencoder_mode
+        self.doy_offset = doy_offset
 
         if data_path is not None:
             self.read_data(data_path)
@@ -141,6 +145,7 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         self.all_output_fields = []
         self.all_constant_scalars = []
         self.all_constant_fields = []
+        self.all_constant_doy_scalars = []
 
         # Create input-output pairs
         for traj_idx in range(self.n_trajectories):
@@ -174,6 +179,16 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
                     self.all_constant_scalars.append(
                         self.constant_scalars[traj_idx].to(self.dtype)
                     )
+
+                # Compute cyclic date-of-year scalars if doy_offset is set
+                if self.doy_offset > 0:
+                    # Initialization date (first forecast step, last input timestep)
+                    t_init = self.doy_offset + sub_idx * self.stride + self.n_steps_input
+                    phase = 2.0 * math.pi * t_init / 365.25
+                    doy_scalars = torch.tensor(
+                        [math.sin(phase), math.cos(phase)], dtype=self.dtype
+                    )
+                    self.all_constant_doy_scalars.append(doy_scalars)
 
                 # Handle constant fields
                 if self.constant_fields is not None:
@@ -285,6 +300,8 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
             item["constant_scalars"] = self.all_constant_scalars[idx]
         if len(self.all_constant_fields) > 0:
             item["constant_fields"] = self.all_constant_fields[idx]
+        if len(self.all_constant_doy_scalars) > 0:
+            item["constant_doy_scalars"] = self.all_constant_doy_scalars[idx]
 
         return self.to_sample(item)
 

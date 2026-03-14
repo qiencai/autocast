@@ -165,6 +165,11 @@ def setup_datamodule(
             if batch.constant_scalars is not None
             else 0
         )
+        n_constant_doy_scalars = (
+            batch.constant_doy_scalars.shape[-1]
+            if batch.constant_doy_scalars is not None
+            else 0
+        )
         n_constant_field_channels = (
             batch.constant_fields.shape[-1] if batch.constant_fields is not None else 0
         )
@@ -172,6 +177,7 @@ def setup_datamodule(
         train_inputs = batch.encoded_inputs
         train_outputs = batch.encoded_output_fields
         n_constant_scalars = None
+        n_constant_doy_scalars = None
         n_constant_field_channels = None
     else:
         raise TypeError(f"Unsupported batch type: {type(batch)}")
@@ -185,6 +191,7 @@ def setup_datamodule(
         "n_steps_input": input_shape[1],
         "n_steps_output": output_shape[1],
         "n_constant_scalars": n_constant_scalars,
+        "n_constant_doy_scalars": n_constant_doy_scalars,
         "n_constant_field_channels": n_constant_field_channels,
         "input_shape": input_shape,
         "output_shape": output_shape,
@@ -220,12 +227,11 @@ def setup_autoencoder_components(
         and isinstance(input_channels, int)
         and encoder_config.get("in_channels") in (None, "auto")
     ):
-        # TODO: add more robust approach to inlcuding extra constant channels
         # handling here is specifically for the case when the encoder_config
-        # includes `with_constants` - this is currently `PermuteConcat`
+        # includes `with_constants` - this is currently `PermuteConcat` and `DCEncoder`
         if encoder_config.get("with_constants") and input_channels is not None:
-            input_channels += stats.get("n_constant_scalars", 0)
-            input_channels += stats.get("n_constant_field_channels", 0)
+            input_channels += stats.get("n_constant_scalars", 0) or 0
+            input_channels += stats.get("n_constant_field_channels", 0) or 0
         encoder_config["in_channels"] = input_channels
 
     # Update n_steps_input for encoders that need it (e.g., PermuteConcat)

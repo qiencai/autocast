@@ -6,12 +6,15 @@ import numpy as np
 import torch
 from einops import rearrange
 from matplotlib import animation
-from matplotlib.colors import Normalize, TwoSlopeNorm
+from matplotlib.colors import LinearSegmentedColormap, Normalize, TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 from torchmetrics import Metric
 
 from autocast.metrics.coverage import Coverage, MultiCoverage
 from autocast.types import Tensor, TensorBTSC, TensorBTSCM
+
+# Sea ice colormap: navy (no ice) → white (full ice)
+_NAVY_WHITE_CMAP = LinearSegmentedColormap.from_list("navy_white", ["navy", "white"])
 
 
 def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
@@ -23,7 +26,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     fps: int = 5,
     vmin: float | None = None,
     vmax: float | None = None,
-    cmap: str = "viridis",
+    cmap: str | LinearSegmentedColormap = _NAVY_WHITE_CMAP,
     save_path: str | None = None,
     title: str = "Ground Truth vs Prediction",
     pred_uq_label: str = "Prediction UQ",
@@ -32,6 +35,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     colorbar_mode_uq: Literal["none", "row"] = "none",
     channel_names: list[str] | None = None,
     preserve_aspect: bool = False,
+    land_mask: np.ndarray | None = None,
 ):
     """Create a video comparing ground truth and predicted spatiotemporal time series.
 
@@ -146,7 +150,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
         diff_span = diff_max if diff_max > 0 else 1e-9
         diff_norm = TwoSlopeNorm(vmin=-diff_span, vcenter=0, vmax=diff_span)
 
-    rows_to_plot: list[tuple[np.ndarray | Tensor | None, str, str]] = [
+    rows_to_plot: list[tuple[np.ndarray | Tensor | None, str, str | LinearSegmentedColormap]] = [
         (true_batch, "Ground Truth", cmap),
     ]
     if pred is not None:
@@ -234,6 +238,15 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
             else:
                 norm = diff_norm
             im = ax.imshow(frame0, cmap=row_cmap, aspect="auto", norm=norm)
+
+            # Overlay land regions in grey (static — land doesn't change over time)
+            if land_mask is not None:
+                # land_mask is (W, H) with 0=land; imshow expects (H, W)
+                land_hw = land_mask.T
+                grey_img = np.ma.masked_where(
+                    land_hw == 1, np.full_like(land_hw, 0.5, dtype=float)
+                )
+                ax.imshow(grey_img, cmap="gray", vmin=0, vmax=1, aspect="auto")
 
             if row_idx == 0:
                 (
@@ -653,3 +666,108 @@ def plot_coverage(
     metric = MultiCoverage(coverage_levels=coverage_levels_)
     metric.update(pred, true)
     return metric.plot(save_path=save_path, title=title)
+
+
+def plot_metrics_vs_leadtime(
+    pred: torch.Tensor,
+    true: torch.Tensor,
+    metric_names: list[str],
+    title: str = "",
+    save_path: str | None = None,
+    clim_pred: torch.Tensor | None = None,
+) -> plt.Figure | None:
+    """Plot per-lead-time metrics comparing model and climatology against ground truth.
+
+    Parameters
+    ----------
+    pred : torch.Tensor
+        Model predictions, shape (T, W, H, C) for a single sample.
+    true : torch.Tensor
+        Ground-truth tensor, shape (T, W, H, C) for a single sample.
+    metric_names : list[str]
+        Names of metrics to plot (e.g. ["mse", "rmse", "mae"]).
+    title : str
+        Figure suptitle, typically the initialization date.
+    save_path : str, optional
+        Path to save the figure (PNG).
+    clim_pred : torch.Tensor, optional
+        Climatology predictions, shape (T, W, H, C). Plotted as a dashed baseline.
+
+    Returns
+    -------
+    matplotlib.figure.Figure or None
+    """
+    from autocast.metrics import MAE, MSE, NMAE, NMSE, NRMSE, RMSE, VMSE, VRMSE, LInfinity  # noqa: PLC0415
+
+    _METRIC_REGISTRY = {
+        "mse": MSE,
+        "mae": MAE,
+        "rmse": RMSE,
+        "nmse": NMSE,
+        "nmae": NMAE,
+        "nrmse": NRMSE,
+        "vmse": VMSE,
+        "vrmse": VRMSE,
+        "linf": LInfinity,
+    }
+
+    valid_metrics = [m for m in metric_names if m in _METRIC_REGISTRY]
+    if not valid_metrics:
+        return None
+
+    # Shape: (1, T, W, H, C) — add batch dim for metric _score
+    pred_btsc = pred.unsqueeze(0).cpu().float()
+    true_btsc = true.unsqueeze(0).cpu().float()
+    clim_btsc = clim_pred.unsqueeze(0).cpu().float() if clim_pred is not None else None
+
+    T = pred.shape[0]
+    lead_times = list(range(1, T + 1))
+
+    def _per_lead_time(source: torch.Tensor, target: torch.Tensor, metric_cls) -> np.ndarray:
+        """Return shape (T,) metric values averaged over channels."""
+        m = metric_cls(reduce_all=False)
+        scores = m._score(source, target)  # (1, T, C)
+        return scores[0].mean(dim=-1).detach().numpy()  # (T,)
+
+    ncols = min(2, len(valid_metrics))
+    nrows = (len(valid_metrics) + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(7 * ncols, 4 * nrows), squeeze=False)
+    fig.suptitle(title, fontsize=13, fontweight="bold")
+
+    for idx, metric_name in enumerate(valid_metrics):
+        row, col = divmod(idx, ncols)
+        ax = axes[row][col]
+        metric_cls = _METRIC_REGISTRY[metric_name]
+
+        model_scores = _per_lead_time(pred_btsc, true_btsc, metric_cls)
+        ax.plot(lead_times, model_scores, marker="o", label="Model", color="steelblue")
+
+        if clim_btsc is not None:
+            clim_scores = _per_lead_time(clim_btsc, true_btsc, metric_cls)
+            ax.plot(
+                lead_times,
+                clim_scores,
+                marker="s",
+                linestyle="--",
+                label="Climatology",
+                color="tomato",
+            )
+
+        ax.set_xlabel("Lead time (steps)")
+        ax.set_ylabel(metric_name.upper())
+        ax.set_title(metric_name.upper())
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+    # Hide unused subplots in the last row
+    for idx in range(len(valid_metrics), nrows * ncols):
+        row, col = divmod(idx, ncols)
+        axes[row][col].set_visible(False)
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(str(save_path), dpi=150, bbox_inches="tight")
+
+    plt.close(fig)
+    return fig

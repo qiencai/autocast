@@ -37,6 +37,7 @@ from autocast.utils import plot_spatiotemporal_video
 from autocast.utils.plots import (
     compute_metrics_from_dataloader,
     compute_metrics_per_timestep_from_dataloader,
+    plot_metrics_vs_leadtime,
 )
 
 # Set matmul precision for A100/H100
@@ -167,6 +168,16 @@ def _process_metrics_results(
         row: dict[str, float | str] = {"window": window_str, "batch_idx": "all"}
 
         for name, metric in window_metrics.items():
+            if hasattr(metric, "total_samples") and metric.total_samples == 0:
+                log.warning(
+                    "%s metric '%s' for window %s: no samples "
+                    "(window likely exceeds rollout length — skipping)",
+                    log_prefix,
+                    name,
+                    window,
+                )
+                continue
+
             log.info(
                 "%s metric '%s' for window %s: %s",
                 log_prefix,
@@ -232,6 +243,8 @@ def _render_rollouts(
     n_members: int | None = None,
     channel_names: list[str] | None = None,
     preserve_aspect: bool = False,
+    climatology: torch.Tensor | None = None,
+    metric_names: list[str] | None = None,
 ) -> list[Path]:
     # Return early if no batches are requested
     if not batch_indices:
@@ -286,6 +299,16 @@ def _render_rollouts(
                 trues_mean = trues
                 preds_uq = None
 
+            # Extract land mask from constant_fields (channel 0 = land mask, 0=land 1=ocean)
+            # Might need to be fixed: assuming land mask is channel 0 in constant_fields. If more constant fields are added or if the land mask is not binary, this logic will need to be updated to make sure the correct channel is used.
+            land_mask_np = None
+            if (
+                hasattr(batch, "constant_fields")
+                and batch.constant_fields is not None
+                and sample_index < batch.constant_fields.shape[0]
+            ):
+                land_mask_np = batch.constant_fields[sample_index, :, :, 0].cpu().numpy()
+
             names_for_plot = channel_names
             n_channels = int(trues_mean.shape[-1])
             if names_for_plot is not None and len(names_for_plot) != n_channels:
@@ -309,10 +332,46 @@ def _render_rollouts(
                 pred_uq_label="Ensemble Std Dev",
                 channel_names=names_for_plot,
                 preserve_aspect=preserve_aspect,
+                land_mask=land_mask_np,
             )
             saved_paths.append(filename)
             rendered_batches.add(batch_idx)
             log.info("Saved rollout visualization to %s", filename)
+
+            # --- Metrics vs lead-time plot ---
+            _names_for_metrics = metric_names or ["mse", "rmse"]
+
+            # Decode initialization DOY from cyclic scalars if available
+            init_doy: int | None = None
+            if (
+                hasattr(batch, "constant_doy_scalars")
+                and batch.constant_doy_scalars is not None
+                and sample_index < batch.constant_doy_scalars.shape[0]
+            ):
+                init_doy = _decode_init_doy(batch.constant_doy_scalars[sample_index])
+
+            # Build climatology predictions aligned to forecast lead times
+            clim_preds_sample: torch.Tensor | None = None
+            if climatology is not None and init_doy is not None:
+                T_out = trues_mean.shape[1]
+                clim_idx = [(init_doy + t) % 365 for t in range(T_out)]
+                clim_preds_sample = climatology[clim_idx].cpu()  # (T, W, H, C)
+
+            # Build a human-readable title with the initialization date
+            plot_title = f"Batch {batch_idx}, Sample {sample_index}"
+            if init_doy is not None:
+                plot_title += f" — Init DOY {init_doy + 1}"
+
+            metrics_path = video_dir / f"metrics_batch_{batch_idx}_sample_{sample_index}.png"
+            plot_metrics_vs_leadtime(
+                pred=preds_mean[sample_index].cpu(),
+                true=trues_mean[sample_index].cpu(),
+                metric_names=_names_for_metrics,
+                title=plot_title,
+                save_path=str(metrics_path),
+                clim_pred=clim_preds_sample,
+            )
+            log.info("Saved metrics-vs-leadtime plot to %s", metrics_path)
 
     # Check for any missing batches that were requested but not rendered
     missing = targets - rendered_batches
@@ -613,6 +672,26 @@ def _collect_benchmark_rows(
     return rows
 
 
+def _decode_init_doy(doy_scalars: torch.Tensor) -> int | None:
+    """Recover 0-indexed day-of-year from cyclic scalars [sin, cos]."""
+    import math  # noqa: PLC0415
+
+    if doy_scalars is None or doy_scalars.numel() < 2:
+        return None
+    sin_val = float(doy_scalars[0])
+    cos_val = float(doy_scalars[1])
+    phase = math.atan2(sin_val, cos_val)  # in (-pi, pi]
+    if phase < 0:
+        phase += 2 * math.pi
+    return int(round(phase / (2 * math.pi) * 365.25)) % 365
+
+
+def _resolve_work_dir(work_dir: Path | None) -> Path:
+    if work_dir is not None:
+        return work_dir
+
+
+
 @hydra.main(
     version_base=None,
     config_path=get_default_config_path(),
@@ -772,6 +851,18 @@ def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # no
     compute_rollout_coverage = eval_cfg.get("compute_rollout_coverage", False)
     compute_rollout_metrics = eval_cfg.get("compute_rollout_metrics", False)
 
+    # Load climatology baseline for metrics-vs-leadtime plots (optional)
+    climatology: torch.Tensor | None = None
+    climatology_path = eval_cfg.get("climatology_path")
+    if climatology_path is not None:
+        clim_file = Path(climatology_path).expanduser().resolve()
+        if clim_file.is_file():
+            log.info("Loading climatology from %s", clim_file)
+            climatology = torch.load(clim_file, map_location="cpu", weights_only=True)
+            log.info("Climatology shape: %s", tuple(climatology.shape))
+        else:
+            log.warning("Climatology file not found at %s; skipping baseline.", clim_file)
+
     if batch_indices or compute_rollout_coverage or compute_rollout_metrics:
         max_rollout_steps = eval_cfg.get("max_rollout_steps", 10)
 
@@ -815,6 +906,8 @@ def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # no
                 n_members=n_members,
                 channel_names=rollout_channel_names,
                 preserve_aspect=eval_cfg.get("preserve_aspect", False),
+                climatology=climatology,
+                metric_names=list(metrics_list) if metrics_list is not None else None,
             )
 
         # Prepare metric functions for rollouts

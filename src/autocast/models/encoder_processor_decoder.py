@@ -1,6 +1,8 @@
 from collections.abc import Sequence
 from typing import Any
 
+import math
+
 import lightning as L
 import torch
 from omegaconf import DictConfig
@@ -47,6 +49,8 @@ class EncoderProcessorDecoder(
         test_metrics: Sequence[Metric] | None = None,
         input_noise_injector: NoiseInjector | None = None,
         norm: ZScoreNormalization | None = None,
+        apply_land_mask: bool = False,
+        land_mask_channel: int = 0,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -61,6 +65,8 @@ class EncoderProcessorDecoder(
         self.freeze_encoder_decoder = freeze_encoder_decoder
         self.input_noise_injector = input_noise_injector
         self.norm = norm
+        self.apply_land_mask = apply_land_mask
+        self.land_mask_channel = land_mask_channel
 
         if self.train_in_latent_space or self.freeze_encoder_decoder:
             self.encoder_decoder.freeze()
@@ -82,6 +88,8 @@ class EncoderProcessorDecoder(
                 output_fields=batch.output_fields,
                 constant_scalars=batch.constant_scalars,
                 constant_fields=batch.constant_fields,
+                boundary_conditions=batch.boundary_conditions,
+                constant_doy_scalars=batch.constant_doy_scalars,
             )
         return batch
 
@@ -181,10 +189,22 @@ class EncoderProcessorDecoder(
                 if batch.boundary_conditions is not None
                 else None
             ),
+            constant_doy_scalars=(
+                batch.constant_doy_scalars.clone()
+                if batch.constant_doy_scalars is not None
+                else None
+            ),
         )
 
     def _predict(self, batch: Batch) -> Tensor:
-        return self(batch)
+        output = self(batch)
+        # To be fixed: note that this assumes landmask is channel 0 in constant_fields. If more constant fields are added or if the land mask is not binary, this logic will need to be updated to make sure the correct channel is used.
+        if self.apply_land_mask and batch.constant_fields is not None:
+            # Extract the land mask channel from constant_fields: (B, W, H, C_const)
+            # Result: (B, W, H) -> (B, 1, W, H, 1) to broadcast over T and C_out.
+            mask = batch.constant_fields[..., self.land_mask_channel].unsqueeze(1).unsqueeze(-1)
+            output = output * mask
+        return output
 
     def _true_slice(
         self,
@@ -228,4 +248,25 @@ class EncoderProcessorDecoder(
             constant_scalars=batch.constant_scalars,
             constant_fields=batch.constant_fields,
             boundary_conditions=batch.boundary_conditions,
+            constant_doy_scalars=self._advance_doy_scalars(batch.constant_doy_scalars, stride),
         )
+
+    @staticmethod
+    def _advance_doy_scalars(
+        constant_doy_scalars: torch.Tensor | None, stride: int
+    ) -> torch.Tensor | None:
+        """Advance cyclic date-of-year scalars by `stride` days.
+        
+        Assumes constant_doy_scalars are [sin(phase), cos(phase)] and updates them
+        to reflect the new date after advancing by `stride` days.
+        """
+        if constant_doy_scalars is None:
+            return None
+        sin_val = constant_doy_scalars[..., 0]
+        cos_val = constant_doy_scalars[..., 1]
+        old_phase = torch.atan2(sin_val, cos_val)
+        new_phase = old_phase + 2.0 * math.pi * stride / 365.25
+        updated = constant_doy_scalars.clone()
+        updated[..., 0] = torch.sin(new_phase)
+        updated[..., 1] = torch.cos(new_phase)
+        return updated

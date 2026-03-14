@@ -141,6 +141,9 @@ class EncoderWithCond(Encoder):
         """Encode global conditioning tensor from the batch.
 
         Default implementation flattens constant scalars and boundary conditions.
+        DOY is also included as global conditioning (time feature).
+        Spatial constant fields (like land mask) should be handled by encoders that
+        support with_constants=true (e.g., PermuteConcat).
         """
         global_cond = None
         if batch.constant_scalars is not None:
@@ -152,6 +155,12 @@ class EncoderWithCond(Encoder):
                 global_cond = bc
             else:
                 global_cond = torch.cat([global_cond, bc], dim=1)
+        if batch.constant_doy_scalars is not None:
+            doy = batch.constant_doy_scalars
+            if global_cond is None:
+                global_cond = doy
+            else:
+                global_cond = torch.cat([global_cond, doy], dim=1)
 
         return global_cond
 
@@ -169,6 +178,7 @@ class EncoderWithCond(Encoder):
             Encoded tensor in the latent space with shape (B, *, C_latent) with optional
             conditioning tensor of shape (B, D).
         """
+        batch = self.preprocess(batch)  # Apply pre-encoding transformations (e.g., mask concat)
         return (self.encode(batch), self.encode_cond(batch))
 
     def encode_batch(
@@ -183,6 +193,7 @@ class EncoderWithCond(Encoder):
 
         # Create a new batch with output fields as input fields to prevent mutation
         output_batch = replace(batch, input_fields=batch.output_fields.clone())
+        output_batch = self.preprocess(output_batch)  # Apply same preprocessing to output batch
 
         encoded_outputs = self.encode(output_batch)
         if isinstance(encoded_outputs, tuple):

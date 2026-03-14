@@ -1,7 +1,9 @@
 import math
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import cast
 
+import torch
 from azula.nn.layers import ConvNd, Patchify
 from einops import rearrange
 from torch import Tensor, nn
@@ -94,8 +96,10 @@ class DCEncoder(EncoderWithCond):
         ffn_out_scale: float | None = None,
         saturation: str | None = None,
         saturation_scale: float = 5.0,
+        with_constants: bool = False,
     ) -> None:
         super().__init__()
+        self.with_constants = with_constants
 
         attention_heads = attention_heads or {}
         assert len(hid_blocks) == len(hid_channels)
@@ -204,6 +208,16 @@ class DCEncoder(EncoderWithCond):
         msg = f"Unknown saturation mode: {self.saturation}"
         raise ValueError(msg)
 
+    def preprocess(self, batch: Batch) -> Batch:
+        """Concatenate spatial constant fields into input when with_constants=True."""
+        if self.with_constants and batch.constant_fields is not None:
+            b, t, w, h, c_in = batch.input_fields.shape
+            c_const = batch.constant_fields.shape[-1]
+            mask_expanded = batch.constant_fields.unsqueeze(1).expand(b, t, w, h, c_const)
+            input_with_mask = torch.cat([batch.input_fields, mask_expanded], dim=-1)
+            return replace(batch, input_fields=input_with_mask, constant_fields=None)
+        return batch
+
     def encode(self, batch: Batch) -> TensorBTSC:
         """Encode input batch to latent representation.
 
@@ -218,6 +232,7 @@ class DCEncoder(EncoderWithCond):
             Encoded latent tensor with shape (B, T, spatial_reduced..., C_o).
 
         """
+        batch = self.preprocess(batch)
         return self.encode_tensor(batch.input_fields)
 
     def encode_tensor(self, x: TensorBTSC) -> TensorBTSC:

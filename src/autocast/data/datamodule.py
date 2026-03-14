@@ -181,6 +181,7 @@ class SpatioTemporalDataModule(LightningDataModule):
         normalization_path: None | str = None,
         normalization_stats: dict | DictConfig | None = None,
         num_workers: int | None = None,
+        doy_offset: int = 0,
     ):
         super().__init__()
         self.verbose = verbose
@@ -213,6 +214,7 @@ class SpatioTemporalDataModule(LightningDataModule):
             normalization_type=normalization_type,
             normalization_path=normalization_path,
             normalization_stats=normalization_stats,
+            doy_offset=doy_offset,
         )
 
         # # Compute normalization from training data if requested
@@ -244,6 +246,7 @@ class SpatioTemporalDataModule(LightningDataModule):
             normalization_type=normalization_type,
             normalization_path=normalization_path,
             normalization_stats=normalization_stats,
+            doy_offset=doy_offset,
         )
         self.test_dataset = dataset_cls(
             data_path=str(test_path) if test_path is not None else None,
@@ -260,6 +263,7 @@ class SpatioTemporalDataModule(LightningDataModule):
             normalization_type=normalization_type,
             normalization_path=normalization_path,
             normalization_stats=normalization_stats,
+            doy_offset=doy_offset,
         )
 
         self.batch_size = batch_size
@@ -280,6 +284,7 @@ class SpatioTemporalDataModule(LightningDataModule):
                 normalization_type=normalization_type,
                 normalization_path=normalization_path,
                 normalization_stats=normalization_stats,
+                doy_offset=doy_offset,
             )
             self.rollout_test_dataset = dataset_cls(
                 data_path=str(test_path) if test_path is not None else None,
@@ -296,6 +301,7 @@ class SpatioTemporalDataModule(LightningDataModule):
                 normalization_type=normalization_type,
                 normalization_path=normalization_path,
                 normalization_stats=normalization_stats,
+                doy_offset=doy_offset,
             )
 
     def train_dataloader(self) -> DataLoader:

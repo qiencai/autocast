@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --account=vjgo8416-ai-phy-sys
 #SBATCH --qos turing
-#SBATCH --time 4:00:00
+#SBATCH --time 24:00:00
 #SBATCH --nodes 1
 #SBATCH --gpus 1
-#SBATCH --mem=64G
+#SBATCH --mem=0
 #SBATCH --job-name epd_masked_osisaf
 
 set -e
