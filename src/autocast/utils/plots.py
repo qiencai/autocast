@@ -36,6 +36,8 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     channel_names: list[str] | None = None,
     preserve_aspect: bool = False,
     land_mask: np.ndarray | None = None,
+    clim: torch.Tensor | np.ndarray | None = None,
+    persist: torch.Tensor | np.ndarray | None = None,
 ):
     """Create a video comparing ground truth and predicted spatiotemporal time series.
 
@@ -109,14 +111,30 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
         diff_batch = true_batch - pred_batch
         primary_rows.append(pred_batch)
 
+    # Extract climatology batch (pre-indexed, shape (T, W, H, C))
+    clim_batch: np.ndarray | None = None
+    clim_diff_batch: np.ndarray | None = None
+    if clim is not None:
+        clim_batch = clim.detach().cpu().numpy() if isinstance(clim, torch.Tensor) else np.asarray(clim)
+        clim_diff_batch = true_batch - clim_batch
+
+    # Extract persistence batch (pre-indexed, shape (T, W, H, C))
+    persist_batch: np.ndarray | None = None
+    persist_diff_batch: np.ndarray | None = None
+    if persist is not None:
+        persist_batch = persist.detach().cpu().numpy() if isinstance(persist, torch.Tensor) else np.asarray(persist)
+        persist_diff_batch = true_batch - persist_batch
+
     # Set-up rows
     n_primary_rows = len(primary_rows)
 
     def _range_from_arrays(arrays):
-        min_val = vmin if vmin is not None else min(float(arr.min()) for arr in arrays)
-        max_val = vmax if vmax is not None else max(float(arr.max()) for arr in arrays)
+        # Default to physical 0–100 range; caller can override via vmin/vmax args.
+        min_val = vmin if vmin is not None else 0.0
+        max_val = vmax if vmax is not None else 100.0
         return min_val, max_val
 
+    # Left-side panels: per-(row, channel) norms controlled by colorbar_mode.
     norms: list[list[Normalize | None]] = [[None] * C for _ in range(n_primary_rows)]
 
     if colorbar_mode_str == "column":
@@ -144,11 +162,39 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
                 min_val, max_val = _range_from_arrays([row[:, :, :, ch]])
                 norms[row_idx][ch] = Normalize(vmin=min_val, vmax=max_val)
 
-    diff_norm = None
+    diff_norm: TwoSlopeNorm | None = None
     if diff_batch is not None:
-        diff_max = float(np.abs(diff_batch).max())
-        diff_span = diff_max if diff_max > 0 else 1e-9
+        _, diff_span = _range_from_arrays([diff_batch])
+        diff_span = diff_span if diff_span > 0 else 1e-9
         diff_norm = TwoSlopeNorm(vmin=-diff_span, vcenter=0, vmax=diff_span)
+
+    # Climatology panels: one Normalize per channel using the same physical range.
+    conc_norms: list[Normalize] = []
+    for ch in range(C):
+        mn, mx = _range_from_arrays([true_batch[:, :, :, ch]])
+        conc_norms.append(Normalize(vmin=mn, vmax=mx))
+
+    # Clim diff: share the same symmetric span as the model diff (both reference 0–100%).
+    clim_diff_norm: TwoSlopeNorm | None = None
+    if clim_diff_batch is not None:
+        if diff_norm is not None:
+            clim_diff_norm = diff_norm
+        else:
+            _, _span = _range_from_arrays([clim_diff_batch])
+            _span = _span if _span > 0 else 1e-9
+            clim_diff_norm = TwoSlopeNorm(vmin=-_span, vcenter=0, vmax=_span)
+
+    # Persistence diff: reuse the same symmetric norm for visual consistency.
+    persist_diff_norm: TwoSlopeNorm | None = None
+    if persist_diff_batch is not None:
+        if diff_norm is not None:
+            persist_diff_norm = diff_norm
+        elif clim_diff_norm is not None:
+            persist_diff_norm = clim_diff_norm
+        else:
+            _, _span = _range_from_arrays([persist_diff_batch])
+            _span = _span if _span > 0 else 1e-9
+            persist_diff_norm = TwoSlopeNorm(vmin=-_span, vcenter=0, vmax=_span)
 
     rows_to_plot: list[tuple[np.ndarray | Tensor | None, str, str | LinearSegmentedColormap]] = [
         (true_batch, "Ground Truth", cmap),
@@ -162,6 +208,13 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
         rows_to_plot.append((coverage_batch, coverage_label, "gray"))
 
     total_rows = len(rows_to_plot)
+    # When extra baseline columns are present, lock the main content to 3 rows
+    # (GT / Pred / Diff) and add one column group per baseline.
+    n_extra_groups = int(clim_batch is not None) + int(persist_batch is not None)
+    if n_extra_groups > 0:
+        total_rows = 3
+        rows_to_plot = rows_to_plot[:3]
+    n_cols = (1 + n_extra_groups) * C
 
     _base = 4.0
     if preserve_aspect and len(spatial) == 2:
@@ -184,8 +237,8 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
         panel_width = _base
         panel_height = _base
 
-    fig = plt.figure(figsize=(C * panel_width, total_rows * panel_height))
-    gs = GridSpec(total_rows, C, figure=fig, hspace=0.3, wspace=0.3)
+    fig = plt.figure(figsize=(n_cols * panel_width + 1.5, total_rows * panel_height))
+    gs = GridSpec(total_rows, n_cols, figure=fig, hspace=0.3, wspace=0.3)
 
     axes = []
     images = []
@@ -241,19 +294,16 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
 
             # Overlay land regions in grey (static — land doesn't change over time)
             if land_mask is not None:
-                # land_mask is (W, H) with 0=land; imshow expects (H, W)
-                land_hw = land_mask.T
+                # land_mask is in native data (W, H) coordinates, same as the
+                # ice frame — no transpose needed here.
                 grey_img = np.ma.masked_where(
-                    land_hw == 1, np.full_like(land_hw, 0.5, dtype=float)
+                    land_mask == 1, np.full_like(land_mask, 0.5, dtype=float)
                 )
                 ax.imshow(grey_img, cmap="gray", vmin=0, vmax=1, aspect="auto")
 
             if row_idx == 0:
-                (
-                    ax.set_title(f"Channel {ch}")
-                    if channel_names is None
-                    else ax.set_title(f"{channel_names[ch]}")
-                )
+                ch_name = channel_names[ch] if channel_names is not None else "SIC"
+                ax.set_title(f"{ch_name} - Model")
             if ch == 0:
                 ax.set_ylabel(row_label)
 
@@ -263,11 +313,92 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
         axes.append(row_axes)
         images.append(row_images)
 
+    # Build climatology right-side panels
+    clim_axes: list[list] = []
+    clim_images: list[list] = []
+    if clim_batch is not None:
+        clim_layout = [
+            (true_batch, "Ground Truth", cmap, conc_norms),
+            (clim_batch, "Climatology", cmap, conc_norms),
+            (clim_diff_batch, "Difference (True - Clim)", "RdBu", [clim_diff_norm] * C),
+        ]
+        for row_idx, (data, row_label, row_cmap, row_norms) in enumerate(clim_layout):
+            row_ims: list = []
+            row_axs: list = []
+            for ch in range(C):
+                ax = fig.add_subplot(gs[row_idx, C + ch])
+                frame0 = _to_imshow_frame(data[0, :, :, ch])
+                norm = row_norms[ch]
+                im = ax.imshow(frame0, cmap=row_cmap, aspect="auto", norm=norm)
+                if land_mask is not None:
+                    grey_img = np.ma.masked_where(
+                        land_mask == 1, np.full_like(land_mask, 0.5, dtype=float)
+                    )
+                    ax.imshow(grey_img, cmap="gray", vmin=0, vmax=1, aspect="auto")
+                if row_idx == 0:
+                    ch_name = channel_names[ch] if channel_names is not None else "SIC"
+                    ax.set_title(f"{ch_name} - Climatology")
+                if ch == 0:
+                    ax.set_ylabel(row_label)
+                row_ims.append(im)
+                row_axs.append(ax)
+            clim_images.append(row_ims)
+            clim_axes.append(row_axs)
+
+    # Build persistence right-side panels (placed after clim columns)
+    persist_axes: list[list] = []
+    persist_images: list[list] = []
+    if persist_batch is not None:
+        persist_col_start = C * (1 + int(clim_batch is not None))
+        persist_layout = [
+            (true_batch, "Ground Truth", cmap, conc_norms),
+            (persist_batch, "Persistence", cmap, conc_norms),
+            (persist_diff_batch, "Difference (True - Persist)", "RdBu", [persist_diff_norm] * C),
+        ]
+        for row_idx, (data, row_label, row_cmap, row_norms) in enumerate(persist_layout):
+            row_ims: list = []
+            row_axs: list = []
+            for ch in range(C):
+                ax = fig.add_subplot(gs[row_idx, persist_col_start + ch])
+                frame0 = _to_imshow_frame(data[0, :, :, ch])
+                norm = row_norms[ch]
+                im = ax.imshow(frame0, cmap=row_cmap, aspect="auto", norm=norm)
+                if land_mask is not None:
+                    grey_img = np.ma.masked_where(
+                        land_mask == 1, np.full_like(land_mask, 0.5, dtype=float)
+                    )
+                    ax.imshow(grey_img, cmap="gray", vmin=0, vmax=1, aspect="auto")
+                if row_idx == 0:
+                    ch_name = channel_names[ch] if channel_names is not None else "SIC"
+                    ax.set_title(f"{ch_name} - Persistence")
+                if ch == 0:
+                    ax.set_ylabel(row_label)
+                row_ims.append(im)
+                row_axs.append(ax)
+            persist_images.append(row_ims)
+            persist_axes.append(row_axs)
+
     def _attach_colorbars():
         for row_idx, row_axes in enumerate(axes):
             for ch_idx, ax in enumerate(row_axes):
                 fig.colorbar(
                     images[row_idx][ch_idx],
+                    ax=ax,
+                    fraction=0.046,
+                    pad=0.04,
+                )
+        for row_idx, row_axs in enumerate(clim_axes):
+            for ch_idx, ax in enumerate(row_axs):
+                fig.colorbar(
+                    clim_images[row_idx][ch_idx],
+                    ax=ax,
+                    fraction=0.046,
+                    pad=0.04,
+                )
+        for row_idx, row_axs in enumerate(persist_axes):
+            for ch_idx, ax in enumerate(row_axs):
+                fig.colorbar(
+                    persist_images[row_idx][ch_idx],
                     ax=ax,
                     fraction=0.046,
                     pad=0.04,
@@ -291,10 +422,24 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
             if coverage_batch is not None:
                 coverage_row = 4 if pred_uq_batch is not None else 3
                 images[coverage_row][ch].set_array(coverage_batch[frame, :, :, ch])
+        if clim_images:
+            for ch in range(C):
+                clim_images[0][ch].set_array(_to_imshow_frame(true_batch[frame, :, :, ch]))
+                if clim_batch is not None:
+                    clim_images[1][ch].set_array(_to_imshow_frame(clim_batch[frame, :, :, ch]))
+                if clim_diff_batch is not None:
+                    clim_images[2][ch].set_array(_to_imshow_frame(clim_diff_batch[frame, :, :, ch]))
+        if persist_images:
+            for ch in range(C):
+                persist_images[0][ch].set_array(_to_imshow_frame(true_batch[frame, :, :, ch]))
+                if persist_batch is not None:
+                    persist_images[1][ch].set_array(_to_imshow_frame(persist_batch[frame, :, :, ch]))
+                if persist_diff_batch is not None:
+                    persist_images[2][ch].set_array(_to_imshow_frame(persist_diff_batch[frame, :, :, ch]))
         suptitle_text.set_text(
             f"{title} - Batch {batch_idx} - Time Step: {frame}/{T - 1}"
         )
-        return [img for row in images for img in row] + [suptitle_text]
+        return [img for row in images for img in row] + [img for row in clim_images for img in row] + [img for row in persist_images for img in row] + [suptitle_text]
 
     anim = animation.FuncAnimation(
         fig, update, frames=T, interval=1000 / fps, blit=False, repeat=True
@@ -675,6 +820,7 @@ def plot_metrics_vs_leadtime(
     title: str = "",
     save_path: str | None = None,
     clim_pred: torch.Tensor | None = None,
+    persist_pred: torch.Tensor | None = None,
 ) -> plt.Figure | None:
     """Plot per-lead-time metrics comparing model and climatology against ground truth.
 
@@ -719,6 +865,7 @@ def plot_metrics_vs_leadtime(
     pred_btsc = pred.unsqueeze(0).cpu().float()
     true_btsc = true.unsqueeze(0).cpu().float()
     clim_btsc = clim_pred.unsqueeze(0).cpu().float() if clim_pred is not None else None
+    persist_btsc = persist_pred.unsqueeze(0).cpu().float() if persist_pred is not None else None
 
     T = pred.shape[0]
     lead_times = list(range(1, T + 1))
@@ -751,6 +898,17 @@ def plot_metrics_vs_leadtime(
                 linestyle="--",
                 label="Climatology",
                 color="tomato",
+            )
+
+        if persist_btsc is not None:
+            persist_scores = _per_lead_time(persist_btsc, true_btsc, metric_cls)
+            ax.plot(
+                lead_times,
+                persist_scores,
+                marker="^",
+                linestyle=":",
+                label="Persistence",
+                color="darkorange",
             )
 
         ax.set_xlabel("Lead time (steps)")

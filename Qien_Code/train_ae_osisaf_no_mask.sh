@@ -1,17 +1,13 @@
 #!/bin/bash
 #SBATCH --account=vjgo8416-ai-phy-sys
 #SBATCH --qos turing
-#SBATCH --time 06:00:00
+#SBATCH --time 02:00:00
 #SBATCH --nodes 1
-#SBATCH --gpus 0
+#SBATCH --gpus 1
 #SBATCH --mem=0
-#SBATCH --job-name process_osisaf_full_interp
-#SBATCH --output=logs/process_osisaf_full_interp_%j.out
-#SBATCH --error=logs/process_osisaf_full_interp_%j.err
+#SBATCH --job-name ae_no_mask_osisaf
 
 set -e
-
-mkdir -p logs
 
 module purge
 module load baskerville
@@ -23,6 +19,9 @@ conda activate autocast
 
 cd /bask/projects/v/vjgo8416-ai-phy-sys/qqaa9560/code/autocast
 
-echo "Starting at $(date)"
-python scripts/process_osisaf_full.py
-echo "Finished at $(date)"
+/bask/projects/v/vjgo8416-ai-phy-sys/qqaa9560/.conda/envs/autocast/bin/python \
+  -m autocast.scripts.train.autoencoder \
+  experiment=seaice_autoencoder_no_mask \
+  trainer.accelerator=gpu \
+  trainer.devices=1 \
+  logging.wandb.enabled=true

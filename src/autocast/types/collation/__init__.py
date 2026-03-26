@@ -26,6 +26,7 @@ def collate_batches(samples: Sequence[Sample]) -> Batch:
     constant_scalars = _stack_optional("constant_scalars")
     constant_fields = _stack_optional("constant_fields")
     boundary_conditions = _stack_optional("boundary_conditions")
+    constant_doy_scalars = _stack_optional("constant_doy_scalars")
 
     return Batch(
         input_fields=input_fields,
@@ -33,6 +34,7 @@ def collate_batches(samples: Sequence[Sample]) -> Batch:
         constant_scalars=constant_scalars,
         constant_fields=constant_fields,
         boundary_conditions=boundary_conditions,
+        constant_doy_scalars=constant_doy_scalars,
     )
 
 

@@ -1,0 +1,47 @@
+# @package _global_
+# Autoencoder for sea ice using the FULL dataset (1979-2020).
+# Same architecture as seaice_autoencoder_with_mask:
+#   encoder takes SIC + land mask (2ch), decoder reconstructs SIC only (1ch).
+defaults:
+  - optional simulator: null
+  - optional optimizer: null
+  - optional experiment: null
+  - optional local_experiment: null
+  - override /datamodule: osisaf_nh_sic
+  - override /model: autoencoder
+  - override /trainer: default
+  - override /logging: wandb
+  - _self_
+
+seed: 42
+experiment_name: seaice_autoencoder_with_mask_full
+
+datamodule:
+  data_path: /bask/projects/v/vjgo8416-ai-phy-sys/qqaa9560/data/seaice/processed_osisaf_full
+  autoencoder_mode: true
+  batch_size: 8
+
+logging:
+  wandb:
+    enabled: true
+
+model:
+  encoder:
+    in_channels: null
+    with_constants: true   # concatenate land mask → 2ch input
+  decoder:
+    out_channels: null     # reconstruct SIC only (1ch)
+
+output:
+  checkpoint_name: seaice_autoencoder_with_mask_full.ckpt
+  checkpoint_path: null
+  save_config: true
+  skip_test: false
+
+trainer:
+  max_epochs: 60
+# trainer:
+#   max_epochs: 1
+#   limit_train_batches: 1
+#   limit_val_batches: 1
+#   limit_test_batches: 1

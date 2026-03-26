@@ -1,0 +1,40 @@
+# @package _global_
+# Autoencoder for sea ice: encoder takes SIC only (1ch), decoder reconstructs SIC (1ch).
+# No land mask / constant_fields used.
+defaults:
+  - optional simulator: null
+  - optional optimizer: null
+  - optional experiment: null
+  - optional local_experiment: null
+  - override /datamodule: osisaf_nh_sic
+  - override /model: autoencoder
+  - override /trainer: default
+  - override /logging: wandb
+  - _self_
+
+seed: 42
+experiment_name: seaice_autoencoder_no_mask
+
+datamodule:
+  autoencoder_mode: true
+  batch_size: 8
+
+logging:
+  wandb:
+    enabled: true
+
+model:
+  encoder:
+    in_channels: null
+    with_constants: false   # do NOT concatenate land mask
+  decoder:
+    out_channels: null      # reconstruct SIC only (1ch)
+
+output:
+  checkpoint_name: seaice_autoencoder_no_mask.ckpt
+  checkpoint_path: null
+  save_config: true
+  skip_test: false
+
+trainer:
+  max_epochs: 20

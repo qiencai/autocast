@@ -1,0 +1,31 @@
+# @package _global_
+defaults:
+  - optional simulator: null
+  - optional optimizer: null
+  - optional experiment: null
+  - optional local_experiment: null
+  - override /datamodule: osisaf_nh_sic
+  - override /model: autoencoder
+  - override /trainer: default
+  - override /logging: wandb
+  - _self_
+
+seed: 42
+experiment_name: seaice_autoencoder
+
+datamodule:
+  autoencoder_mode: true
+
+output:
+  checkpoint_name: seaice_autoencoder.ckpt
+  checkpoint_path: null  # Override checkpoint path (defaults to work_dir/checkpoint_name)
+  save_config: true
+  skip_test: false  # Skip running trainer.test() after training
+
+# hydra:
+#   searchpath:
+#     - file://${oc.env:PWD,.}/local_hydra
+#   run:
+#     dir: outputs/${experiment_name}
+#   job:
+#     chdir: true

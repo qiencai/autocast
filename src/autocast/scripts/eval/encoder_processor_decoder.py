@@ -320,6 +320,33 @@ def _render_rollouts(
                 )
                 names_for_plot = None
 
+            # Decode initialization DOY from cyclic scalars if available
+            init_doy: int | None = None
+            if (
+                hasattr(batch, "constant_doy_scalars")
+                and batch.constant_doy_scalars is not None
+                and sample_index < batch.constant_doy_scalars.shape[0]
+            ):
+                init_doy = _decode_init_doy(batch.constant_doy_scalars[sample_index])
+
+            # Build climatology predictions aligned to forecast lead times
+            # init_doy is 1-indexed (doy_offset=1 means Jan 1 = DOY 1), so the first
+            # forecast step is init_doy (e.g. 6 = Jan 6). The climatology array is
+            # 0-indexed (index 0 = Jan 1), so subtract 1 before indexing.
+            clim_preds_sample: torch.Tensor | None = None
+            if climatology is not None and init_doy is not None:
+                T_out = trues_mean.shape[1]
+                clim_idx = [(init_doy - 1 + t) % 365 for t in range(T_out)]
+                clim_preds_sample = climatology[clim_idx].cpu()  # (T, W, H, C)
+
+            # Build persistence baseline: repeat last input frame for all forecast steps
+            persist_preds_sample: torch.Tensor | None = None
+            if batch.input_fields is not None and sample_index < batch.input_fields.shape[0]:
+                last_frame = batch.input_fields[sample_index, -1].cpu()  # (W, H, C)
+                T_out = int(trues_mean.shape[1])
+                persist_preds_sample = last_frame.unsqueeze(0).expand(T_out, -1, -1, -1).clone()
+                # shape: (T, W, H, C)
+
             # Plot video
             plot_spatiotemporal_video(
                 true=trues_mean.cpu(),
@@ -333,6 +360,8 @@ def _render_rollouts(
                 channel_names=names_for_plot,
                 preserve_aspect=preserve_aspect,
                 land_mask=land_mask_np,
+                clim=clim_preds_sample,
+                persist=persist_preds_sample,
             )
             saved_paths.append(filename)
             rendered_batches.add(batch_idx)
@@ -341,26 +370,11 @@ def _render_rollouts(
             # --- Metrics vs lead-time plot ---
             _names_for_metrics = metric_names or ["mse", "rmse"]
 
-            # Decode initialization DOY from cyclic scalars if available
-            init_doy: int | None = None
-            if (
-                hasattr(batch, "constant_doy_scalars")
-                and batch.constant_doy_scalars is not None
-                and sample_index < batch.constant_doy_scalars.shape[0]
-            ):
-                init_doy = _decode_init_doy(batch.constant_doy_scalars[sample_index])
-
-            # Build climatology predictions aligned to forecast lead times
-            clim_preds_sample: torch.Tensor | None = None
-            if climatology is not None and init_doy is not None:
-                T_out = trues_mean.shape[1]
-                clim_idx = [(init_doy + t) % 365 for t in range(T_out)]
-                clim_preds_sample = climatology[clim_idx].cpu()  # (T, W, H, C)
-
-            # Build a human-readable title with the initialization date
+            # Build a human-readable title. init_doy is 1-indexed (Jan 1 = 1), so
+            # init_doy itself is the first forecast DOY; init_doy-1 is the last input.
             plot_title = f"Batch {batch_idx}, Sample {sample_index}"
             if init_doy is not None:
-                plot_title += f" — Init DOY {init_doy + 1}"
+                plot_title += f" — Forecast from DOY {init_doy} (init: DOY {init_doy - 1})"
 
             metrics_path = video_dir / f"metrics_batch_{batch_idx}_sample_{sample_index}.png"
             plot_metrics_vs_leadtime(
@@ -370,6 +384,7 @@ def _render_rollouts(
                 title=plot_title,
                 save_path=str(metrics_path),
                 clim_pred=clim_preds_sample,
+                persist_pred=persist_preds_sample,
             )
             log.info("Saved metrics-vs-leadtime plot to %s", metrics_path)
 

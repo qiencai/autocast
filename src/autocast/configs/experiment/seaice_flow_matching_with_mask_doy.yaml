@@ -1,0 +1,40 @@
+# @package _global_
+# Sea ice flow matching with land mask and date-of-year encoding
+defaults:
+  - override /datamodule: osisaf_nh_sic
+  - override /encoder@model.encoder: dc_deep_256_v2  # Spatial compression, preserves time dim
+  - override /decoder@model.decoder: dc_deep_256_v2  # Spatial decompression
+  - override /processor@model.processor: flow_matching
+  - _self_
+
+experiment_name: seaice_flow_matching_with_mask_doy
+
+datamodule:
+  use_normalization: false
+  batch_size: 8
+  doy_offset: 1  # All trajectories start Jan 1
+  data_path: /bask/projects/v/vjgo8416-ai-phy-sys/qqaa9560/data/seaice/processed_osisaf_full
+
+
+logging:
+  wandb:
+    enabled: true
+
+optimizer:
+  learning_rate: 0.00002
+
+model:
+  train_in_latent_space: true
+  apply_land_mask: true
+  land_mask_channel: 0
+  encoder:
+    with_constants: true  # AE was trained with SIC + land mask (in_channels=2)
+  processor:
+    backbone:
+      hid_channels: [512, 512, 512]
+
+trainer:
+  max_epochs: 100
+  # limit_train_batches: 1
+  # limit_val_batches: 1
+  # limit_test_batches: 1
