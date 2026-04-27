@@ -11,8 +11,16 @@ lightning_logs
 datasets
 slurm-*.out
 slurm-*.stats
+run_scripts
 logs
 wandb/
 slurm_scripts
 local_hydra/local_experiment/*.yaml
 !local_hydra/local_experiment/README.md
+core
+# AI rules currently ignored
+.clinerules
+.cursorrules
+.github/copilot-instructions.md
+.agent
+.codex

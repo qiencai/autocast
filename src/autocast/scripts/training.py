@@ -25,6 +25,39 @@ from autocast.scripts.setup import setup_autoencoder_model, setup_datamodule
 log = logging.getLogger(__name__)
 
 
+_VALID_MATMUL_PRECISIONS = {"highest", "high", "medium"}
+
+
+def apply_float32_matmul_precision(
+    config: DictConfig, default: str | None = None
+) -> None:
+    """Apply `torch.set_float32_matmul_precision` from config if set.
+
+    Accepts "highest" (pure f32), "high" (TF32 matmul, f32 accumulate), or
+    "medium" (TF32 matmul + accumulate). On Ampere+ GPUs, "high" gives most of
+    the TF32 throughput win while keeping f32 accumulation — a much safer
+    tradeoff than bf16-mixed for precision-sensitive objectives.
+
+    If the config key is unset (or null), `default` is used. If `default` is
+    also None, PyTorch's own default ("highest") is left untouched. Training
+    entrypoints pass `default=None` (opt-in); the eval entrypoint passes
+    `default="high"` for backward compatibility with the previous hardcoded
+    behavior.
+    """
+    precision = config.get("float32_matmul_precision")
+    if precision is None:
+        precision = default
+    if precision is None:
+        return
+    precision = str(precision)
+    if precision not in _VALID_MATMUL_PRECISIONS:
+        valid = sorted(_VALID_MATMUL_PRECISIONS)
+        msg = f"float32_matmul_precision must be one of {valid}, got {precision!r}"
+        raise ValueError(msg)
+    torch.set_float32_matmul_precision(precision)
+    log.info("Set torch.float32_matmul_precision to %r", precision)
+
+
 def _resolve_checkpoint_path(
     work_dir: Path,
     output_cfg: DictConfig | dict,
@@ -67,19 +100,26 @@ def _link_checkpoint_target_to_latest(trainer: L.Trainer, target_path: Path) -> 
     if source_path is None:
         return False
 
+    source_resolved = source_path.resolve()
     target_path.parent.mkdir(parents=True, exist_ok=True)
     if target_path.exists() or target_path.is_symlink():
+        try:
+            # If target already points to the latest checkpoint, nothing to do.
+            if target_path.resolve() == source_resolved:
+                return True
+        except OSError:
+            # Broken symlink or transient filesystem state; replace below.
+            pass
         target_path.unlink()
 
     try:
-        source_resolved = source_path.resolve()
         target_parent = target_path.parent.resolve()
         relative_source = Path(os.path.relpath(source_resolved, start=target_parent))
         target_path.symlink_to(relative_source)
-        log.info("Linked checkpoint %s -> %s", target_path, relative_source)
     except OSError:
-        shutil.copy2(source_path, target_path)
-        log.info("Copied checkpoint %s -> %s", source_path, target_path)
+        if target_path.exists() and target_path.resolve() == source_resolved:
+            return True
+        shutil.copy2(source_resolved, target_path)
 
     return True
 
@@ -102,7 +142,15 @@ def _resume_weights_only(
     ``trainer.max_time``: full-state resume may immediately re-trigger the stop
     condition based on restored loop progress.
     """
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    # PyTorch >=2.6 defaults torch.load(weights_only=True), which can reject
+    # regular Lightning checkpoints that include non-tensor Python objects in
+    # optimizer/callback state. For this trusted local resume path we need to
+    # deserialize the full checkpoint payload to extract `state_dict`.
+    checkpoint = torch.load(
+        checkpoint_path,
+        map_location="cpu",
+        weights_only=False,
+    )
     state_dict = checkpoint.get("state_dict") if isinstance(checkpoint, dict) else None
     if not isinstance(state_dict, dict):
         msg = f"Checkpoint missing state_dict: {checkpoint_path}"
@@ -148,6 +196,8 @@ class CheckpointAliasSymlinkCallback(Callback):
         self.target_path = Path(target_path)
 
     def _refresh_alias(self, trainer: L.Trainer):
+        if not trainer.is_global_zero:
+            return
         _link_checkpoint_target_to_latest(trainer, self.target_path)
 
     def on_train_epoch_end(self, trainer: L.Trainer, pl_module: L.LightningModule):
@@ -219,9 +269,14 @@ def _attach_reset_timer_callback(
 class TrainingTimerCallback(Callback):
     """Measures wall-clock training time and persists it to the checkpoint.
 
-    Records total training time and per-epoch durations.  The values are
-    stored via ``state_dict()`` so the eval script can read them directly
-    from the checkpoint's ``callbacks`` block.
+    Records total training time and per-epoch durations.  Each epoch
+    measurement spans the **full cycle** — training batches *and* the
+    subsequent validation loop — so that the ``time-epochs`` command can
+    accurately predict wall-clock budget consumption.
+
+    Epoch boundaries are measured from one ``on_train_epoch_start`` to the
+    next; the final epoch is closed out in ``on_train_end`` (which fires
+    after the last validation loop).
 
     Note
     ----
@@ -255,19 +310,40 @@ class TrainingTimerCallback(Callback):
         self, trainer: L.Trainer, pl_module: L.LightningModule
     ) -> None:
         del trainer, pl_module
-        self._epoch_start = perf_counter()
-
-    def on_train_epoch_end(
-        self, trainer: L.Trainer, pl_module: L.LightningModule
-    ) -> None:
-        del trainer, pl_module
+        now = perf_counter()
+        # Close out the *previous* epoch (training + validation + overhead).
         if self._epoch_start is not None:
-            self._epoch_times_s.append(perf_counter() - self._epoch_start)
+            self._epoch_times_s.append(now - self._epoch_start)
+        self._epoch_start = now
 
     def on_train_end(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
         del trainer, pl_module
+        now = perf_counter()
+        # Close out the final epoch (includes its validation loop).
+        if self._epoch_start is not None:
+            self._epoch_times_s.append(now - self._epoch_start)
         if self._train_start is not None:
-            self.training_runtime_total_s = perf_counter() - self._train_start
+            self.training_runtime_total_s = now - self._train_start
+
+        # Emit human-readable timing info into stdout/stderr logs so timing
+        # runs are inspectable without loading timing.ckpt.
+        if self._epoch_times_s:
+            n = len(self._epoch_times_s)
+            mean_epoch_s = sum(self._epoch_times_s) / n
+            min_epoch_s = min(self._epoch_times_s)
+            max_epoch_s = max(self._epoch_times_s)
+            log.info(
+                "TrainingTimerCallback: epochs=%d mean=%.1fs min=%.1fs max=%.1fs",
+                n,
+                mean_epoch_s,
+                min_epoch_s,
+                max_epoch_s,
+            )
+            if n <= 12:
+                log.info(
+                    "TrainingTimerCallback epoch_times_s: %s",
+                    ", ".join(f"{t:.1f}s" for t in self._epoch_times_s),
+                )
 
     def state_dict(self) -> dict:  # type: ignore[override]
         runtime_elapsed_s = self._current_elapsed_runtime_s()
@@ -303,6 +379,8 @@ def run_training(
     """Standardized training loop."""
     # Ensure work_dir is a Path
     work_dir = Path(work_dir)
+
+    apply_float32_matmul_precision(config)
 
     # Setup logger
     logging_cfg = config.get("logging")
@@ -356,7 +434,7 @@ def run_training(
         logger=wandb_logger,
     )
 
-    if output_cfg.get("save_config"):
+    if output_cfg.get("save_config") and trainer.is_global_zero:
         save_resolved_config(config, work_dir)
 
     resume_checkpoint = config.get("resume_from_checkpoint") or output_cfg.get(
@@ -410,21 +488,22 @@ def run_training(
         log.info("Starting training from scratch (no resume checkpoint).")
         trainer.fit(model=model, datamodule=datamodule)
 
-    # Run testing if not skipped
+    # Save stable checkpoint target (prefer callback checkpoint) immediately
+    # after fit so a checkpoint exists even if optional test later fails.
+    if trainer.is_global_zero:
+        _save_or_link_checkpoint_target(trainer, checkpoint_path)
+
+        # If the stable target is a symlink, replace with a final concrete checkpoint.
+        if checkpoint_path.is_symlink():
+            checkpoint_path.unlink()
+            trainer.save_checkpoint(checkpoint_path)
+
+    # Ensure non-zero ranks observe the finalized checkpoint before test.
+    trainer.strategy.barrier("checkpoint-alias-finalize")
+
+    # Run testing if not skipped.
     if not skip_test:
         trainer.test(model=model, datamodule=datamodule)
-
-    # Save stable checkpoint target (prefer callback checkpoint)
-    _save_or_link_checkpoint_target(trainer, checkpoint_path)
-
-    # If the stable target is a symlink, replace it with a final concrete checkpoint.
-    if checkpoint_path.is_symlink():
-        checkpoint_path.unlink()
-        trainer.save_checkpoint(checkpoint_path)
-        log.info(
-            "Overwrote checkpoint symlink with final checkpoint at %s",
-            checkpoint_path.resolve(),
-        )
 
 
 @torch.no_grad()
@@ -488,6 +567,7 @@ def train_autoencoder(
 ) -> Path:
     """Train the autoencoder defined in `cfg` and return the checkpoint path."""
     log.info("Starting autoencoder experiment: %s", config.get("experiment_name"))
+    apply_float32_matmul_precision(config)
     L.seed_everything(config.get("seed", 42), workers=True)
 
     resolved_cfg = OmegaConf.to_container(config, resolve=True)
@@ -517,8 +597,9 @@ def train_autoencoder(
     trainer = instantiate(
         trainer_cfg, logger=wandb_logger, default_root_dir=str(work_dir)
     )
+    trainer.callbacks.append(TrainingTimerCallback())
     output_cfg = config.get("output", {})
-    if output_cfg.get("save_config", False):
+    if output_cfg.get("save_config", False) and trainer.is_global_zero:
         save_resolved_config(
             config, work_dir, filename="resolved_autoencoder_config.yaml"
         )
@@ -569,16 +650,18 @@ def train_autoencoder(
         log.info("Starting training from scratch (no resume checkpoint).")
         trainer.fit(model=model, datamodule=datamodule)
 
-    checkpoint_name = output_cfg.get("checkpoint_name", "autoencoder.ckpt")
-    checkpoint_target = Path(checkpoint_name)
-    checkpoint_path = (
-        checkpoint_target
-        if checkpoint_target.is_absolute()
-        else (work_dir / checkpoint_target)
+    checkpoint_path = _resolve_checkpoint_path(
+        work_dir,
+        output_cfg,
+        output_cfg.get("checkpoint_path"),
+        default_name="autoencoder.ckpt",
     )
-    trainer.save_checkpoint(checkpoint_path)
-    log.info("Saved checkpoint to %s", checkpoint_path.resolve())
+    if trainer.is_global_zero:
+        trainer.save_checkpoint(checkpoint_path)
+        log.info("Saved checkpoint to %s", checkpoint_path.resolve())
 
-    _save_reconstructions(model, datamodule, work_dir)
+        _save_reconstructions(model, datamodule, work_dir)
+
+    trainer.strategy.barrier("autoencoder-post-training-finalize")
 
     return checkpoint_path

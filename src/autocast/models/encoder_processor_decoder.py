@@ -127,7 +127,11 @@ class EncoderProcessorDecoder(
     def training_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
         loss, y_pred = self.loss(batch)
         self.log(
-            "train_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
+            "train_loss",
+            loss,
+            prog_bar=True,
+            sync_dist=True,
+            batch_size=batch.input_fields.shape[0],
         )
         if self.train_metrics is not None:
             if y_pred is None:
@@ -141,7 +145,11 @@ class EncoderProcessorDecoder(
     def validation_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
         loss, y_pred = self.loss(batch)
         self.log(
-            "val_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
+            "val_loss",
+            loss,
+            prog_bar=True,
+            sync_dist=True,
+            batch_size=batch.input_fields.shape[0],
         )
         if self.val_metrics is not None:
             if y_pred is None:
@@ -157,7 +165,11 @@ class EncoderProcessorDecoder(
     def test_step(self, batch: Batch, batch_idx: int) -> Tensor:  # noqa: ARG002
         loss, y_pred = self.loss(batch)
         self.log(
-            "test_loss", loss, prog_bar=True, batch_size=batch.input_fields.shape[0]
+            "test_loss",
+            loss,
+            prog_bar=True,
+            sync_dist=True,
+            batch_size=batch.input_fields.shape[0],
         )
         if self.test_metrics is not None:
             if y_pred is None:
