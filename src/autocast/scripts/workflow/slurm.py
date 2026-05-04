@@ -124,9 +124,9 @@ def _load_preset_launcher_cfg(overrides: list[str]) -> dict:
             return {}
         distributed = _extract_distributed_preset_name(raw)
         merged = (
-            OmegaConf.merge(_load_distributed_cfg(distributed), raw)
+            OmegaConf.merge(_load_distributed_cfg(distributed), OmegaConf.create(raw))
             if distributed
-            else raw
+            else OmegaConf.create(raw)
         )
         cfg = OmegaConf.to_container(merged, resolve=False)
         if not isinstance(cfg, dict):

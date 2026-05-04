@@ -133,7 +133,7 @@ def plot_spatiotemporal_video(  # noqa: PLR0915, PLR0912
     def _range_from_arrays(arrays):
         # Default to physical 0–100 range; caller can override via vmin/vmax args.
         min_val = vmin if vmin is not None else 0.0
-        max_val = vmax if vmax is not None else 100.0
+        max_val = vmax if vmax is not None else 1.0
         return min_val, max_val
 
     # Left-side panels: per-(row, channel) norms controlled by colorbar_mode.

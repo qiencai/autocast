@@ -181,11 +181,13 @@ class SpatioTemporalDataModule(LightningDataModule):
         normalization_stats: dict | DictConfig | None = None,
         num_workers: int | None = None,
         doy_offset: int = 0,
+        output_channel_idxs: tuple[int, ...] | list[int] | None = None,
     ):
         super().__init__()
         self.verbose = verbose
         self.use_normalization = use_normalization
         self.autoencoder_mode = autoencoder_mode
+        self.output_channel_idxs = tuple(output_channel_idxs) if output_channel_idxs is not None else None
         # Auto-detect num_workers based on available CPUs, capped at 8
         self.num_workers = (
             num_workers if num_workers is not None else min(os.cpu_count() or 1, 8)
@@ -214,6 +216,7 @@ class SpatioTemporalDataModule(LightningDataModule):
             normalization_path=normalization_path,
             normalization_stats=normalization_stats,
             doy_offset=doy_offset,
+            output_channel_idxs=self.output_channel_idxs,
         )
 
         # # Compute normalization from training data if requested
@@ -246,6 +249,7 @@ class SpatioTemporalDataModule(LightningDataModule):
             normalization_path=normalization_path,
             normalization_stats=normalization_stats,
             doy_offset=doy_offset,
+            output_channel_idxs=self.output_channel_idxs,
         )
         self.test_dataset = dataset_cls(
             data_path=str(test_path) if test_path is not None else None,
@@ -263,14 +267,20 @@ class SpatioTemporalDataModule(LightningDataModule):
             normalization_path=normalization_path,
             normalization_stats=normalization_stats,
             doy_offset=doy_offset,
+            output_channel_idxs=self.output_channel_idxs,
         )
 
         self.batch_size = batch_size
 
         if not self.autoencoder_mode:
+            # Reuse already-loaded tensors to avoid loading 56.7+7.1 GB again from disk.
             self.rollout_val_dataset = dataset_cls(
-                data_path=str(train_path) if train_path is not None else None,
-                data=data["train"] if data is not None else None,
+                data_path=None,
+                data={
+                    "data": self.train_dataset.data,
+                    "constant_scalars": self.train_dataset.constant_scalars,
+                    "constant_fields": self.train_dataset.constant_fields,
+                } if data is None else data["train"],
                 n_steps_input=n_steps_input,
                 n_steps_output=n_steps_output,
                 stride=stride,
@@ -285,8 +295,12 @@ class SpatioTemporalDataModule(LightningDataModule):
                 doy_offset=doy_offset,
             )
             self.rollout_test_dataset = dataset_cls(
-                data_path=str(test_path) if test_path is not None else None,
-                data=data["test"] if data is not None else None,
+                data_path=None,
+                data={
+                    "data": self.test_dataset.data,
+                    "constant_scalars": self.test_dataset.constant_scalars,
+                    "constant_fields": self.test_dataset.constant_fields,
+                } if data is None else data["test"],
                 n_steps_input=n_steps_input,
                 n_steps_output=n_steps_output,
                 stride=stride,

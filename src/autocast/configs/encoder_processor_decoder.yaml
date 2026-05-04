@@ -20,7 +20,7 @@ umask: "0002"
 # - "high": TF32 matmul with f32 accumulate (~2-3x throughput on Ampere+, safer
 #   than bf16-mixed since accumulation stays f32).
 # - "medium": TF32 matmul + TF32 accumulate (faster still, less safe).
-float32_matmul_precision: null
+float32_matmul_precision: high
 
 train_eval:
   checkpoint: null

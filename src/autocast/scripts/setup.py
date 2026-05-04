@@ -706,6 +706,7 @@ def setup_epd_model(
         "loss_func": loss_func,
         "input_noise_injector": noise_injector,
         "norm": norm,
+        "output_channel_idxs": getattr(datamodule, "output_channel_idxs", None),
     }
     _maybe_add_metric_overrides(kwargs, model_config)
     if is_ensemble:

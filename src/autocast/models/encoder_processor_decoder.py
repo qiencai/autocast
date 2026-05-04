@@ -44,6 +44,8 @@ class EncoderProcessorDecoder(
         train_in_latent_space: bool = False,
         freeze_encoder_decoder: bool = False,
         loss_func: nn.Module | None = None,
+        autoregressive_train_steps: int = 0,
+        predict_delta: bool = False,
         train_metrics: Sequence[Metric] | None = [],
         val_metrics: Sequence[Metric] | None = None,
         test_metrics: Sequence[Metric] | None = None,
@@ -71,6 +73,8 @@ class EncoderProcessorDecoder(
         if self.train_in_latent_space or self.freeze_encoder_decoder:
             self.encoder_decoder.freeze()
         self.loss_func = loss_func
+        self.autoregressive_train_steps = autoregressive_train_steps
+        self.predict_delta = predict_delta
 
         self.train_metrics = self._build_metrics(train_metrics, "train_")
         self.val_metrics = self._build_metrics(val_metrics, "val_")
@@ -106,9 +110,39 @@ class EncoderProcessorDecoder(
         encoded, global_cond = self.encoder_decoder.encoder.encode_with_cond(batch)
         mapped = self.processor.map(encoded, global_cond)
         decoded = self.encoder_decoder.decoder.decode(mapped)
+        if self.predict_delta:
+            # Model predicts increment; add last input frame as residual.
+            # last_input: (B, 1, *spatial, C) — broadcasts over T_out steps.
+            last_input = batch.input_fields[:, -1:, ...]
+            decoded = decoded + last_input
         return decoded
 
     def loss(self, batch: Batch) -> tuple[Tensor, Tensor | None]:
+        if self.autoregressive_train_steps > 0:
+            if self.loss_func is None:
+                msg = "loss_func must be provided for autoregressive multi-step loss."
+                raise ValueError(msg)
+            current_batch = self._clone_batch(batch)
+            total_loss = torch.zeros(1, device=batch.input_fields.device)
+            steps_computed = 0
+            y_pred = None
+            for _ in range(self.autoregressive_train_steps):
+                y_pred = self(current_batch)
+                true_slice, should_record = self._true_slice(current_batch, self.stride)
+                if not should_record:
+                    break
+                total_loss = total_loss + self.loss_func(y_pred, true_slice)
+                steps_computed += 1
+                rand_val = torch.rand(1, device=y_pred.device).item()
+                if true_slice.numel() > 0 and rand_val < self.teacher_forcing_ratio:
+                    next_input = true_slice
+                else:
+                    next_input = y_pred  # no detach — gradients flow through rollout
+                if next_input.shape[1] < self.stride:
+                    break
+                current_batch = self._advance_batch(current_batch, next_input, self.stride)
+            loss = total_loss / max(steps_computed, 1)
+            return loss, y_pred
         if self.train_in_latent_space:
             batch = self._apply_input_noise(batch)
             encoded_batch = self.encoder_decoder.encoder.encode_batch(batch)

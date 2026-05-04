@@ -713,6 +713,14 @@ def _render_rollouts(  # noqa: PLR0912
                 trues_mean = trues
                 preds_uq = None
 
+            # Align ground-truth channels to prediction channels for plotting.
+            # Rollout datasets may return all input channels in output_fields
+            # (no output_channel_idxs applied), while preds only contains
+            # the model output channels.
+            if trues_mean.shape[-1] != preds_mean.shape[-1]:
+                C_pred = preds_mean.shape[-1]
+                trues_mean = trues_mean[..., :C_pred]
+
             # Extract land mask from constant_fields (channel 0 = land mask, 0=land 1=ocean)
             # Might need to be fixed: assuming land mask is channel 0 in constant_fields. If more constant fields are added or if the land mask is not binary, this logic will need to be updated to make sure the correct channel is used.
             land_mask_np = None
@@ -753,15 +761,29 @@ def _render_rollouts(  # noqa: PLR0912
                 clim_idx = [(init_doy - 1 + t) % 365 for t in range(T_out)]
                 clim_preds_sample = climatology[clim_idx].cpu()  # (T, W, H, C)
 
-            # Build persistence baseline: repeat last input frame for all forecast steps
+            # Build persistence baseline: repeat last input frame for all forecast steps.
+            # input_fields is normalized, so denormalize it to match trues/preds scale.
+            # Also select only the output channels to match preds channel count.
             persist_preds_sample: torch.Tensor | None = None
             if batch.input_fields is not None and sample_index < batch.input_fields.shape[0]:
                 last_frame = batch.input_fields[sample_index, -1].cpu()  # (W, H, C)
+                # Denormalize: unsqueeze to (1, 1, W, H, C) for denormalize_tensor, then squeeze back
+                last_frame_denorm = model.denormalize_tensor(
+                    last_frame.unsqueeze(0).unsqueeze(0)
+                ).squeeze(0).squeeze(0)  # (W, H, C)
+                # Select output channels only (to match preds)
+                C_pred = preds_mean.shape[-1]
+                output_channel_idxs = getattr(model, "output_channel_idxs", None)
+                if output_channel_idxs is not None:
+                    last_frame_denorm = last_frame_denorm[..., list(output_channel_idxs)]
+                else:
+                    last_frame_denorm = last_frame_denorm[..., :C_pred]
                 T_out = int(trues_mean.shape[1])
-                persist_preds_sample = last_frame.unsqueeze(0).expand(T_out, -1, -1, -1).clone()
-                # shape: (T, W, H, C)
+                persist_preds_sample = last_frame_denorm.unsqueeze(0).expand(T_out, -1, -1, -1).clone()
+                # shape: (T, W, H, C_pred)
 
             # Plot video
+            filename = video_dir / f"batch{batch_idx}_sample{sample_index}.{fmt}"
             plot_spatiotemporal_video(
                 true=trues_mean.cpu(),
                 pred=preds_mean.cpu(),
@@ -778,6 +800,8 @@ def _render_rollouts(  # noqa: PLR0912
                 persist=persist_preds_sample,
 
             )
+            saved_paths.append(filename)
+            rendered_targets.add(batch_idx)
 
             # --- Metrics vs lead-time plot ---
             _names_for_metrics = metric_names or ["mse", "rmse"]
@@ -801,7 +825,7 @@ def _render_rollouts(  # noqa: PLR0912
             log.info("Saved metrics-vs-leadtime plot to %s", metrics_path)
 
     # Check for any missing batches that were requested but not rendered
-    missing = targets - rendered_batches
+    missing = targets - rendered_targets
     for batch_idx in sorted(missing):
         log.warning("Requested batch %s was not found in the dataloader.", batch_idx)
 
@@ -2222,7 +2246,12 @@ def run_evaluation(cfg: DictConfig, work_dir: Path | None = None) -> None:  # no
                     return None, None
 
                 min_len = min(preds.shape[1], trues.shape[1])
-                return preds[:, :min_len], trues[:, :min_len]
+                preds_out = preds[:, :min_len]
+                trues_out = trues[:, :min_len]
+                # Align ground-truth channels to prediction channels.
+                if trues_out.shape[-1] != preds_out.shape[-1]:
+                    trues_out = trues_out[..., :preds_out.shape[-1]]
+                return preds_out, trues_out
 
             rollout_predict: Callable[[Any], Any]
             if resolved_eval_path == EVAL_PATH_ENCODE_ONCE:

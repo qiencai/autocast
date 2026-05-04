@@ -50,6 +50,7 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         normalization_path: str | None = None,
         normalization_stats: dict | DictConfig | None = None,
         doy_offset: int = 0,
+        output_channel_idxs: tuple[int, ...] | list[int] | None = None,
     ):
         """
         Initialize the dataset.
@@ -135,6 +136,7 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
         self.n_steps_output = n_steps_output
         self.stride = stride
         self.channel_idxs = channel_idxs
+        self.output_channel_idxs = tuple(output_channel_idxs) if output_channel_idxs is not None else None
 
         # Destructured here
         (
@@ -242,7 +244,19 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
             with h5py.File(self.data_path, "r") as f:
                 self._from_f(f)
         if self.data_path.endswith(".pt"):
-            self._from_f(torch.load(self.data_path))
+            loaded = torch.load(self.data_path, map_location="cpu")
+            if isinstance(loaded, torch.Tensor):
+                # Raw tensor file: assign data directly, load constant_fields.pt if present
+                self.data = torch.nan_to_num(loaded.to(self.dtype), nan=0.0)
+                self.constant_scalars = None
+                import os as _os
+                cf_path = _os.path.join(_os.path.dirname(self.data_path), "constant_fields.pt")
+                if _os.path.exists(cf_path):
+                    self.constant_fields = torch.load(cf_path, map_location="cpu").to(self.dtype)
+                else:
+                    self.constant_fields = None
+            else:
+                self._from_f(loaded)
 
     def parse_data(self, data: dict | None):
         """Parse data from a dictionary."""
@@ -296,6 +310,10 @@ class SpatioTemporalDataset(Dataset, BatchMixin):
             if input_fields_list:
                 input_fields = torch.cat(input_fields_list, dim=-1)
                 output_fields = torch.cat(output_fields_list, dim=-1)
+
+        # Slice output to requested channels only (e.g. SIC-only prediction)
+        if self.output_channel_idxs is not None:
+            output_fields = output_fields[..., list(self.output_channel_idxs)]
 
         item = {
             "input_fields": input_fields,
