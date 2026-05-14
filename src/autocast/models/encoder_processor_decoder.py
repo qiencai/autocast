@@ -45,7 +45,7 @@ class EncoderProcessorDecoder(
         freeze_encoder_decoder: bool = False,
         loss_func: nn.Module | None = None,
         autoregressive_train_steps: int = 0,
-        predict_delta: bool = False,
+        predict_incremental_diff: bool = False,
         train_metrics: Sequence[Metric] | None = [],
         val_metrics: Sequence[Metric] | None = None,
         test_metrics: Sequence[Metric] | None = None,
@@ -74,7 +74,7 @@ class EncoderProcessorDecoder(
             self.encoder_decoder.freeze()
         self.loss_func = loss_func
         self.autoregressive_train_steps = autoregressive_train_steps
-        self.predict_delta = predict_delta
+        self.predict_incremental_diff = predict_incremental_diff
 
         self.train_metrics = self._build_metrics(train_metrics, "train_")
         self.val_metrics = self._build_metrics(val_metrics, "val_")
@@ -110,7 +110,7 @@ class EncoderProcessorDecoder(
         encoded, global_cond = self.encoder_decoder.encoder.encode_with_cond(batch)
         mapped = self.processor.map(encoded, global_cond)
         decoded = self.encoder_decoder.decoder.decode(mapped)
-        if self.predict_delta:
+        if self.predict_incremental_diff:
             # Model predicts increment; add last input frame as residual.
             # last_input: (B, 1, *spatial, C) — broadcasts over T_out steps.
             last_input = batch.input_fields[:, -1:, ...]
@@ -240,6 +240,16 @@ class EncoderProcessorDecoder(
                 if batch.constant_doy_scalars is not None
                 else None
             ),
+            forcing_fields_seq=(
+                batch.forcing_fields_seq.clone()
+                if batch.forcing_fields_seq is not None
+                else None
+            ),
+            doy_seq=(
+                batch.doy_seq.clone()
+                if batch.doy_seq is not None
+                else None
+            ),
         )
 
     def _predict(self, batch: Batch) -> Tensor:
@@ -295,6 +305,16 @@ class EncoderProcessorDecoder(
             constant_fields=batch.constant_fields,
             boundary_conditions=batch.boundary_conditions,
             constant_doy_scalars=self._advance_doy_scalars(batch.constant_doy_scalars, stride),
+            forcing_fields_seq=(
+                batch.forcing_fields_seq[:, stride:, ...]
+                if batch.forcing_fields_seq is not None and batch.forcing_fields_seq.shape[1] > stride
+                else None
+            ),
+            doy_seq=(
+                batch.doy_seq[:, stride:, :]
+                if batch.doy_seq is not None and batch.doy_seq.shape[1] > stride
+                else None
+            ),
         )
 
     @staticmethod
